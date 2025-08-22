@@ -133,7 +133,6 @@ Se registra en `suspicious_flags`, no bloquea.
 - Puntuación real `S` ajustada por margen de games (`detalle_set`).  
 - Factor de sets `f_sets` (2–0, 2–1, 0–2).  
 - K dinámico (experiencia + diferencia de niveles).  
-- Fórmula:  ΔR_team = K * (S − E) * f_sets
-
+- Fórmula:  ΔR_team = K * (S − E) * f_sets.
 - El delta se reparte igual entre los 2 jugadores del equipo.  
 - Se insertan 4 filas en `rating_history` (una por jugador).
