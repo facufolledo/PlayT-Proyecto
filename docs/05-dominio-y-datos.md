@@ -6,7 +6,7 @@ Incluye logs simples de eventos e indicadores de abuso.
 
 ---
 
-##  Entidades
+## Entidades
 
 ### 1) `users`
 - `id` **PK** (bigint, autoincrement)  
@@ -25,12 +25,12 @@ Incluye logs simples de eventos e indicadores de abuso.
 - `updated_at`
 
 ### 3) `clubs`
-- `id` **PK**  
+- `id` **PK** (bigint, autoincrement)  
 - `nombre` (obligatorio)  
 - `ciudad`, `pais`
 
-### 4) `matches` (partido, siempre 2v2)
-- `id` **PK**  
+### 4) `matches` (partido, siempre 2v2 — no hay singles en pádel)
+- `id` **PK** (bigint, autoincrement)  
 - `club_id` **FK** → `clubs.id` (nullable si amistoso sin club)  
 - `fecha` (UTC)  
 - `estado` (`pendiente` | `reportado` | `confirmado` | `cancelado`)  
@@ -58,14 +58,14 @@ Incluye logs simples de eventos e indicadores de abuso.
 - `created_at` (UTC)
 
 ### 7) `rating_history`
-- `id` **PK**  
+- `id` **PK** (bigint, autoincrement)  
 - `user_id` **FK** → `users.id`  
 - `match_id` **FK** → `matches.id`  
 - `rating_antes`, `rating_despues`, `delta` (int)  
 - `created_at` (UTC)
 
 ### 8) `match_events` (auditoría básica)
-- `id` **PK**  
+- `id` **PK** (bigint, autoincrement)  
 - `match_id` **FK** → `matches.id`  
 - `actor_user_id` **FK** → `users.id`  
 - `tipo` (`create` | `report` | `confirm` | `cancel` | `reject` | `edit`)  
@@ -73,7 +73,7 @@ Incluye logs simples de eventos e indicadores de abuso.
 - `created_at` (UTC)
 
 ### 9) `suspicious_flags` (anti-abuso)
-- `id` **PK**  
+- `id` **PK** (bigint, autoincrement)  
 - `match_id` **FK** → `matches.id`  
 - `reason` (texto corto, ej: `repetidos_48h`)  
 - `created_at` (UTC)
@@ -102,7 +102,7 @@ Incluye logs simples de eventos e indicadores de abuso.
 
 ---
 
-##  Índices recomendados
+## Índices recomendados
 - `matches(club_id, fecha)` → listados por club/fecha.  
 - `rating_history(user_id, created_at desc)` → historial rápido.  
 - `users(rating desc)` → ranking global.  
@@ -110,12 +110,12 @@ Incluye logs simples de eventos e indicadores de abuso.
 
 ---
 
-##  Zona horaria
+## Zona horaria
 Todo en **UTC**. La aplicación convierte a hora local de La Rioja para mostrar.
 
 ---
 
-##  Borrados
+## Borrados
 **Borrado duro** en MVP.  
 (Opcional futuro: soft delete en `matches`/`results` si se requiere auditoría total).
 
@@ -127,12 +127,15 @@ Se registra en `suspicious_flags`, no bloquea.
 
 ---
 
-##  Nota sobre cálculo de rating
+## Nota sobre cálculo de rating
 - Rating de equipo = promedio de sus 2 jugadores.  
-- Expectativa `E` según diferencia de rating de equipos.  
-- Puntuación real `S` ajustada por margen de games (`detalle_set`).  
+- Expectativa `E` según diferencia de rating de equipos (fórmula tipo Elo).  
+- Puntuación real `S` ajustada por:
+  - **margen de games** (`detalle_set` → no es lo mismo 6-0 que 7-6).  
+  - **nivel relativo** de rivales (perder contra alguien mucho mejor resta poco, perder contra tu mismo nivel resta más).  
 - Factor de sets `f_sets` (2–0, 2–1, 0–2).  
-- K dinámico (experiencia + diferencia de niveles).  
-- Fórmula:  ΔR_team = K * (S − E) * f_sets.
-- El delta se reparte igual entre los 2 jugadores del equipo.  
+- K dinámico (ajustado según experiencia: jugadores nuevos suben/bajan más rápido).  
+- Fórmula base:  
+-ΔR_team = K * (S − E) * f_sets
+- El delta se reparte en partes iguales entre los 2 jugadores del equipo.  
 - Se insertan 4 filas en `rating_history` (una por jugador).
