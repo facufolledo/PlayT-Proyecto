@@ -6,7 +6,7 @@ Objetivos
 
 Brindar un MVP funcional que permita:
 Registrar jugadores.
-Crear partidos (single o doble).
+Crear partidos.
 Reportar resultados set por set.
 Confirmar resultados por el rival.
 Actualizar automáticamente el rating Elo de los jugadores.
