@@ -1,145 +1,135 @@
-# 🏅 Reglas de Rating (Dobles, estilo Playtomic)
+# 07 - Reglas de Rating (dobles) · Preset A + Suavizador no cero-sum
 
-## 1) Conceptos básicos
+## Objetivo
+Elo adaptado a pádel (siempre 2v2) con:
+- **Categoría inicial declarada** por el jugador (8va… Libre) → se asigna rating base.
+- Ajuste por **diferencia de nivel** (expectativa).
+- Ajuste por **margen de games** y **sets**.
+- **Suavizador no cero-sum**: en resultados “esperables”, el perdedor pierde **menos** de lo que gana el ganador; en **sorpresas**, el movimiento es mayor y compensa parte del suavizado.
 
-- **Rating (R):** valor numérico que representa nivel del jugador. Rango sugerido: 600–2400.  
-  Inicial: 1000.  
+---
 
-- **Partidos jugados (N):** cantidad de partidos confirmados de cada jugador.  
+## Categorías y rating inicial
+El jugador elige su categoría al registrarse:
 
-- **Equipo rating (R_team):** promedio de los 2 jugadores que forman el equipo.  
+| Categoría | Descripción breve                                       | Rating inicial |
+|-----------|----------------------------------------------------------|----------------|
+| 8va       | Principiante / princ. avanzado                           | 800            |
+| 7ma       | Golpes más sólidos, primeros smashes                     | 950            |
+| 6ta       | Mejor dominio y estrategia básica                         | 1100           |
+| 5ta       | Buenos jugadores, constancia                              | 1250           |
+| 4ta       | Muy buenos, técnica + estrategia                          | 1400           |
+| Libre     | Élite local (top provincia)                               | 1600           |
+
+> La **categoría actual** se recalcula en función del rating (cortes sugeridos: 8va <900; 7ma 900–1049; 6ta 1050–1199; 5ta 1200–1349; 4ta 1350–1499; Libre ≥1500).
+
+---
+
+## Parámetros base (igual que Preset A)
+- **K por experiencia (por jugador)**  
+  `<15: 32`, `15–59: 24`, `≥60: 18`
+- **Ajuste por diferencia de rating entre equipos (|Δteam|)**  
+  `>300 ⇒ ×0.85`, `>450 ⇒ ×0.75`
+- **Expectativa `E`** (Elo divisor 400):  
   \[
-  R_{team} = \frac{R_{j1} + R_{j2}}{2}
+  E = \frac{1}{1 + 10^{\frac{(R_{op} - R_{me})}{400}}}
   \]
-
-- **Resultado por games (S_games):**  
+- **Resultado real `S`** por **games totales**:  
   \[
   S = \frac{gw}{gw + gl}
   \]
-  donde `gw` = games ganados por el equipo, `gl` = games perdidos.  
-  Ejemplo:  
-  - 6–0 → S=1.0  
-  - 6–4 → S=0.6  
-  - 7–6 → S≈0.54  
-
-- **Resultado por sets (factor extra):**  
-  - Victoria 2–0 ⇒ `f_sets = 1.10`  
-  - Victoria 2–1 ⇒ `f_sets = 1.00`  
-  - Derrota 1–2 ⇒ `f_sets = 1.00`  
-  - Derrota 0–2 ⇒ `f_sets = 0.95`  
+- **Factor de sets `f_sets`**: 2–0 ⇒ ×1.10; 0–2 ⇒ ×0.95; 2–1/1–2 ⇒ ×1.00
+- **WO/Abandono**: ±4 (sin margen)
 
 ---
 
-## 2) Expectativa (E)
-
-Logística tipo Elo:
-
+## Δ base del equipo (antes del suavizador)
 \[
-E = \frac{1}{1 + 10^{\frac{(R_{op} - R_{me})}{400}}}
+\Delta R_{team}^{base} = K \cdot (S - E) \cdot f_{sets} \cdot f_{diff}
 \]
+- Si `Δbase > 0` ganó el **equipo A** (el que estamos evaluando).
+- El valor por **jugador** es el del equipo, aplicado igual a los 2.
 
-- Si sos favorito (R_me > R_op), **E** se acerca a 1.  
-- Si sos no favorito (R_me < R_op), **E** se acerca a 0.
-
----
-
-## 3) K dinámico
-
-- **K_base** = 24.  
-- **Partidos jugados (por jugador en el equipo):**  
-  - N < 15 ⇒ 32  
-  - 15 ≤ N < 60 ⇒ 24  
-  - N ≥ 60 ⇒ 18  
-
-  *(se toma el promedio de K de los 2 jugadores del equipo)*
-
-- **Diferencia de nivel (Δ):**  
-  - |Δ| > 300 ⇒ multiplicar K por 0.85  
-  - |Δ| > 450 ⇒ multiplicar K por 0.75  
-
-- **Clamp final:** 12 ≤ K ≤ 40.
+> Hasta acá, el sistema es **cero-sum** entre equipos (lo que gana uno, lo pierde el otro).
 
 ---
 
-## 4) Cambio de rating (ΔR equipo)
+## Suavizador no cero-sum
+Queremos que **en resultados esperables** (gana el favorito) el perdedor **pierda menos**.  
+Y que **en sorpresas** (gana el no favorito) la magnitud sea **más grande** para compensar.
 
-\[
-\Delta R_{team} = K \cdot (S - E) \cdot f_{sets}
-\]
+Definimos multiplicadores según el caso (sobre el **módulo** de `Δbase`):
 
-- Si `S > E` ⇒ el equipo rinde **mejor de lo esperado** (sube).  
-- Si `S < E` ⇒ rinde **peor de lo esperado** (baja).  
+- **Caso A – Gana el favorito**  
+  - **Ganador (favorito):** `g_factor = 0.90`  
+  - **Perdedor (no favorito):** `l_factor = 0.70`  _(pierde menos)_
 
----
+- **Caso B – Gana el no favorito (sorpresa)**  
+  - **Ganador (no favorito):** `g_factor = 1.10`  
+  - **Perdedor (favorito):** `l_factor = 1.10`
 
-## 5) Reparto a jugadores
+Aplicación por equipo:
+if Δbase > 0 para A:
+if A era favorito:
+gain_A = + |Δbase| * 0.90
+loss_B = - |Δbase| * 0.70
+else: # A no favorito (sorpresa)
+gain_A = + |Δbase| * 1.10
+loss_B = - |Δbase| * 1.10
 
-El ΔR del equipo se reparte **por igual** a ambos jugadores:  
 
-\[
-R'_{j1} = R_{j1} + \Delta R_{team}
-\]  
-\[
-R'_{j2} = R_{j2} + \Delta R_{team}
-\]
-
-*(si querés, se puede afinar para compensar redondeos, pero lo normal es aplicar el mismo valor a los 2)*.
-
----
-
-## 6) Caps y límites
-
-- Ganador favorito ⇒ máx +22.  
-- Ganador no favorito ⇒ máx +40.  
-- Perdedor favorito ⇒ mín −40.  
-- Perdedor no favorito ⇒ mín −18.  
-- No permitir |ΔR| < 1 → siempre al menos ±1.
+> Nota: esto **no es cero-sum** por diseño. En promedio, los resultados esperables (más frecuentes) generan ligera **inflación**, y las sorpresas generan **deflación** que compensa parte del efecto. Si con uso real viéramos deriva, ajustamos estos factores (0.88/0.68 vs 1.12/1.12, por ejemplo) o aplicamos una **normalización trimestral** del promedio.
 
 ---
 
-## 7) Ejemplos rápidos
-
-1. **Favoritos ganan 6–0**  
-   - E≈0.75, S=1.0 → ΔR≈+6 a +8 para cada jugador del equipo ganador.  
-   - Rival: −6 a −8 cada uno.  
-
-2. **Favoritos ganan 7–6**  
-   - E≈0.75, S≈0.54 → ΔR≈−5 a −6 para el equipo “ganador favorito” (subieron menos de lo esperado).  
-   - Rivales (no favoritos) pierden, pero rinden por encima de expectativa ⇒ ΔR≈+5 cada uno.  
-
-3. **No favoritos ganan 6–4**  
-   - E≈0.25, S=0.6 → ΔR≈+20 para cada jugador ganador.  
-   - Favoritos pierden ⇒ −20 cada uno.  
+## Caps y mínimos (por jugador)
+- Ganador **favorito**: **+22** máx.  
+- Ganador **no favorito**: **+40** máx.  
+- Perdedor **favorito**: **−40** mín.  
+- Perdedor **no favorito**: **−18** mín.  
+- Redondeo a entero; |Δ|<1 ⇒ forzar ±1 según signo; si ganaste y da negativo ⇒ **+1**.
 
 ---
 
-## 8) Pseudocódigo
+## Distribución en dobles
+El valor resultante del **equipo** se aplica **igual** a ambos jugadores del equipo.
 
-```python
-def expected(r_me, r_op):
-    return 1.0 / (1.0 + 10 ** ((r_op - r_me) / 400))
+---
 
-def k_dynamic(n_avg, dr):
-    k = 24
-    if n_avg < 15:
-        k = 32
-    elif n_avg >= 60:
-        k = 18
-    if abs(dr) > 450:
-        k *= 0.75
-    elif abs(dr) > 300:
-        k *= 0.85
-    return max(12, min(int(round(k)), 40))
+## Ejemplos numéricos
 
-def apply_rating(r_team_me, r_team_op, n_avg_me, n_avg_op, gw, gl, sets_me, sets_op):
-    e = expected(r_team_me, r_team_op)
-    s = gw / (gw + gl)
-    f_sets = 1.0
-    if sets_me == 2 and sets_op == 0:
-        f_sets = 1.10
-    elif sets_me == 0 and sets_op == 2:
-        f_sets = 0.95
+> Para simplificar, suponemos K y factores ya aplicados en `Δbase`.
 
-    k = k_dynamic((n_avg_me + n_avg_op)//2, r_team_op - r_team_me)
-    delta_team = k * (s - e) * f_sets
-    return round(delta_team)
+### 1) Favorito (5ta 1250 avg) vence a no favorito (6ta 1100 avg) por 6–2, 6–3
+- `Δbase = +12` para 5ta (ganador).  
+- **Suavizador (Caso A):**  
+  - Ganador (favorito): `+12 * 0.90 = +10.8` → **+11** c/u  
+  - Perdedor (no favorito): `-12 * 0.70 = -8.4` → **-8** c/u  
+- Resultado final: **+11 / −8** por jugador.
+
+### 2) Sorpresa: 6ta (1100) vence a 5ta (1250) por 6–4, 3–6, 6–4
+- `Δbase = +18` para 6ta (ganador no favorito).  
+- **Suavizador (Caso B):**  
+  - Ganador (no favorito): `+18 * 1.10 = +19.8` → **+20** c/u  
+  - Perdedor (favorito): `-18 * 1.10 = -19.8` → **-20** c/u  
+- Resultado final: **+20 / −20** por jugador (caps podrían aplicar).
+
+### 3) Entre pares (6ta vs 6ta) gana 7–6, 7–6
+- `Δbase = +5` para el ganador. No hay favorito claro → tratar como “favorito leve”, usar **Caso A** suave.  
+  - Ganador: `+5 * 0.90 = +4.5` → **+5** c/u  
+  - Perdedor: `-5 * 0.70 = -3.5` → **-4** c/u
+
+---
+
+## Auditoría/transparencia
+En cada confirmación de partido:
+- Guardar en `rating_history` por jugador: `before`, `delta`, `after`, `match_id`, `created_at`.
+- En `match_events.meta` registrar: `{ E, S, K, f_sets, f_diff, Δbase, suavizador: "Caso A|B", g_factor, l_factor }`.
+
+---
+
+## Resumen
+- Se parte de un Elo adaptado (E y S por **games**, `f_sets`, `K` dinámico).  
+- Se aplica un **suavizador no cero-sum** para ser más “humano” con derrotas esperables y más “enfático” con sorpresas.  
+- Los jugadores arrancan en su **categoría real** y el sistema ajusta con el juego.
+
