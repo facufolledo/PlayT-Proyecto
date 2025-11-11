@@ -1,0 +1,37 @@
+<svg width="800" height="600" viewBox="0 0 800 600" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <!-- Court Background -->
+  <rect width="800" height="600" fill="#2a5298"/>
+  
+  <!-- Court Lines -->
+  <rect x="100" y="50" width="600" height="500" fill="#1e3c72" stroke="#ffffff" stroke-width="3"/>
+  
+  <!-- Service Boxes -->
+  <rect x="100" y="50" width="300" height="250" fill="none" stroke="#ffffff" stroke-width="2"/>
+  <rect x="400" y="50" width="300" height="250" fill="none" stroke="#ffffff" stroke-width="2"/>
+  <rect x="100" y="300" width="300" height="250" fill="none" stroke="#ffffff" stroke-width="2"/>
+  <rect x="400" y="300" width="300" height="250" fill="none" stroke="#ffffff" stroke-width="2"/>
+  
+  <!-- Center Line -->
+  <line x1="400" y1="50" x2="400" y2="550" stroke="#ffffff" stroke-width="3"/>
+  
+  <!-- Service Lines -->
+  <line x1="100" y1="175" x2="700" y2="175" stroke="#ffffff" stroke-width="2"/>
+  <line x1="100" y1="425" x2="700" y2="425" stroke="#ffffff" stroke-width="2"/>
+  
+  <!-- Back Walls -->
+  <rect x="50" y="50" width="50" height="500" fill="#1e3c72" stroke="#ffffff" stroke-width="2"/>
+  <rect x="700" y="50" width="50" height="500" fill="#1e3c72" stroke="#ffffff" stroke-width="2"/>
+  
+  <!-- Side Walls -->
+  <rect x="100" y="20" width="600" height="30" fill="#1e3c72" stroke="#ffffff" stroke-width="2"/>
+  <rect x="100" y="550" width="600" height="30" fill="#1e3c72" stroke="#ffffff" stroke-width="2"/>
+  
+  <!-- Net -->
+  <line x1="395" y1="50" x2="395" y2="550" stroke="#ff6b35" stroke-width="4"/>
+  <line x1="405" y1="50" x2="405" y2="550" stroke="#ff6b35" stroke-width="4"/>
+  
+  <!-- Decorative Elements -->
+  <circle cx="400" cy="300" r="20" fill="none" stroke="#ffffff" stroke-width="1" opacity="0.3"/>
+  <circle cx="400" cy="300" r="10" fill="none" stroke="#ffffff" stroke-width="1" opacity="0.5"/>
+</svg>
+

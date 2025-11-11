@@ -1,0 +1,41 @@
+from pydantic import BaseModel
+from typing import Optional
+
+class RankingResponse(BaseModel):
+    """Schema para respuesta del ranking general"""
+    posicion: int
+    id_usuario: int
+    nombre_usuario: str
+    nombre: str
+    apellido: str
+    ciudad: str
+    pais: str
+    rating: int
+    partidos_jugados: int
+    imagen_url: Optional[str] = None
+
+    class Config:
+        from_attributes = True
+
+class TopWeeklyResponse(BaseModel):
+    """Schema para respuesta del ranking semanal"""
+    id: int
+    nombre: str
+    ciudad: str
+    puntos: int
+    imagen_url: Optional[str] = None
+    rating: int
+
+    class Config:
+        from_attributes = True
+
+class EloHistoryResponse(BaseModel):
+    """Schema para respuesta del historial de rating"""
+    fecha: str
+    rating_anterior: int
+    rating_nuevo: int
+    cambio: int
+    partido_id: int
+
+    class Config:
+        from_attributes = True

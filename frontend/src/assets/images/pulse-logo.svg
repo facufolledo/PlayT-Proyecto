@@ -1,0 +1,16 @@
+<svg width="120" height="40" viewBox="0 0 120 40" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <!-- PULSE Text -->
+  <text x="0" y="28" font-family="Arial, sans-serif" font-weight="bold" font-size="24" fill="black">PULSE</text>
+  
+  <!-- Tennis Ball -->
+  <circle cx="85" cy="12" r="6" fill="red" stroke="red" stroke-width="1"/>
+  <path d="M79 12 Q82.5 9 85 12 Q87.5 15 91 12" stroke="white" stroke-width="1" fill="none"/>
+  <path d="M79 12 Q82.5 15 85 12 Q87.5 9 91 12" stroke="white" stroke-width="1" fill="none"/>
+  
+  <!-- Tennis Racket -->
+  <ellipse cx="95" cy="20" rx="8" ry="6" fill="none" stroke="red" stroke-width="2"/>
+  <path d="M87 20 L95 20 L103 20" stroke="red" stroke-width="2" fill="none"/>
+  <path d="M95 14 L95 20 L95 26" stroke="red" stroke-width="2" fill="none"/>
+  <path d="M95 26 L95 32" stroke="red" stroke-width="2" fill="none"/>
+</svg>
+

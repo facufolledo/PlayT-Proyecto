@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Debug Login</title>
+</head>
+<body>
+    <h1>Debug Login</h1>
+    <button onclick="testLogin()">Probar Login</button>
+    <button onclick="checkStorage()">Verificar Storage</button>
+    <button onclick="clearStorage()">Limpiar Storage</button>
+    <div id="output"></div>
+
+    <script>
+        function log(message) {
+            document.getElementById('output').innerHTML += '<p>' + message + '</p>';
+            console.log(message);
+        }
+
+        async function testLogin() {
+            log('🔐 Iniciando prueba de login...');
+            
+            const formData = new FormData();
+            formData.append('username', 'tu_email@ejemplo.com'); // Cambia por tu email
+            formData.append('password', 'tu_password'); // Cambia por tu password
+            
+            try {
+                const response = await fetch('/api/auth/login', {
+                    method: 'POST',
+                    body: formData,
+                    headers: {
+                        'Content-Type': 'application/x-www-form-urlencoded',
+                    }
+                });
+                
+                log('📥 Status: ' + response.status);
+                const data = await response.json();
+                log('📥 Response: ' + JSON.stringify(data, null, 2));
+                
+                if (data.access_token) {
+                    log('✅ Token recibido!');
+                    
+                    // Probar /auth/me
+                    const meResponse = await fetch('/api/auth/me', {
+                        headers: {
+                            'Authorization': `Bearer ${data.access_token}`
+                        }
+                    });
+                    
+                    log('👤 /auth/me Status: ' + meResponse.status);
+                    const userData = await meResponse.json();
+                    log('👤 User Data: ' + JSON.stringify(userData, null, 2));
+                    
+                    // Guardar en localStorage
+                    localStorage.setItem('token', data.access_token);
+                    localStorage.setItem('user', JSON.stringify(userData));
+                    log('💾 Datos guardados en localStorage');
+                }
+            } catch (error) {
+                log('❌ Error: ' + error.message);
+            }
+        }
+
+        function checkStorage() {
+            log('🔍 Verificando localStorage...');
+            const token = localStorage.getItem('token');
+            const user = localStorage.getItem('user');
+            
+            log('🔑 Token: ' + (token ? 'Encontrado (' + token.substring(0, 20) + '...)' : 'No encontrado'));
+            log('👤 User: ' + (user ? 'Encontrado' : 'No encontrado'));
+            
+            if (user) {
+                try {
+                    const userData = JSON.parse(user);
+                    log('👤 User Data: ' + JSON.stringify(userData, null, 2));
+                } catch (e) {
+                    log('❌ Error al parsear user data: ' + e.message);
+                }
+            }
+        }
+
+        function clearStorage() {
+            localStorage.removeItem('token');
+            localStorage.removeItem('user');
+            log('🗑️ Storage limpiado');
+        }
+    </script>
+</body>
+</html>
+
+
