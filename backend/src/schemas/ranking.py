@@ -6,12 +6,14 @@ class RankingResponse(BaseModel):
     posicion: int
     id_usuario: int
     nombre_usuario: str
-    nombre: str
-    apellido: str
-    ciudad: str
-    pais: str
+    nombre: Optional[str] = ""
+    apellido: Optional[str] = ""
+    ciudad: Optional[str] = ""
+    pais: Optional[str] = ""
     rating: int
     partidos_jugados: int
+    categoria: Optional[str] = None
+    sexo: Optional[str] = None
     imagen_url: Optional[str] = None
 
     class Config:

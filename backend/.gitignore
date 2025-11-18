@@ -144,3 +144,10 @@ logs/
 # Temporary files
 *.tmp
 *.temp
+
+# Firebase credentials
+firebase-credentials.json
+secrets/
+*.json
+!package*.json
+!tsconfig*.json
