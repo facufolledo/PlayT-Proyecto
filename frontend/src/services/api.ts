@@ -119,6 +119,30 @@ class ApiService {
       throw error;
     }
   }
+
+  // Obtener ranking general
+  async getRankingGeneral(sexo?: 'M' | 'F' | 'todos'): Promise<any[]> {
+    try {
+      const params = sexo && sexo !== 'todos' ? { sexo } : {};
+      const response = await this.api.get('/ranking/general', { params });
+      return response.data;
+    } catch (error: any) {
+      logger.error('Error al obtener ranking general:', error);
+      throw error;
+    }
+  }
+
+  // Obtener ranking por categoría
+  async getRankingPorCategoria(idCategoria: number, sexo?: 'M' | 'F' | 'todos'): Promise<any[]> {
+    try {
+      const params = sexo && sexo !== 'todos' ? { sexo } : {};
+      const response = await this.api.get(`/ranking/categoria/${idCategoria}`, { params });
+      return response.data;
+    } catch (error: any) {
+      logger.error('Error al obtener ranking por categoría:', error);
+      throw error;
+    }
+  }
 }
 
 export const apiService = new ApiService();

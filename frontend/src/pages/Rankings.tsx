@@ -1,10 +1,12 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { Trophy, TrendingUp, TrendingDown, Minus, Medal, Filter, Search, BarChart3 } from 'lucide-react';
 import Card from '../components/Card';
 import Button from '../components/Button';
 import Input from '../components/Input';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
+import { apiService } from '../services/api';
+import { logger } from '../utils/logger';
 
 // Categorías según la documentación
 const CATEGORIAS = [
@@ -33,7 +35,56 @@ export default function Rankings() {
   const [filtroCategoria, setFiltroCategoria] = useState<string>('todas');
   const [filtroGenero, setFiltroGenero] = useState<string>('todos');
   const [busqueda, setBusqueda] = useState('');
-  const [jugadorSeleccionado, setJugadorSeleccionado] = useState<typeof jugadoresMock[0] | null>(null);
+  const [jugadorSeleccionado, setJugadorSeleccionado] = useState<any | null>(null);
+  const [jugadores, setJugadores] = useState<any[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [categorias, setCategorias] = useState<any[]>([]);
+
+  // Cargar categorías y jugadores al montar
+  useEffect(() => {
+    const cargarDatos = async () => {
+      try {
+        setIsLoading(true);
+        
+        // Cargar categorías
+        const categoriasData = await apiService.getCategorias();
+        setCategorias(categoriasData);
+        
+        // Cargar ranking general
+        const rankingData = await apiService.getRankingGeneral();
+        setJugadores(rankingData);
+      } catch (error) {
+        logger.error('Error al cargar datos:', error);
+        // Si falla, usar datos mock
+        setJugadores(jugadoresMock);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    cargarDatos();
+  }, []);
+
+  // Recargar cuando cambie el filtro de género
+  useEffect(() => {
+    const cargarRanking = async () => {
+      try {
+        setIsLoading(true);
+        const sexo = filtroGenero === 'masculino' ? 'M' : filtroGenero === 'femenino' ? 'F' : 'todos';
+        const rankingData = await apiService.getRankingGeneral(sexo as any);
+        setJugadores(rankingData);
+      } catch (error) {
+        logger.error('Error al cargar ranking:', error);
+        setJugadores(jugadoresMock);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    if (filtroCategoria === 'todas') {
+      cargarRanking();
+    }
+  }, [filtroGenero]);
 
   // Datos de progresión de rating (mock)
   const progresionRating = [
@@ -45,12 +96,12 @@ export default function Rankings() {
     { mes: 'Jun', rating: 1450 },
   ];
 
-  // Filtrar jugadores
-  const jugadoresFiltrados = jugadoresMock.filter(jugador => {
-    const cumpleBusqueda = jugador.nombre.toLowerCase().includes(busqueda.toLowerCase());
-    const cumpleCategoria = filtroCategoria === 'todas' || jugador.categoria === filtroCategoria;
-    const cumpleGenero = filtroGenero === 'todos' || jugador.genero === filtroGenero;
-    return cumpleBusqueda && cumpleCategoria && cumpleGenero;
+  // Filtrar jugadores localmente por búsqueda
+  const jugadoresFiltrados = jugadores.filter(jugador => {
+    const nombreCompleto = `${jugador.nombre || ''} ${jugador.apellido || ''}`.toLowerCase();
+    const cumpleBusqueda = nombreCompleto.includes(busqueda.toLowerCase()) || 
+                          (jugador.nombre_usuario || '').toLowerCase().includes(busqueda.toLowerCase());
+    return cumpleBusqueda;
   });
 
   return (
@@ -178,81 +229,83 @@ export default function Rankings() {
               </tr>
             </thead>
             <tbody>
-              {jugadoresFiltrados.map((jugador, index) => {
-                const catInfo = getCategoriaInfo(jugador.rating);
-                const porcentaje = ((jugador.partidosGanados / jugador.partidosJugados) * 100).toFixed(0);
-                
-                return (
-                  <motion.tr
-                    key={jugador.id}
-                    initial={{ opacity: 0, x: -20 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    transition={{ delay: index * 0.05 }}
-                    onClick={() => setJugadorSeleccionado(jugador)}
-                    className="border-b border-cardBorder hover:bg-cardBorder transition-colors cursor-pointer"
-                  >
-                    <td className="py-4 px-4">
-                      <div className="flex items-center gap-2">
-                        {index === 0 && <Medal className="text-accent" size={20} />}
-                        {index === 1 && <Medal className="text-gray-400" size={20} />}
-                        {index === 2 && <Medal className="text-orange-400" size={20} />}
-                        <span className="text-textPrimary font-bold text-lg">#{index + 1}</span>
-                      </div>
-                    </td>
-                    <td className="py-4 px-4">
-                      <p className="text-textPrimary font-bold">{jugador.nombre}</p>
-                    </td>
-                    <td className="py-4 px-4 text-center">
-                      <span className={`inline-block px-3 py-1 rounded-full text-white font-bold text-sm ${
-                        jugador.genero === 'masculino' 
-                          ? 'bg-gradient-to-r from-blue-500 to-blue-600' 
-                          : 'bg-gradient-to-r from-pink-500 to-pink-600'
-                      }`}>
-                        {jugador.genero === 'masculino' ? '♂' : '♀'}
-                      </span>
-                    </td>
-                    <td className="py-4 px-4 text-center">
-                      <span className="text-2xl font-black text-primary">{jugador.rating}</span>
-                    </td>
-                    <td className="py-4 px-4 text-center">
-                      <span className={`inline-block px-3 py-1 rounded-full text-white font-bold text-sm bg-gradient-to-r ${catInfo.color}`}>
-                        {jugador.categoria}
-                      </span>
-                    </td>
-                    <td className="py-4 px-4 text-center">
-                      <span className="text-textPrimary font-semibold">{jugador.partidosJugados}</span>
-                    </td>
-                    <td className="py-4 px-4 text-center">
-                      <span className="text-secondary font-semibold">{jugador.partidosGanados}</span>
-                    </td>
-                    <td className="py-4 px-4 text-center">
-                      <span className="text-textPrimary font-semibold">{porcentaje}%</span>
-                    </td>
-                    <td className="py-4 px-4 text-center">
-                      <div className="flex items-center justify-center gap-1">
-                        {jugador.tendencia === 'up' && (
-                          <>
-                            <TrendingUp className="text-secondary" size={20} />
-                            <span className="text-secondary font-bold text-sm">+{jugador.cambioReciente}</span>
-                          </>
-                        )}
-                        {jugador.tendencia === 'down' && (
-                          <>
-                            <TrendingDown className="text-red-500" size={20} />
-                            <span className="text-red-500 font-bold text-sm">{jugador.cambioReciente}</span>
-                          </>
-                        )}
-                        {jugador.tendencia === 'stable' && (
-                          <>
-                            <Minus className="text-textSecondary" size={20} />
-                            <span className="text-textSecondary font-bold text-sm">0</span>
-                          </>
-                        )}
-                      </div>
-                    </td>
-                  </motion.tr>
-                );
-              })}
+              {isLoading ? (
+                <tr>
+                  <td colSpan={9} className="py-8 text-center text-textSecondary">
+                    Cargando rankings...
+                  </td>
+                </tr>
+              ) : jugadoresFiltrados.length === 0 ? (
+                <tr>
+                  <td colSpan={9} className="py-8 text-center text-textSecondary">
+                    No se encontraron jugadores
+                  </td>
+                </tr>
+              ) : (
+                jugadoresFiltrados.map((jugador, index) => {
+                  const catInfo = getCategoriaInfo(jugador.rating);
+                  const nombreCompleto = `${jugador.nombre || ''} ${jugador.apellido || ''}`.trim() || jugador.nombre_usuario;
+                  const partidosJugados = jugador.partidos_jugados || jugador.partidosJugados || 0;
+                  const partidosGanados = jugador.partidos_ganados || jugador.partidosGanados || 0;
+                  const porcentaje = partidosJugados > 0 ? ((partidosGanados / partidosJugados) * 100).toFixed(0) : '0';
+                  
+                  return (
+                    <motion.tr
+                      key={jugador.id_usuario || jugador.id}
+                      initial={{ opacity: 0, x: -20 }}
+                      animate={{ opacity: 1, x: 0 }}
+                      transition={{ delay: index * 0.05 }}
+                      onClick={() => setJugadorSeleccionado(jugador)}
+                      className="border-b border-cardBorder hover:bg-cardBorder transition-colors cursor-pointer"
+                    >
+                      <td className="py-4 px-4">
+                        <div className="flex items-center gap-2">
+                          {index === 0 && <Medal className="text-accent" size={20} />}
+                          {index === 1 && <Medal className="text-gray-400" size={20} />}
+                          {index === 2 && <Medal className="text-orange-400" size={20} />}
+                          <span className="text-textPrimary font-bold text-lg">#{index + 1}</span>
+                        </div>
+                      </td>
+                      <td className="py-4 px-4">
+                        <p className="text-textPrimary font-bold">{nombreCompleto}</p>
+                        <p className="text-textSecondary text-xs">@{jugador.nombre_usuario}</p>
+                      </td>
+                      <td className="py-4 px-4 text-center">
+                        <span className={`inline-block px-3 py-1 rounded-full text-white font-bold text-sm ${
+                          jugador.sexo === 'M' 
+                            ? 'bg-gradient-to-r from-blue-500 to-blue-600' 
+                            : 'bg-gradient-to-r from-pink-500 to-pink-600'
+                        }`}>
+                          {jugador.sexo === 'M' ? '♂' : '♀'}
+                        </span>
+                      </td>
+                      <td className="py-4 px-4 text-center">
+                        <span className="text-2xl font-black text-primary">{jugador.rating}</span>
+                      </td>
+                      <td className="py-4 px-4 text-center">
+                        <span className={`inline-block px-3 py-1 rounded-full text-white font-bold text-sm bg-gradient-to-r ${catInfo.color}`}>
+                          {catInfo.nombre}
+                        </span>
+                      </td>
+                      <td className="py-4 px-4 text-center">
+                        <span className="text-textPrimary font-semibold">{partidosJugados}</span>
+                      </td>
+                      <td className="py-4 px-4 text-center">
+                        <span className="text-secondary font-semibold">{partidosGanados}</span>
+                      </td>
+                      <td className="py-4 px-4 text-center">
+                        <span className="text-textPrimary font-semibold">{porcentaje}%</span>
+                      </td>
+                      <td className="py-4 px-4 text-center">
+                        <div className="flex items-center justify-center gap-1">
+                          <Minus className="text-textSecondary" size={20} />
+                          <span className="text-textSecondary font-bold text-sm">-</span>
+                        </div>
+                      </td>
+                    </motion.tr>
+                  );
+                })
+              )}
             </tbody>
           </table>
         </div>
