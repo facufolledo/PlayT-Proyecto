@@ -34,7 +34,7 @@ const menuSections = [
     items: [
       { icon: Target, label: 'Tabla General', path: '/rankings' },
       { icon: BarChart3, label: 'Por Categoría', path: '/rankings/categorias' },
-      { icon: User, label: 'Mi Ranking', path: '/mi-ranking' },
+      { icon: User, label: 'Mi Ranking', path: '/rankings/mi-ranking' },
     ]
   },
   {
