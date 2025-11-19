@@ -8,7 +8,6 @@ from ..models.sala import Sala, SalaJugador
 from ..models.playt_models import Usuario, PerfilUsuario
 from ..schemas.sala import SalaCreate, SalaResponse, SalaJoin, SalaCompleta
 from ..auth.auth_utils import get_current_user
-from ..websocket.connection_manager import manager
 
 router = APIRouter(prefix="/salas", tags=["Salas"])
 
@@ -121,13 +120,6 @@ async def unirse_sala(
         )
         db.add(db_jugador)
         db.commit()
-        
-        # Notificar a través de WebSocket
-        await manager.notify_jugador_unido(str(sala.id_sala), {
-            "id_usuario": current_user.id_usuario,
-            "nombre_usuario": current_user.nombre_usuario,
-            "jugadores_actuales": jugadores_actuales + 1
-        })
         
         # Obtener información completa de la sala
         return await obtener_sala(sala.id_sala, current_user, db)
@@ -261,12 +253,6 @@ async def asignar_equipos(
         
         db.commit()
         
-        # Notificar a través de WebSocket
-        await manager.notify_equipos_asignados(str(sala_id), {
-            "equipos": equipos,
-            "sala_id": sala_id
-        })
-        
         return {"message": "Equipos asignados correctamente"}
         
     except Exception as e:
@@ -343,12 +329,6 @@ async def iniciar_partido(
         sala.id_partido = db_partido.id_partido
         
         db.commit()
-        
-        # Notificar a través de WebSocket
-        await manager.notify_partido_iniciado(str(sala_id), {
-            "id_partido": db_partido.id_partido,
-            "sala_id": sala_id
-        })
         
         return {
             "message": "Partido iniciado",

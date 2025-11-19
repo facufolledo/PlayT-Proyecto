@@ -4,6 +4,7 @@ import { useLocation } from 'react-router-dom';
 import Navbar from './Navbar';
 import Sidebar from './Sidebar';
 import CursorTrail from './CursorTrail';
+import PWAInstallPrompt from './PWAInstallPrompt';
 
 interface LayoutProps {
   children: ReactNode;
@@ -54,6 +55,9 @@ export default function Layout({ children }: LayoutProps) {
           </AnimatePresence>
         </main>
       </div>
+
+      {/* PWA Install Prompt y indicadores */}
+      <PWAInstallPrompt />
     </div>
   );
 }

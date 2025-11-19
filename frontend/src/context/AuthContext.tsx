@@ -1,82 +1,56 @@
 import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
-import { signInWithPopup, signOut as firebaseSignOut } from 'firebase/auth';
-import { auth, googleProvider } from '../config/firebase';
-import { Usuario } from '../utils/types';
+import { User as FirebaseUser } from 'firebase/auth';
+import { authService } from '../services/auth.service';
+import { apiService, UsuarioResponse } from '../services/api';
 import { logger } from '../utils/logger';
 
 interface AuthContextType {
-  usuario: Usuario | null;
+  usuario: UsuarioResponse | null;
+  firebaseUser: FirebaseUser | null;
   isAuthenticated: boolean;
   isLoading: boolean;
+  needsProfileCompletion: boolean;
   login: (email: string, password: string) => Promise<void>;
   loginWithGoogle: () => Promise<void>;
   register: (nombre: string, email: string, password: string) => Promise<void>;
-  logout: () => void;
-  updateProfile: (data: Partial<Usuario>) => void;
+  logout: () => Promise<void>;
+  updateProfile: (data: Partial<UsuarioResponse>) => void;
+  completeProfile: (datos: any) => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [usuario, setUsuario] = useState<Usuario | null>(null);
+  const [usuario, setUsuario] = useState<UsuarioResponse | null>(null);
+  const [firebaseUser, setFirebaseUser] = useState<FirebaseUser | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [needsProfileCompletion, setNeedsProfileCompletion] = useState(false);
 
-  // Escuchar cambios en el estado de autenticación de Firebase
+  // Cargar usuario desde localStorage al iniciar
   useEffect(() => {
-    const unsubscribe = auth.onAuthStateChanged((firebaseUser) => {
-      if (firebaseUser) {
-        // Usuario autenticado en Firebase
-        const usuarioGuardado = localStorage.getItem('usuario');
-        if (usuarioGuardado) {
-          try {
-            setUsuario(JSON.parse(usuarioGuardado));
-          } catch (error) {
-            logger.error('Error al cargar usuario:', error);
-            // Si hay error, crear usuario desde Firebase
-            const nuevoUsuario: Usuario = {
-              id: firebaseUser.uid,
-              nombre: firebaseUser.displayName || firebaseUser.email?.split('@')[0] || 'Usuario',
-              email: firebaseUser.email || '',
-              avatar: firebaseUser.photoURL || undefined,
-              rol: 'jugador',
-              estadisticas: {
-                partidosJugados: 0,
-                partidosGanados: 0,
-                torneosParticipados: 0,
-                torneosGanados: 0,
-              },
-              createdAt: new Date().toISOString(),
-            };
-            setUsuario(nuevoUsuario);
-          }
-        } else {
-          // No hay usuario guardado, crear desde Firebase
-          const nuevoUsuario: Usuario = {
-            id: firebaseUser.uid,
-            nombre: firebaseUser.displayName || firebaseUser.email?.split('@')[0] || 'Usuario',
-            email: firebaseUser.email || '',
-            avatar: firebaseUser.photoURL || undefined,
-            rol: 'jugador',
-            estadisticas: {
-              partidosJugados: 0,
-              partidosGanados: 0,
-              torneosParticipados: 0,
-              torneosGanados: 0,
-            },
-            createdAt: new Date().toISOString(),
-          };
-          setUsuario(nuevoUsuario);
+    const loadUser = async () => {
+      try {
+        // Verificar si hay token de acceso
+        const token = localStorage.getItem('access_token');
+        if (token) {
+          // Intentar obtener información del usuario
+          const usuarioBackend = await apiService.getMe();
+          setUsuario(usuarioBackend);
         }
-      } else {
-        // No hay usuario autenticado
-        setUsuario(null);
-        localStorage.removeItem('usuario');
-      }
-      setIsLoading(false);
-    });
 
-    // Cleanup: desuscribirse cuando el componente se desmonte
-    return () => unsubscribe();
+        // Verificar si hay usuario de Firebase
+        const currentFirebaseUser = authService.getCurrentFirebaseUser();
+        setFirebaseUser(currentFirebaseUser);
+      } catch (error) {
+        logger.error('Error al cargar usuario:', error);
+        localStorage.removeItem('access_token');
+        localStorage.removeItem('usuario');
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    loadUser();
   }, []);
 
   // Guardar usuario en localStorage cuando cambie
@@ -91,59 +65,49 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const login = async (email: string, password: string) => {
     setIsLoading(true);
     try {
-      // TODO: Reemplazar con llamada real al backend
-      // Simulación de login
-      await new Promise(resolve => setTimeout(resolve, 1000));
-
-      // Usuario de prueba
-      const usuarioMock: Usuario = {
-        id: crypto.randomUUID(),
-        nombre: email.split('@')[0],
-        email,
-        rol: 'jugador',
-        estadisticas: {
-          partidosJugados: 0,
-          partidosGanados: 0,
-          torneosParticipados: 0,
-          torneosGanados: 0,
-        },
-        createdAt: new Date().toISOString(),
-      };
-
-      setUsuario(usuarioMock);
-    } catch (error) {
+      // Login con Firebase (email/password)
+      const user = await authService.loginWithEmail(email, password);
+      setFirebaseUser(user);
+      console.log('🔥 Firebase user:', user.email);
+      
+      // Verificar que el email esté verificado
+      if (!user.emailVerified) {
+        setNeedsProfileCompletion(true);
+        localStorage.setItem('needsProfileCompletion', 'true');
+        throw new Error('Debes verificar tu correo electrónico antes de continuar. Revisa tu bandeja de entrada.');
+      }
+      
+      // Obtener token de Firebase
+      const firebaseToken = await user.getIdToken();
+      console.log('🔑 Firebase token obtenido');
+      
+      try {
+        // Intentar autenticar con el backend usando el token de Firebase
+        const usuarioBackend = await apiService.firebaseAuth(firebaseToken);
+        setUsuario(usuarioBackend);
+        setNeedsProfileCompletion(false);
+        localStorage.removeItem('needsProfileCompletion');
+        console.log('✅ Usuario backend encontrado:', usuarioBackend.email);
+        logger.log('Login exitoso:', usuarioBackend.email);
+      } catch (backendError: any) {
+        console.log('❌ Error backend:', backendError);
+        console.log('Status:', backendError.response?.status);
+        // Si el usuario no existe en el backend (404), necesita completar perfil
+        if (backendError.response?.status === 404) {
+          console.log('📝 Usuario no encontrado, marcando needsProfileCompletion');
+          setNeedsProfileCompletion(true);
+          localStorage.setItem('needsProfileCompletion', 'true');
+          logger.log('Usuario no encontrado en backend, necesita completar perfil');
+          // No lanzar error, el Login.tsx manejará la redirección
+          return;
+        }
+        // Si es otro error, lanzarlo
+        throw backendError;
+      }
+    } catch (error: any) {
+      console.log('💥 Error general:', error);
       logger.error('Error en login:', error);
-      throw new Error('Credenciales inválidas');
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const register = async (nombre: string, email: string, password: string) => {
-    setIsLoading(true);
-    try {
-      // TODO: Reemplazar con llamada real al backend
-      // Simulación de registro
-      await new Promise(resolve => setTimeout(resolve, 1000));
-
-      const nuevoUsuario: Usuario = {
-        id: crypto.randomUUID(),
-        nombre,
-        email,
-        rol: 'jugador',
-        estadisticas: {
-          partidosJugados: 0,
-          partidosGanados: 0,
-          torneosParticipados: 0,
-          torneosGanados: 0,
-        },
-        createdAt: new Date().toISOString(),
-      };
-
-      setUsuario(nuevoUsuario);
-    } catch (error) {
-      logger.error('Error en registro:', error);
-      throw new Error('Error al registrar usuario');
+      throw new Error(error.message || 'Error al iniciar sesión');
     } finally {
       setIsLoading(false);
     }
@@ -152,65 +116,114 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const loginWithGoogle = async () => {
     setIsLoading(true);
     try {
-      const result = await signInWithPopup(auth, googleProvider);
-      const user = result.user;
-
-      // Crear usuario con datos de Google
-      const nuevoUsuario: Usuario = {
-        id: user.uid,
-        nombre: user.displayName || user.email?.split('@')[0] || 'Usuario',
-        email: user.email || '',
-        avatar: user.photoURL || undefined,
-        rol: 'jugador',
-        estadisticas: {
-          partidosJugados: 0,
-          partidosGanados: 0,
-          torneosParticipados: 0,
-          torneosGanados: 0,
-        },
-        createdAt: new Date().toISOString(),
-      };
-
-      setUsuario(nuevoUsuario);
-      logger.log('Login con Google exitoso:', user.email);
-    } catch (error: any) {
-      logger.error('Error en login con Google:', error);
-      if (error.code === 'auth/popup-closed-by-user') {
-        throw new Error('Inicio de sesión cancelado');
+      const user = await authService.loginWithGoogle();
+      setFirebaseUser(user);
+      console.log('🔥 Firebase user:', user.email);
+      
+      // Obtener token de Firebase
+      const firebaseToken = await user.getIdToken();
+      console.log('🔑 Firebase token obtenido');
+      
+      try {
+        // Intentar autenticar con el backend usando el token de Firebase
+        const usuarioBackend = await apiService.firebaseAuth(firebaseToken);
+        setUsuario(usuarioBackend);
+        console.log('✅ Usuario backend encontrado:', usuarioBackend.email);
+        logger.log('Login con Google exitoso:', usuarioBackend.email);
+      } catch (backendError: any) {
+        console.log('❌ Error backend:', backendError);
+        console.log('Status:', backendError.response?.status);
+        // Si el usuario no existe en el backend (404), necesita completar perfil
+        if (backendError.response?.status === 404) {
+          console.log('📝 Usuario no encontrado, marcando needsProfileCompletion');
+          setNeedsProfileCompletion(true);
+          localStorage.setItem('needsProfileCompletion', 'true');
+          logger.log('Usuario no encontrado en backend, necesita completar perfil');
+          // No lanzar error, el Login.tsx manejará la redirección
+          return;
+        }
+        // Si es otro error, lanzarlo
+        throw backendError;
       }
-      throw new Error('Error al iniciar sesión con Google');
+    } catch (error: any) {
+      console.log('💥 Error general:', error);
+      logger.error('Error en login con Google:', error);
+      throw new Error(error.message || 'Error al iniciar sesión con Google');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const register = async (nombre: string, email: string, password: string) => {
+    setIsLoading(true);
+    try {
+      // Registro con Firebase (email/password)
+      const user = await authService.registerWithEmail(email, password);
+      setFirebaseUser(user);
+      
+      // No marcar needsProfileCompletion todavía
+      // El usuario debe verificar su email primero
+      
+      logger.log('Registro con Firebase exitoso, debe verificar email');
+    } catch (error: any) {
+      logger.error('Error en registro:', error);
+      throw new Error(error.message || 'Error al registrar usuario');
     } finally {
       setIsLoading(false);
     }
   };
 
   const logout = async () => {
+    setIsLoading(true);
     try {
-      await firebaseSignOut(auth);
-    } catch (error) {
-      logger.error('Error al cerrar sesión:', error);
+      await authService.logout();
+      setUsuario(null);
+      setFirebaseUser(null);
+      localStorage.removeItem('access_token');
+      localStorage.removeItem('usuario');
+    } catch (error: any) {
+      logger.error('Error en logout:', error);
+      throw new Error(error.message || 'Error al cerrar sesión');
+    } finally {
+      setIsLoading(false);
     }
-    setUsuario(null);
-    localStorage.removeItem('usuario');
   };
 
-  const updateProfile = (data: Partial<Usuario>) => {
+  const updateProfile = (data: Partial<UsuarioResponse>) => {
     if (usuario) {
       setUsuario({ ...usuario, ...data });
     }
   };
 
+  const completeProfile = async (datos: any) => {
+    try {
+      const usuarioCreado = await authService.completarPerfil(datos);
+      setUsuario(usuarioCreado);
+      setNeedsProfileCompletion(false);
+      localStorage.removeItem('needsProfileCompletion');
+      logger.log('Perfil completado y usuario actualizado en contexto');
+    } catch (error: any) {
+      logger.error('Error al completar perfil:', error);
+      throw error;
+    }
+  };
+
+  const isAuthenticated = !!usuario || !!firebaseUser || !!localStorage.getItem('access_token');
+
   return (
     <AuthContext.Provider
       value={{
         usuario,
-        isAuthenticated: !!usuario,
+        firebaseUser,
+        isAuthenticated,
         isLoading,
+        needsProfileCompletion,
         login,
         loginWithGoogle,
         register,
         logout,
         updateProfile,
+        completeProfile,
       }}
     >
       {children}

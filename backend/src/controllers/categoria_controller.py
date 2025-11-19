@@ -79,15 +79,45 @@ async def get_ranking_global(db: Session = Depends(get_db), limit: int = 100):
     return ranking
 
 @router.get("/{categoria_id}/jugadores", response_model=JugadoresPorCategoriaResponse)
-async def get_jugadores_por_categoria(categoria_id: int, db: Session = Depends(get_db)):
-    """Obtener todos los jugadores de una categoría específica"""
-    # Verificar que la categoría existe
-    categoria = db.query(Categoria).filter(Categoria.id_categoria == categoria_id).first()
+async def get_jugadores_por_categoria(
+    categoria_id: int, 
+    sexo: str = "masculino",
+    db: Session = Depends(get_db)
+):
+    """Obtener todos los jugadores de una categoría específica filtrados por sexo"""
+    # Convertir sexo a letra para usuarios (M/F)
+    sexo_usuario = 'M' if sexo == 'masculino' else 'F'
+    
+    # Buscar categoría por ID y sexo
+    categoria = db.query(Categoria).filter(
+        Categoria.id_categoria == categoria_id,
+        Categoria.sexo == sexo
+    ).first()
+    
+    # Si no se encuentra por ID, intentar buscar por nombre de categoría común
+    if not categoria:
+        # Mapeo de IDs del frontend a nombres de categoría
+        categoria_nombres = {
+            7: "Principiante",
+            1: "8va",
+            2: "7ma", 
+            3: "6ta",
+            4: "5ta",
+            5: "4ta",
+            6: "Libre"
+        }
+        
+        nombre_categoria = categoria_nombres.get(categoria_id)
+        if nombre_categoria:
+            categoria = db.query(Categoria).filter(
+                Categoria.nombre == nombre_categoria,
+                Categoria.sexo == sexo
+            ).first()
     
     if not categoria:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail="Categoría no encontrada"
+            detail=f"Categoría no encontrada para sexo {sexo}"
         )
     
     # Obtener jugadores que pertenecen a esta categoría y sean del mismo sexo
@@ -96,19 +126,19 @@ async def get_jugadores_por_categoria(categoria_id: int, db: Session = Depends(g
         jugadores = db.query(Usuario).filter(
             Usuario.rating >= categoria.rating_min,
             Usuario.rating <= categoria.rating_max,
-            Usuario.sexo == categoria.sexo
+            Usuario.sexo == sexo_usuario
         ).order_by(Usuario.rating.desc()).all()
     elif categoria.rating_min is not None:
         # Solo rating mínimo definido
         jugadores = db.query(Usuario).filter(
             Usuario.rating >= categoria.rating_min,
-            Usuario.sexo == categoria.sexo
+            Usuario.sexo == sexo_usuario
         ).order_by(Usuario.rating.desc()).all()
     elif categoria.rating_max is not None:
         # Solo rating máximo definido
         jugadores = db.query(Usuario).filter(
             Usuario.rating <= categoria.rating_max,
-            Usuario.sexo == categoria.sexo
+            Usuario.sexo == sexo_usuario
         ).order_by(Usuario.rating.desc()).all()
     else:
         # Si no hay rangos definidos, buscar por id_categoria directo
@@ -123,7 +153,8 @@ async def get_jugadores_por_categoria(categoria_id: int, db: Session = Depends(g
             id_usuario=jugador.id_usuario,
             nombre_usuario=jugador.nombre_usuario,
             rating=jugador.rating,
-            partidos_jugados=jugador.partidos_jugados
+            partidos_jugados=jugador.partidos_jugados,
+            sexo=jugador.sexo
         ))
     
     return JugadoresPorCategoriaResponse(

@@ -12,6 +12,7 @@ class RankingResponse(BaseModel):
     pais: Optional[str] = ""
     rating: int
     partidos_jugados: int
+    partidos_ganados: Optional[int] = 0
     categoria: Optional[str] = None
     sexo: Optional[str] = None
     imagen_url: Optional[str] = None

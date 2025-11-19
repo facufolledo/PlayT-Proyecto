@@ -1,4 +1,4 @@
-import { motion } from 'framer-motion';
+import { motion, useReducedMotion } from 'framer-motion';
 import { Calendar, Trophy, Trash2, Play } from 'lucide-react';
 import Button from './Button';
 import { Sala } from '../utils/types';
@@ -11,6 +11,7 @@ interface SalaCardProps {
 
 export default function SalaCard({ sala, onOpenMarcador }: SalaCardProps) {
   const { deleteSala } = useSalas();
+  const shouldReduceMotion = useReducedMotion();
 
   const getEstadoConfig = (estado: string) => {
     switch (estado) {
@@ -61,26 +62,27 @@ export default function SalaCard({ sala, onOpenMarcador }: SalaCardProps) {
 
   return (
     <motion.div
-      initial={{ opacity: 0, scale: 0.9, y: 20 }}
-      animate={{ opacity: 1, scale: 1, y: 0 }}
-      exit={{ opacity: 0, scale: 0.9, y: -20 }}
-      transition={{ type: "spring", stiffness: 200 }}
-      whileHover={{ y: -6, scale: 1.01 }}
+      initial={shouldReduceMotion ? undefined : { opacity: 0, y: 10 }}
+      animate={{ opacity: 1, y: 0 }}
+      exit={shouldReduceMotion ? undefined : { opacity: 0, y: -10 }}
+      transition={{ duration: 0.3, ease: "easeOut" }}
+      whileHover={shouldReduceMotion ? undefined : { y: -4, scale: 1.005 }}
+      whileTap={{ scale: 0.98 }}
       className="group"
     >
-      <div className="relative bg-cardBg rounded-xl overflow-hidden border border-cardBorder group-hover:border-transparent transition-all duration-300">
+      <div className="relative bg-cardBg/95 backdrop-blur-sm rounded-lg md:rounded-xl overflow-hidden border border-cardBorder group-hover:border-transparent transition-all duration-200 active:scale-[0.98]">
         {/* Glow effect on hover */}
-        <div className={`absolute -inset-[1px] bg-gradient-to-br ${estadoConfig.glow} opacity-0 group-hover:opacity-100 transition-opacity duration-300 rounded-xl -z-10 blur-sm`} />
-        <div className="p-6 relative">
-          <div className="space-y-4">
-            <div className="flex items-start justify-between">
-              <div className="flex-1">
-                <h3 className="text-xl font-bold text-textPrimary mb-2 group-hover:text-primary transition-colors">
+        <div className={`absolute -inset-[1px] bg-gradient-to-br ${estadoConfig.glow} opacity-0 group-hover:opacity-100 transition-opacity duration-200 rounded-lg -z-10 blur-sm`} />
+        <div className="p-3 md:p-5 relative">
+          <div className="space-y-2 md:space-y-3">
+            <div className="flex items-start justify-between gap-2">
+              <div className="flex-1 min-w-0">
+                <h3 className="text-base md:text-lg font-bold text-textPrimary mb-0.5 md:mb-1 group-hover:text-primary transition-colors truncate">
                   {sala.nombre}
                 </h3>
-                <div className="flex items-center gap-2 text-textSecondary text-sm">
-                  <Calendar size={16} />
-                  <span>{new Date(sala.fecha).toLocaleDateString('es-ES', {
+                <div className="flex items-center gap-1.5 text-textSecondary text-[11px] md:text-xs">
+                  <Calendar size={12} className="md:w-3.5 md:h-3.5 flex-shrink-0" />
+                  <span className="truncate">{new Date(sala.fecha).toLocaleDateString('es-ES', {
                     day: 'numeric',
                     month: 'short',
                     year: 'numeric'
@@ -88,8 +90,9 @@ export default function SalaCard({ sala, onOpenMarcador }: SalaCardProps) {
                 </div>
               </div>
               <motion.span
-                className={`${estadoConfig.bg} text-white px-3 py-1 rounded-full text-xs font-black uppercase tracking-wide shadow-lg`}
-                whileHover={{ scale: 1.05 }}
+                className={`${estadoConfig.bg} text-white px-1.5 md:px-2.5 py-0.5 md:py-1 rounded-full text-[9px] md:text-[10px] font-black uppercase tracking-wide shadow-lg flex-shrink-0`}
+                whileHover={shouldReduceMotion ? {} : { scale: 1.05 }}
+                whileTap={{ scale: 0.95 }}
               >
                 {getEstadoText(sala.estado)}
               </motion.span>
@@ -97,49 +100,50 @@ export default function SalaCard({ sala, onOpenMarcador }: SalaCardProps) {
 
             {/* Marcador o lista de jugadores */}
             {sala.estado === 'esperando' ? (
-              <div className="relative bg-background/50 rounded-xl p-4 backdrop-blur-sm">
-                <p className="text-textSecondary text-sm font-medium mb-3">
+              <div className="relative bg-background/50 rounded-md md:rounded-lg p-2 md:p-3 backdrop-blur-sm">
+                <p className="text-textSecondary text-[10px] md:text-xs font-medium mb-1.5 md:mb-2">
                   Jugadores: {sala.jugadores?.length || 0}/4
                 </p>
-                <div className="space-y-2">
-                  {sala.jugadores?.map((jugador, index) => (
-                    <div key={jugador.id} className="flex items-center gap-2 bg-cardBg rounded-lg p-2">
-                      <div className="w-8 h-8 rounded-full bg-gradient-to-br from-primary to-secondary flex items-center justify-center text-white text-sm font-bold">
+                <div className="space-y-1 md:space-y-1.5">
+                  {sala.jugadores?.map((jugador) => (
+                    <div key={jugador.id} className="flex items-center gap-1.5 bg-cardBg rounded-md p-1.5">
+                      <div className="w-6 h-6 md:w-7 md:h-7 rounded-full bg-gradient-to-br from-primary to-secondary flex items-center justify-center text-white text-[10px] md:text-xs font-bold flex-shrink-0">
                         {jugador.nombre.charAt(0).toUpperCase()}
                       </div>
-                      <span className="text-textPrimary text-sm font-semibold">{jugador.nombre}</span>
+                      <span className="text-textPrimary text-[11px] md:text-xs font-semibold truncate flex-1">{jugador.nombre}</span>
                       {jugador.esCreador && (
-                        <span className="ml-auto text-accent text-xs">👑</span>
+                        <span className="ml-auto text-accent text-[10px] flex-shrink-0">👑</span>
                       )}
                     </div>
                   ))}
                 </div>
                 {sala.codigoInvitacion && (
-                  <div className="mt-3 text-center">
-                    <p className="text-textSecondary text-xs mb-1">Código:</p>
-                    <p className="text-primary font-bold text-lg tracking-wider">{sala.codigoInvitacion}</p>
+                  <div className="mt-1.5 md:mt-2 text-center">
+                    <p className="text-textSecondary text-[9px] md:text-[10px] mb-0.5">Código:</p>
+                    <p className="text-primary font-bold text-sm md:text-base tracking-wider">{sala.codigoInvitacion}</p>
                   </div>
                 )}
               </div>
             ) : (
-              <div className="relative bg-background/50 rounded-xl p-4 backdrop-blur-sm">
-                <div className="grid grid-cols-3 gap-4">
+              <div className="relative bg-background/50 rounded-md md:rounded-lg p-2 md:p-3 backdrop-blur-sm">
+                <div className="grid grid-cols-3 gap-1.5 md:gap-3">
                   {/* Equipo A */}
                   <motion.div
                     className="text-center"
-                    whileHover={{ scale: 1.05 }}
+                    whileHover={shouldReduceMotion ? {} : { scale: 1.02 }}
+                    whileTap={{ scale: 0.98 }}
                   >
-                    <div className="bg-primary/10 rounded-lg p-3 mb-2">
-                      <p className="text-primary text-xs font-bold mb-2">EQUIPO A</p>
-                      <p className="text-textPrimary font-semibold text-sm leading-tight">{sala.equipoA.jugador1.nombre}</p>
-                      <p className="text-textPrimary font-semibold text-sm leading-tight">{sala.equipoA.jugador2.nombre}</p>
+                    <div className="bg-primary/10 rounded-md p-1.5 md:p-2 mb-1">
+                      <p className="text-primary text-[9px] md:text-[10px] font-bold mb-0.5 md:mb-1">EQUIPO A</p>
+                      <p className="text-textPrimary font-semibold text-[9px] md:text-xs leading-tight truncate">{sala.equipoA.jugador1.nombre}</p>
+                      <p className="text-textPrimary font-semibold text-[9px] md:text-xs leading-tight truncate">{sala.equipoA.jugador2.nombre}</p>
                     </div>
                     <motion.p
-                      className="text-4xl font-black text-primary"
+                      className="text-xl md:text-3xl font-black text-primary"
                       key={sala.equipoA.puntos}
-                      initial={{ scale: 1.3, opacity: 0 }}
+                      initial={shouldReduceMotion ? false : { scale: 1.1, opacity: 0 }}
                       animate={{ scale: 1, opacity: 1 }}
-                      transition={{ type: "spring", stiffness: 300 }}
+                      transition={{ type: "spring", stiffness: 300, damping: 20 }}
                     >
                       {sala.equipoA.puntos}
                     </motion.p>
@@ -148,30 +152,31 @@ export default function SalaCard({ sala, onOpenMarcador }: SalaCardProps) {
                   {/* VS */}
                   <div className="flex items-center justify-center">
                     <motion.div
-                      animate={{ rotate: [0, 5, -5, 0] }}
+                      animate={shouldReduceMotion ? {} : { rotate: [0, 5, -5, 0] }}
                       transition={{ duration: 2, repeat: Infinity, repeatDelay: 3 }}
-                      className="bg-gradient-to-br from-primary/20 to-secondary/20 rounded-full w-12 h-12 flex items-center justify-center"
+                      className="bg-gradient-to-br from-primary/20 to-secondary/20 rounded-full w-8 h-8 md:w-10 md:h-10 flex items-center justify-center"
                     >
-                      <span className="text-lg font-black text-textPrimary">VS</span>
+                      <span className="text-xs md:text-sm font-black text-textPrimary">VS</span>
                     </motion.div>
                   </div>
 
                   {/* Equipo B */}
                   <motion.div
                     className="text-center"
-                    whileHover={{ scale: 1.05 }}
+                    whileHover={shouldReduceMotion ? {} : { scale: 1.02 }}
+                    whileTap={{ scale: 0.98 }}
                   >
-                    <div className="bg-secondary/10 rounded-lg p-3 mb-2">
-                      <p className="text-secondary text-xs font-bold mb-2">EQUIPO B</p>
-                      <p className="text-textPrimary font-semibold text-sm leading-tight">{sala.equipoB.jugador1.nombre}</p>
-                      <p className="text-textPrimary font-semibold text-sm leading-tight">{sala.equipoB.jugador2.nombre}</p>
+                    <div className="bg-secondary/10 rounded-md p-1.5 md:p-2 mb-1">
+                      <p className="text-secondary text-[9px] md:text-[10px] font-bold mb-0.5 md:mb-1">EQUIPO B</p>
+                      <p className="text-textPrimary font-semibold text-[9px] md:text-xs leading-tight truncate">{sala.equipoB.jugador1.nombre}</p>
+                      <p className="text-textPrimary font-semibold text-[9px] md:text-xs leading-tight truncate">{sala.equipoB.jugador2.nombre}</p>
                     </div>
                     <motion.p
-                      className="text-4xl font-black text-secondary"
+                      className="text-xl md:text-3xl font-black text-secondary"
                       key={sala.equipoB.puntos}
-                      initial={{ scale: 1.3, opacity: 0 }}
+                      initial={shouldReduceMotion ? false : { scale: 1.1, opacity: 0 }}
                       animate={{ scale: 1, opacity: 1 }}
-                      transition={{ type: "spring", stiffness: 300 }}
+                      transition={{ type: "spring", stiffness: 300, damping: 20 }}
                     >
                       {sala.equipoB.puntos}
                     </motion.p>
@@ -181,32 +186,33 @@ export default function SalaCard({ sala, onOpenMarcador }: SalaCardProps) {
             )}
 
             {sala.ganador && (
-              <div className="flex items-center justify-center gap-2 py-2 bg-accent/10 rounded-lg">
-                <Trophy size={20} className="text-accent" />
-                <span className="text-accent font-semibold">
+              <div className="flex items-center justify-center gap-1.5 py-1.5 bg-accent/10 rounded-md">
+                <Trophy size={14} className="text-accent md:w-4 md:h-4" />
+                <span className="text-accent font-semibold text-[10px] md:text-xs">
                   Ganador: {sala.ganador === 'equipoA' ? 'Equipo A' : 'Equipo B'}
                 </span>
               </div>
             )}
 
-            <div className="flex gap-2 pt-2">
+            <div className="flex gap-1.5 pt-1.5">
               {sala.estado === 'esperando' && (
                 <Button
                   variant="primary"
                   onClick={() => onOpenMarcador(sala)}
-                  className="flex-1 flex items-center justify-center gap-2"
+                  className="flex-1 flex items-center justify-center gap-1 md:gap-1.5 text-[11px] md:text-xs py-1.5 md:py-2"
                 >
-                  <Play size={18} />
-                  Ver Sala de Espera
+                  <Play size={12} className="md:w-[14px] md:h-[14px]" />
+                  <span className="hidden sm:inline">Ver Sala de Espera</span>
+                  <span className="sm:hidden">Ver Sala</span>
                 </Button>
               )}
               {sala.estado !== 'finalizada' && sala.estado !== 'esperando' && (
                 <Button
                   variant="primary"
                   onClick={() => onOpenMarcador(sala)}
-                  className="flex-1 flex items-center justify-center gap-2"
+                  className="flex-1 flex items-center justify-center gap-1 md:gap-1.5 text-[11px] md:text-xs py-1.5 md:py-2"
                 >
-                  <Play size={18} />
+                  <Play size={12} className="md:w-[14px] md:h-[14px]" />
                   {sala.estado === 'programada' ? 'Iniciar' : 'Marcador'}
                 </Button>
               )}
@@ -217,9 +223,9 @@ export default function SalaCard({ sala, onOpenMarcador }: SalaCardProps) {
                     deleteSala(sala.id);
                   }
                 }}
-                className="flex items-center justify-center gap-2"
+                className="flex items-center justify-center gap-1 md:gap-1.5 px-2.5 md:px-3 py-1.5 md:py-2"
               >
-                <Trash2 size={18} />
+                <Trash2 size={12} className="md:w-[14px] md:h-[14px]" />
               </Button>
             </div>
           </div>

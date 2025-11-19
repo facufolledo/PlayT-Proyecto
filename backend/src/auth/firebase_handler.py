@@ -90,7 +90,9 @@ class FirebaseHandler:
         
         try:
             # Verificar el token con Firebase Admin
-            decoded_token = auth.verify_id_token(token)
+            # check_revoked=False para evitar llamadas adicionales a Firebase
+            # clock_skew_seconds=60 para tolerar diferencias de reloj de hasta 60 segundos
+            decoded_token = auth.verify_id_token(token, check_revoked=False, clock_skew_seconds=60)
             
             # Retornar información útil del usuario
             return {
@@ -99,6 +101,7 @@ class FirebaseHandler:
                 "name": decoded_token.get("name"),
                 "firebase_uid": decoded_token.get("uid"),
                 "firebase_email": decoded_token.get("email"),
+                "email_verified": decoded_token.get("email_verified", False),
                 "firebase": True,  # Marca para identificar que es token de Firebase
             }
         except Exception as e:

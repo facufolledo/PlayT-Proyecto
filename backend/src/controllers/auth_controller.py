@@ -17,9 +17,9 @@ router = APIRouter(prefix="/auth", tags=["Autenticación"])
 # OAuth2 scheme para tokens
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="auth/login")
 
-@router.post("/register", response_model=UserResponse)
+@router.post("/register", response_model=Token)
 async def register_user(user_data: UserRegister, db: Session = Depends(get_db)):
-    """Registrar un nuevo usuario"""
+    """Registrar un nuevo usuario (solo email y contraseña)"""
     
     # Verificar si el email ya existe
     existing_user = db.query(Usuario).filter(Usuario.email == user_data.email).first()
@@ -29,78 +29,43 @@ async def register_user(user_data: UserRegister, db: Session = Depends(get_db)):
             detail="El email ya está registrado"
         )
     
-    # Verificar si el nombre de usuario ya existe
-    existing_username = db.query(Usuario).filter(Usuario.nombre_usuario == user_data.nombre_usuario).first()
-    if existing_username:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="El nombre de usuario ya está en uso"
-        )
-    
     try:
         # Crear hash de la contraseña
         hashed_password = JWTHandler.get_password_hash(user_data.password)
         
-        # Determinar rating inicial basado en la categoría
-        rating_inicial = 1000  # Rating por defecto
+        # Generar nombre de usuario único basado en email
+        email_base = user_data.email.split('@')[0]
+        nombre_usuario = email_base
+        contador = 1
+        while db.query(Usuario).filter(Usuario.nombre_usuario == nombre_usuario).first():
+            nombre_usuario = f"{email_base}{contador}"
+            contador += 1
         
-        if user_data.id_categoria_inicial:
-            # Buscar la categoría para obtener el rating inicial
-            categoria = db.query(Categoria).filter(Categoria.id_categoria == user_data.id_categoria_inicial).first()
-            if categoria:
-                # Calcular rating promedio de la categoría
-                if categoria.rating_min is not None and categoria.rating_max is not None:
-                    rating_inicial = (categoria.rating_min + categoria.rating_max) // 2
-                elif categoria.rating_min is not None:
-                    # Para categorías como "Libre" (1500+)
-                    rating_inicial = categoria.rating_min + 50
-                elif categoria.rating_max is not None:
-                    # Para categorías como "8va" (0-899)
-                    rating_inicial = categoria.rating_max - 50
-                else:
-                    rating_inicial = 1000  # Fallback
-        
-        # Crear usuario
+        # Crear usuario básico
         db_user = Usuario(
-            nombre_usuario=user_data.nombre_usuario,
+            nombre_usuario=nombre_usuario,
             email=user_data.email,
             password_hash=hashed_password,
-            rating=rating_inicial,  # Rating basado en categoría
+            rating=1000,  # Rating por defecto
             partidos_jugados=0,
-            id_categoria=user_data.id_categoria_inicial,  # Asignar categoría inicial
-            sexo=user_data.sexo  # Agregar campo sexo
+            sexo='M'  # Por defecto, se actualizará al completar perfil
         )
         
         db.add(db_user)
-        db.flush()  # Para obtener el ID del usuario
-        
-        # Crear perfil de usuario
-        db_perfil = PerfilUsuario(
-            id_usuario=db_user.id_usuario,
-            nombre=user_data.nombre,
-            apellido=user_data.apellido,
-            ciudad=user_data.ciudad,
-            pais=user_data.pais,
-            id_categoria_inicial=user_data.id_categoria_inicial  # Guardar categoría inicial
-        )
-        
-        db.add(db_perfil)
         db.commit()
         db.refresh(db_user)
         
-        # Retornar usuario creado
-        return UserResponse(
-            id_usuario=db_user.id_usuario,
-            nombre_usuario=db_user.nombre_usuario,
-            email=db_user.email,
-            nombre=db_perfil.nombre,
-            apellido=db_perfil.apellido,
-            sexo=db_user.sexo,
-            ciudad=db_perfil.ciudad,
-            pais=db_perfil.pais,
-            rating=db_user.rating,
-            partidos_jugados=db_user.partidos_jugados,
-            id_categoria=db_user.id_categoria
+        # Crear token JWT para el usuario
+        access_token_expires = timedelta(minutes=int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", "30")))
+        access_token = JWTHandler.create_access_token(
+            data={"sub": str(db_user.id_usuario), "email": db_user.email},
+            expires_delta=access_token_expires
+        )
+        
+        return Token(
+            access_token=access_token,
+            token_type="bearer",
+            expires_in=int(access_token_expires.total_seconds())
         )
         
     except Exception as e:

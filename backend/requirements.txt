@@ -7,7 +7,7 @@ python-multipart>=0.0.12
 sqlalchemy>=2.0.36
 alembic>=1.14.0
 pg8000>=1.30.4
-# asyncpg>=0.29.0  # Comentado: requiere compilación en Windows
+asyncpg>=0.29.0
 
 # Autenticación y seguridad
 python-jose[cryptography]>=3.3.0

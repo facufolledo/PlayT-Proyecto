@@ -10,13 +10,8 @@ export interface Equipo {
   jugador2: Jugador;
   puntos: number;
   confirmado: boolean;
-  confirmadoPor?: string;
+  confirmadoPor?: string; // ID del jugador que confirmó
   fechaConfirmacion?: string;
-}
-
-export interface Set {
-  equipoA: number;
-  equipoB: number;
 }
 
 export interface Sala {

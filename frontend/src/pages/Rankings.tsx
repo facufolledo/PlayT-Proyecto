@@ -1,28 +1,22 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { Trophy, TrendingUp, TrendingDown, Minus, Medal, Filter, Search, BarChart3 } from 'lucide-react';
 import Card from '../components/Card';
 import Button from '../components/Button';
 import Input from '../components/Input';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
+import { apiService } from '../services/api';
+import { logger } from '../utils/logger';
 
-// Categorías según la documentación
+// Categorías según la base de datos (masculino)
 const CATEGORIAS = [
-  { nombre: '8va', descripcion: 'Principiante / Princ. avanzado', ratingMin: 0, ratingMax: 899, color: 'from-gray-500 to-gray-600' },
-  { nombre: '7ma', descripcion: 'Golpes más sólidos', ratingMin: 900, ratingMax: 1049, color: 'from-blue-500 to-blue-600' },
-  { nombre: '6ta', descripcion: 'Mejor dominio y estrategia', ratingMin: 1050, ratingMax: 1199, color: 'from-green-500 to-green-600' },
-  { nombre: '5ta', descripcion: 'Buenos jugadores, constancia', ratingMin: 1200, ratingMax: 1349, color: 'from-yellow-500 to-yellow-600' },
-  { nombre: '4ta', descripcion: 'Muy buenos, técnica + estrategia', ratingMin: 1350, ratingMax: 1499, color: 'from-orange-500 to-orange-600' },
-  { nombre: 'Libre', descripcion: 'Élite local (top provincia)', ratingMin: 1500, ratingMax: 9999, color: 'from-purple-500 to-pink-500' },
-];
-
-// Datos mock de jugadores (esto vendrá del backend)
-const jugadoresMock = [
-  { id: '1', nombre: 'Juan Pérez', rating: 1450, partidosJugados: 45, partidosGanados: 30, categoria: '4ta', tendencia: 'up', cambioReciente: +15, genero: 'masculino' },
-  { id: '2', nombre: 'María García', rating: 1420, partidosJugados: 38, partidosGanados: 25, categoria: '4ta', tendencia: 'down', cambioReciente: -8, genero: 'femenino' },
-  { id: '3', nombre: 'Carlos López', rating: 1380, partidosJugados: 52, partidosGanados: 28, categoria: '4ta', tendencia: 'up', cambioReciente: +12, genero: 'masculino' },
-  { id: '4', nombre: 'Ana Martínez', rating: 1350, partidosJugados: 41, partidosGanados: 22, categoria: '5ta', tendencia: 'stable', cambioReciente: 0, genero: 'femenino' },
-  { id: '5', nombre: 'Pedro Sánchez', rating: 1320, partidosJugados: 35, partidosGanados: 20, categoria: '5ta', tendencia: 'up', cambioReciente: +18, genero: 'masculino' },
+  { id: 7, nombre: 'Principiante', descripcion: 'Categoría para principiantes', ratingMin: 0, ratingMax: 499, color: 'from-slate-500 to-slate-600' },
+  { id: 1, nombre: '8va', descripcion: 'Principiante / Princ. avanzado', ratingMin: 500, ratingMax: 999, color: 'from-gray-500 to-gray-600' },
+  { id: 2, nombre: '7ma', descripcion: 'Golpes más sólidos', ratingMin: 1000, ratingMax: 1199, color: 'from-blue-500 to-blue-600' },
+  { id: 3, nombre: '6ta', descripcion: 'Mejor dominio y estrategia', ratingMin: 1200, ratingMax: 1399, color: 'from-green-500 to-green-600' },
+  { id: 4, nombre: '5ta', descripcion: 'Buenos jugadores, constancia', ratingMin: 1400, ratingMax: 1599, color: 'from-yellow-500 to-yellow-600' },
+  { id: 5, nombre: '4ta', descripcion: 'Muy buenos, técnica + estrategia', ratingMin: 1600, ratingMax: 1799, color: 'from-orange-500 to-orange-600' },
+  { id: 6, nombre: 'Libre', descripcion: 'Élite local (top provincia)', ratingMin: 1800, ratingMax: 9999, color: 'from-purple-500 to-pink-500' },
 ];
 
 function getCategoriaInfo(rating: number) {
@@ -33,7 +27,55 @@ export default function Rankings() {
   const [filtroCategoria, setFiltroCategoria] = useState<string>('todas');
   const [filtroGenero, setFiltroGenero] = useState<string>('todos');
   const [busqueda, setBusqueda] = useState('');
-  const [jugadorSeleccionado, setJugadorSeleccionado] = useState<typeof jugadoresMock[0] | null>(null);
+  const [jugadorSeleccionado, setJugadorSeleccionado] = useState<any | null>(null);
+  const [jugadores, setJugadores] = useState<any[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [categorias, setCategorias] = useState<any[]>([]);
+
+  // Cargar categorías al montar (solo una vez)
+  useEffect(() => {
+    const cargarCategorias = async () => {
+      try {
+        const categoriasData = await apiService.getCategorias();
+        setCategorias(categoriasData);
+      } catch (error) {
+        logger.error('Error al cargar categorías:', error);
+      }
+    };
+
+    cargarCategorias();
+  }, []);
+
+  // Recargar cuando cambie el filtro de categoría o género
+  useEffect(() => {
+    const cargarRanking = async () => {
+      try {
+        setIsLoading(true);
+        
+        if (filtroCategoria === 'todas') {
+          // Cargar ranking general con filtro de género
+          const sexoParam = filtroGenero === 'masculino' ? 'masculino' : filtroGenero === 'femenino' ? 'femenino' : undefined;
+          const rankingData = await apiService.getRankingGeneral(100, 0, sexoParam as any);
+          setJugadores(rankingData);
+        } else {
+          // Buscar la categoría por nombre
+          const categoria = CATEGORIAS.find(c => c.nombre === filtroCategoria);
+          if (categoria) {
+            const sexoParam = filtroGenero === 'masculino' ? 'masculino' : filtroGenero === 'femenino' ? 'femenino' : 'masculino';
+            const categoriaData = await apiService.getRankingPorCategoria(categoria.id || 1, sexoParam as any);
+            setJugadores(categoriaData.jugadores || []);
+          }
+        }
+      } catch (error) {
+        logger.error('Error al cargar ranking:', error);
+        setJugadores([]);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    cargarRanking();
+  }, [filtroCategoria, filtroGenero]);
 
   // Datos de progresión de rating (mock)
   const progresionRating = [
@@ -45,12 +87,13 @@ export default function Rankings() {
     { mes: 'Jun', rating: 1450 },
   ];
 
-  // Filtrar jugadores
-  const jugadoresFiltrados = jugadoresMock.filter(jugador => {
-    const cumpleBusqueda = jugador.nombre.toLowerCase().includes(busqueda.toLowerCase());
-    const cumpleCategoria = filtroCategoria === 'todas' || jugador.categoria === filtroCategoria;
-    const cumpleGenero = filtroGenero === 'todos' || jugador.genero === filtroGenero;
-    return cumpleBusqueda && cumpleCategoria && cumpleGenero;
+  // Filtrar jugadores localmente solo por búsqueda (el género ya se filtra en el backend)
+  const jugadoresFiltrados = jugadores.filter(jugador => {
+    const nombreCompleto = `${jugador.nombre || ''} ${jugador.apellido || ''}`.toLowerCase();
+    const cumpleBusqueda = nombreCompleto.includes(busqueda.toLowerCase()) || 
+                          (jugador.nombre_usuario || '').toLowerCase().includes(busqueda.toLowerCase());
+    
+    return cumpleBusqueda;
   });
 
   return (
@@ -178,81 +221,83 @@ export default function Rankings() {
               </tr>
             </thead>
             <tbody>
-              {jugadoresFiltrados.map((jugador, index) => {
-                const catInfo = getCategoriaInfo(jugador.rating);
-                const porcentaje = ((jugador.partidosGanados / jugador.partidosJugados) * 100).toFixed(0);
-                
-                return (
-                  <motion.tr
-                    key={jugador.id}
-                    initial={{ opacity: 0, x: -20 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    transition={{ delay: index * 0.05 }}
-                    onClick={() => setJugadorSeleccionado(jugador)}
-                    className="border-b border-cardBorder hover:bg-cardBorder transition-colors cursor-pointer"
-                  >
-                    <td className="py-4 px-4">
-                      <div className="flex items-center gap-2">
-                        {index === 0 && <Medal className="text-accent" size={20} />}
-                        {index === 1 && <Medal className="text-gray-400" size={20} />}
-                        {index === 2 && <Medal className="text-orange-400" size={20} />}
-                        <span className="text-textPrimary font-bold text-lg">#{index + 1}</span>
-                      </div>
-                    </td>
-                    <td className="py-4 px-4">
-                      <p className="text-textPrimary font-bold">{jugador.nombre}</p>
-                    </td>
-                    <td className="py-4 px-4 text-center">
-                      <span className={`inline-block px-3 py-1 rounded-full text-white font-bold text-sm ${
-                        jugador.genero === 'masculino' 
-                          ? 'bg-gradient-to-r from-blue-500 to-blue-600' 
-                          : 'bg-gradient-to-r from-pink-500 to-pink-600'
-                      }`}>
-                        {jugador.genero === 'masculino' ? '♂' : '♀'}
-                      </span>
-                    </td>
-                    <td className="py-4 px-4 text-center">
-                      <span className="text-2xl font-black text-primary">{jugador.rating}</span>
-                    </td>
-                    <td className="py-4 px-4 text-center">
-                      <span className={`inline-block px-3 py-1 rounded-full text-white font-bold text-sm bg-gradient-to-r ${catInfo.color}`}>
-                        {jugador.categoria}
-                      </span>
-                    </td>
-                    <td className="py-4 px-4 text-center">
-                      <span className="text-textPrimary font-semibold">{jugador.partidosJugados}</span>
-                    </td>
-                    <td className="py-4 px-4 text-center">
-                      <span className="text-secondary font-semibold">{jugador.partidosGanados}</span>
-                    </td>
-                    <td className="py-4 px-4 text-center">
-                      <span className="text-textPrimary font-semibold">{porcentaje}%</span>
-                    </td>
-                    <td className="py-4 px-4 text-center">
-                      <div className="flex items-center justify-center gap-1">
-                        {jugador.tendencia === 'up' && (
-                          <>
-                            <TrendingUp className="text-secondary" size={20} />
-                            <span className="text-secondary font-bold text-sm">+{jugador.cambioReciente}</span>
-                          </>
-                        )}
-                        {jugador.tendencia === 'down' && (
-                          <>
-                            <TrendingDown className="text-red-500" size={20} />
-                            <span className="text-red-500 font-bold text-sm">{jugador.cambioReciente}</span>
-                          </>
-                        )}
-                        {jugador.tendencia === 'stable' && (
-                          <>
-                            <Minus className="text-textSecondary" size={20} />
-                            <span className="text-textSecondary font-bold text-sm">0</span>
-                          </>
-                        )}
-                      </div>
-                    </td>
-                  </motion.tr>
-                );
-              })}
+              {isLoading ? (
+                <tr>
+                  <td colSpan={9} className="py-8 text-center text-textSecondary">
+                    Cargando rankings...
+                  </td>
+                </tr>
+              ) : jugadoresFiltrados.length === 0 ? (
+                <tr>
+                  <td colSpan={9} className="py-8 text-center text-textSecondary">
+                    No se encontraron jugadores
+                  </td>
+                </tr>
+              ) : (
+                jugadoresFiltrados.map((jugador, index) => {
+                  const catInfo = getCategoriaInfo(jugador.rating);
+                  const nombreCompleto = `${jugador.nombre || ''} ${jugador.apellido || ''}`.trim() || jugador.nombre_usuario;
+                  const partidosJugados = jugador.partidos_jugados || 0;
+                  const partidosGanados = jugador.partidos_ganados || 0;
+                  const porcentaje = partidosJugados > 0 ? Math.round((partidosGanados / partidosJugados) * 100) : 0;
+                  
+                  return (
+                    <motion.tr
+                      key={jugador.id_usuario || jugador.id}
+                      initial={{ opacity: 0, x: -20 }}
+                      animate={{ opacity: 1, x: 0 }}
+                      transition={{ delay: index * 0.05 }}
+                      onClick={() => setJugadorSeleccionado(jugador)}
+                      className="border-b border-cardBorder hover:bg-cardBorder transition-colors cursor-pointer"
+                    >
+                      <td className="py-4 px-4">
+                        <div className="flex items-center gap-2">
+                          {index === 0 && <Medal className="text-accent" size={20} />}
+                          {index === 1 && <Medal className="text-gray-400" size={20} />}
+                          {index === 2 && <Medal className="text-orange-400" size={20} />}
+                          <span className="text-textPrimary font-bold text-lg">#{index + 1}</span>
+                        </div>
+                      </td>
+                      <td className="py-4 px-4">
+                        <p className="text-textPrimary font-bold">{nombreCompleto}</p>
+                        <p className="text-textSecondary text-xs">@{jugador.nombre_usuario}</p>
+                      </td>
+                      <td className="py-4 px-4 text-center">
+                        <span className={`inline-block px-3 py-1 rounded-full text-white font-bold text-sm ${
+                          jugador.sexo === 'M' 
+                            ? 'bg-gradient-to-r from-blue-500 to-blue-600' 
+                            : 'bg-gradient-to-r from-pink-500 to-pink-600'
+                        }`}>
+                          {jugador.sexo === 'M' ? '♂' : '♀'}
+                        </span>
+                      </td>
+                      <td className="py-4 px-4 text-center">
+                        <span className="text-2xl font-black text-primary">{jugador.rating}</span>
+                      </td>
+                      <td className="py-4 px-4 text-center">
+                        <span className={`inline-block px-3 py-1 rounded-full text-white font-bold text-sm bg-gradient-to-r ${catInfo.color}`}>
+                          {catInfo.nombre}
+                        </span>
+                      </td>
+                      <td className="py-4 px-4 text-center">
+                        <span className="text-textPrimary font-semibold">{partidosJugados}</span>
+                      </td>
+                      <td className="py-4 px-4 text-center">
+                        <span className="text-secondary font-semibold">{partidosGanados}</span>
+                      </td>
+                      <td className="py-4 px-4 text-center">
+                        <span className="text-textPrimary font-semibold">{porcentaje}%</span>
+                      </td>
+                      <td className="py-4 px-4 text-center">
+                        <div className="flex items-center justify-center gap-1">
+                          <Minus className="text-textSecondary" size={20} />
+                          <span className="text-textSecondary font-bold text-sm">-</span>
+                        </div>
+                      </td>
+                    </motion.tr>
+                  );
+                })
+              )}
             </tbody>
           </table>
         </div>

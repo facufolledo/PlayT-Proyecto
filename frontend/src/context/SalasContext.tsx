@@ -1,147 +1,31 @@
-import { createContext, useContext, useState, ReactNode, useEffect } from 'react';
-import { Sala, Jugador } from '../utils/types';
-import { salaService, SalaCompleta } from '../services/sala.service';
-import { useAuth } from './AuthContext';
-import { logger } from '../utils/logger';
+import { createContext, useContext, useState, ReactNode } from 'react';
+import { Sala } from '../utils/types';
 
 interface SalasContextType {
   salas: Sala[];
-  loading: boolean;
-  error: string | null;
-  addSala: (sala: Omit<Sala, 'id' | 'createdAt'>) => Promise<string>;
+  addSala: (sala: Omit<Sala, 'id' | 'createdAt'>) => void;
   updateSala: (id: string, sala: Partial<Sala>) => void;
   deleteSala: (id: string) => void;
   getSalaById: (id: string) => Sala | undefined;
-  unirseASala: (codigo: string) => Promise<void>;
-  asignarEquipos: (id: string, equipo1Ids: string[], equipo2Ids: string[]) => Promise<void>;
   updateMarcador: (id: string, equipo: 'equipoA' | 'equipoB', puntos: number) => void;
-  finalizarPartido: (id: string, sets: { equipoA: number; equipoB: number }[]) => void;
+  finalizarPartido: (id: string) => void;
   confirmarResultado: (id: string, equipo: 'equipoA' | 'equipoB', jugadorId: string) => void;
   disputarResultado: (id: string, motivo: string) => void;
   getSalasPendientesConfirmacion: (jugadorId: string) => Sala[];
-  recargarSalas: () => Promise<void>;
 }
 
 const SalasContext = createContext<SalasContextType | undefined>(undefined);
 
-// Función para convertir sala del backend al formato del frontend
-function convertirSalaBackendAFrontend(salaBackend: SalaCompleta): Sala {
-  const jugadores: Jugador[] = salaBackend.jugadores.map(j => ({
-    id: j.id_usuario.toString(),
-    nombre: j.nombre || j.nombre_usuario,
-    rating: j.rating,
-    esCreador: j.id_usuario === salaBackend.id_creador
-  }));
-
-  // Separar jugadores por equipo
-  const jugadoresEquipo1 = salaBackend.jugadores.filter(j => j.equipo === 1);
-  const jugadoresEquipo2 = salaBackend.jugadores.filter(j => j.equipo === 2);
-
-  return {
-    id: salaBackend.id_sala,
-    nombre: salaBackend.nombre,
-    fecha: salaBackend.fecha,
-    estado: salaBackend.estado as any,
-    codigoInvitacion: salaBackend.codigo_invitacion,
-    jugadores: jugadores,
-    equiposAsignados: jugadoresEquipo1.length > 0 && jugadoresEquipo2.length > 0,
-    creadoPor: salaBackend.id_creador.toString(),
-    estadoConfirmacion: 'pendiente',
-    resultadoFinal: false,
-    createdAt: salaBackend.creado_en,
-    equipoA: {
-      jugador1: jugadoresEquipo1[0] ? {
-        id: jugadoresEquipo1[0].id_usuario.toString(),
-        nombre: jugadoresEquipo1[0].nombre || jugadoresEquipo1[0].nombre_usuario
-      } : { id: '', nombre: '' },
-      jugador2: jugadoresEquipo1[1] ? {
-        id: jugadoresEquipo1[1].id_usuario.toString(),
-        nombre: jugadoresEquipo1[1].nombre || jugadoresEquipo1[1].nombre_usuario
-      } : { id: '', nombre: '' },
-      puntos: 0,
-      confirmado: false
-    },
-    equipoB: {
-      jugador1: jugadoresEquipo2[0] ? {
-        id: jugadoresEquipo2[0].id_usuario.toString(),
-        nombre: jugadoresEquipo2[0].nombre || jugadoresEquipo2[0].nombre_usuario
-      } : { id: '', nombre: '' },
-      jugador2: jugadoresEquipo2[1] ? {
-        id: jugadoresEquipo2[1].id_usuario.toString(),
-        nombre: jugadoresEquipo2[1].nombre || jugadoresEquipo2[1].nombre_usuario
-      } : { id: '', nombre: '' },
-      puntos: 0,
-      confirmado: false
-    }
-  };
-}
-
 export function SalasProvider({ children }: { children: ReactNode }) {
   const [salas, setSalas] = useState<Sala[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const { usuario } = useAuth();
 
-  // Cargar salas al montar el componente
-  useEffect(() => {
-    if (usuario) {
-      logger.log('Usuario autenticado, cargando salas...');
-      recargarSalas();
-    } else {
-      logger.log('Usuario no autenticado, no se cargan salas');
-      setSalas([]);
-      setLoading(false);
-    }
-  }, [usuario]);
-
-  // Recargar salas desde el backend
-  const recargarSalas = async () => {
-    try {
-      setLoading(true);
-      setError(null);
-      
-      const salasBackend = await salaService.listarSalas();
-      const salasConvertidas = salasBackend.map(convertirSalaBackendAFrontend);
-      
-      setSalas(salasConvertidas);
-      logger.log('Salas cargadas:', salasConvertidas.length);
-    } catch (err: any) {
-      const errorMsg = err.message || 'Error al cargar salas';
-      setError(errorMsg);
-      logger.error('Error al cargar salas:', err);
-      
-      // Si hay error, mostrar array vacío en lugar de quedarse cargando
-      setSalas([]);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const addSala = async (salaData: Omit<Sala, 'id' | 'createdAt'>): Promise<string> => {
-    try {
-      setLoading(true);
-      setError(null);
-      
-      // Crear sala en el backend
-      const salaCreada = await salaService.crearSala({
-        nombre: salaData.nombre,
-        fecha: salaData.fecha,
-        max_jugadores: 4
-      });
-      
-      logger.log('Sala creada en backend:', salaCreada);
-      
-      // Recargar salas
-      await recargarSalas();
-      
-      return salaCreada.codigo_invitacion;
-    } catch (err: any) {
-      setError(err.message);
-      logger.error('Error al crear sala:', err);
-      throw err;
-    } finally {
-      setLoading(false);
-    }
+  const addSala = (salaData: Omit<Sala, 'id' | 'createdAt'>) => {
+    const newSala: Sala = {
+      ...salaData,
+      id: crypto.randomUUID(),
+      createdAt: new Date().toISOString(),
+    };
+    setSalas(prev => [newSala, ...prev]);
   };
 
   const updateSala = (id: string, salaData: Partial<Sala>) => {
@@ -156,57 +40,6 @@ export function SalasProvider({ children }: { children: ReactNode }) {
 
   const getSalaById = (id: string) => {
     return salas.find(sala => sala.id === id);
-  };
-
-  const unirseASala = async (codigo: string): Promise<void> => {
-    try {
-      setLoading(true);
-      setError(null);
-      
-      // Unirse a la sala en el backend
-      await salaService.unirseASala(codigo);
-      
-      logger.log('Unido a sala con código:', codigo);
-      
-      // Recargar salas
-      await recargarSalas();
-    } catch (err: any) {
-      setError(err.message);
-      logger.error('Error al unirse a sala:', err);
-      throw err;
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const asignarEquipos = async (id: string, equipo1Ids: string[], equipo2Ids: string[]): Promise<void> => {
-    try {
-      setLoading(true);
-      setError(null);
-      
-      // Crear objeto de equipos para el backend
-      const equipos: { [key: string]: number } = {};
-      equipo1Ids.forEach(jugadorId => {
-        equipos[jugadorId] = 1;
-      });
-      equipo2Ids.forEach(jugadorId => {
-        equipos[jugadorId] = 2;
-      });
-      
-      // Asignar equipos en el backend
-      await salaService.asignarEquipos(parseInt(id), equipos);
-      
-      logger.log('Equipos asignados en backend');
-      
-      // Recargar salas
-      await recargarSalas();
-    } catch (err: any) {
-      setError(err.message);
-      logger.error('Error al asignar equipos:', err);
-      throw err;
-    } finally {
-      setLoading(false);
-    }
   };
 
   const updateMarcador = (id: string, equipo: 'equipoA' | 'equipoB', puntos: number) => {
@@ -224,14 +57,13 @@ export function SalasProvider({ children }: { children: ReactNode }) {
     }));
   };
 
-  const finalizarPartido = (id: string, sets: { equipoA: number; equipoB: number }[]) => {
+  const finalizarPartido = (id: string) => {
     setSalas(prev => prev.map(sala => {
       if (sala.id === id) {
         const ganador = sala.equipoA.puntos > sala.equipoB.puntos ? 'equipoA' : 'equipoB';
         return {
           ...sala,
           estado: 'finalizada' as const,
-          sets,
           ganador,
           estadoConfirmacion: 'pendiente' as const,
           resultadoFinal: false
@@ -302,20 +134,15 @@ export function SalasProvider({ children }: { children: ReactNode }) {
   return (
     <SalasContext.Provider value={{
       salas,
-      loading,
-      error,
       addSala,
       updateSala,
       deleteSala,
       getSalaById,
-      unirseASala,
-      asignarEquipos,
       updateMarcador,
       finalizarPartido,
       confirmarResultado,
       disputarResultado,
-      getSalasPendientesConfirmacion,
-      recargarSalas
+      getSalasPendientesConfirmacion
     }}>
       {children}
     </SalasContext.Provider>

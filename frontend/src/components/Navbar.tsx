@@ -57,7 +57,9 @@ export default function Navbar({ onMenuClick }: NavbarProps) {
         <div className="flex items-center gap-4">
           {/* Nombre del usuario en desktop */}
           <div className="hidden md:block text-right">
-            <p className="text-textPrimary text-sm font-bold">{usuario?.nombre}</p>
+            <p className="text-textPrimary text-sm font-bold">
+              {usuario?.nombre} {usuario?.apellido}
+            </p>
             <p className="text-textSecondary text-xs">{usuario?.email}</p>
           </div>
 
@@ -71,7 +73,7 @@ export default function Navbar({ onMenuClick }: NavbarProps) {
             >
               <div className="absolute inset-0 bg-primary blur-md opacity-0 group-hover:opacity-50 transition-opacity duration-300 rounded-full" />
               <div className="relative h-10 w-10 rounded-full bg-gradient-to-br from-primary to-blue-600 flex items-center justify-center text-white font-black shadow-lg">
-                {usuario && getInitials(usuario.nombre)}
+                {usuario && `${usuario.nombre[0]}${usuario.apellido[0]}`.toUpperCase()}
               </div>
             </motion.button>
 
@@ -95,11 +97,14 @@ export default function Navbar({ onMenuClick }: NavbarProps) {
                   >
                     {/* Info del usuario */}
                     <div className="p-4 border-b border-cardBorder">
-                      <p className="text-textPrimary font-bold">{usuario?.nombre}</p>
-                      <p className="text-textSecondary text-sm">{usuario?.email}</p>
+                      <p className="text-textPrimary font-bold">
+                        {usuario?.nombre} {usuario?.apellido}
+                      </p>
+                      <p className="text-textSecondary text-sm">@{usuario?.nombre_usuario}</p>
+                      <p className="text-textSecondary text-xs mt-1">{usuario?.email}</p>
                       <div className="mt-2 flex gap-2">
-                        <span className="text-xs bg-primary/10 text-primary px-2 py-1 rounded-full">
-                          {usuario?.rol}
+                        <span className="text-xs bg-primary/10 text-primary px-2 py-1 rounded-full font-bold">
+                          Rating: {usuario?.rating}
                         </span>
                       </div>
                     </div>
@@ -108,12 +113,12 @@ export default function Navbar({ onMenuClick }: NavbarProps) {
                     <div className="p-4 border-b border-cardBorder">
                       <div className="grid grid-cols-2 gap-2 text-center">
                         <div>
-                          <p className="text-2xl font-bold text-textPrimary">{usuario?.estadisticas.partidosJugados}</p>
+                          <p className="text-2xl font-bold text-textPrimary">{usuario?.partidos_jugados || 0}</p>
                           <p className="text-xs text-textSecondary">Partidos</p>
                         </div>
                         <div>
-                          <p className="text-2xl font-bold text-secondary">{usuario?.estadisticas.partidosGanados}</p>
-                          <p className="text-xs text-textSecondary">Ganados</p>
+                          <p className="text-2xl font-bold text-secondary">{usuario?.rating || 0}</p>
+                          <p className="text-xs text-textSecondary">Rating</p>
                         </div>
                       </div>
                     </div>
@@ -121,6 +126,10 @@ export default function Navbar({ onMenuClick }: NavbarProps) {
                     {/* Opciones */}
                     <div className="p-2">
                       <button
+                        onClick={() => {
+                          navigate('/perfil');
+                          setShowMenu(false);
+                        }}
                         className="w-full flex items-center gap-3 px-4 py-3 text-textSecondary hover:text-textPrimary hover:bg-cardBorder rounded-lg transition-colors"
                       >
                         <User size={18} />

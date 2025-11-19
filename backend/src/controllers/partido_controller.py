@@ -4,10 +4,11 @@ from typing import List, Optional
 from datetime import datetime
 
 from ..database.config import get_db
-from ..models.playt_models import Partido, PartidoJugador, ResultadoPartido, Usuario, Club, HistorialRating, PerfilUsuario
+from ..models.playt_models import Partido, PartidoJugador, ResultadoPartido, Usuario, Club, HistorialRating, PerfilUsuario, Categoria
 from ..schemas.partido import PartidoCreate, PartidoResponse, PartidoCompleto, ResultadoCreate
 from ..auth.auth_utils import get_current_user
 from ..services.elo_service import EloService
+from ..services.categoria_service import actualizar_categoria_usuario
 
 router = APIRouter(prefix="/partidos", tags=["Partidos"])
 
@@ -545,6 +546,9 @@ async def calcular_elo_partido(
             # Actualizar usuario
             usuario.rating = int(rating_despues)
             usuario.partidos_jugados += 1
+            
+            # Actualizar categoría según el nuevo rating
+            actualizar_categoria_usuario(db, usuario)
             
             # Crear registro en historial de rating
             historial = HistorialRating(

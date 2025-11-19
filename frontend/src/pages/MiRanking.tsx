@@ -1,35 +1,67 @@
+import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { TrendingUp, TrendingDown, Trophy, Target, Calendar, Award } from 'lucide-react';
+import { Trophy, TrendingUp, Target, Award, Medal } from 'lucide-react';
 import Card from '../components/Card';
-import RatingProgressBar from '../components/RatingProgressBar';
 import { useAuth } from '../context/AuthContext';
+import { apiService } from '../services/api';
+import { logger } from '../utils/logger';
+
+// Categorías según la documentación
+const CATEGORIAS = [
+  { nombre: '8va', descripcion: 'Principiante / Princ. avanzado', ratingMin: 0, ratingMax: 899, color: 'from-gray-500 to-gray-600' },
+  { nombre: '7ma', descripcion: 'Golpes más sólidos', ratingMin: 900, ratingMax: 1049, color: 'from-blue-500 to-blue-600' },
+  { nombre: '6ta', descripcion: 'Mejor dominio y estrategia', ratingMin: 1050, ratingMax: 1199, color: 'from-green-500 to-green-600' },
+  { nombre: '5ta', descripcion: 'Buenos jugadores, constancia', ratingMin: 1200, ratingMax: 1349, color: 'from-yellow-500 to-yellow-600' },
+  { nombre: '4ta', descripcion: 'Muy buenos, técnica + estrategia', ratingMin: 1350, ratingMax: 1499, color: 'from-orange-500 to-orange-600' },
+  { nombre: 'Libre', descripcion: 'Élite local (top provincia)', ratingMin: 1500, ratingMax: 9999, color: 'from-purple-500 to-pink-500' },
+];
+
+function getCategoriaInfo(rating: number) {
+  return CATEGORIAS.find(cat => rating >= cat.ratingMin && rating <= cat.ratingMax) || CATEGORIAS[0];
+}
 
 export default function MiRanking() {
   const { usuario } = useAuth();
+  const [ranking, setRanking] = useState<any[]>([]);
+  const [miPosicion, setMiPosicion] = useState<number | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
 
-  // Datos de ejemplo - reemplazar con datos reales del backend
-  const stats = {
-    ratingActual: 1250,
-    posicionGeneral: 42,
-    posicionCategoria: 8,
-    partidosJugados: 28,
-    partidosGanados: 18,
-    partidosPerdidos: 10,
-    rachaActual: 3,
-    mejorRacha: 7,
-    cambioSemanal: +45,
-    cambioMensual: +120
-  };
+  useEffect(() => {
+    const cargarRanking = async () => {
+      if (!usuario) return;
 
-  const historialReciente = [
-    { fecha: '2025-11-18', rival: 'Juan Pérez', resultado: 'Victoria', cambio: +15, rating: 1250 },
-    { fecha: '2025-11-17', rival: 'María García', resultado: 'Victoria', cambio: +18, rating: 1235 },
-    { fecha: '2025-11-16', rival: 'Carlos López', resultado: 'Victoria', cambio: +12, rating: 1217 },
-    { fecha: '2025-11-15', rival: 'Ana Martínez', resultado: 'Derrota', cambio: -20, rating: 1205 },
-    { fecha: '2025-11-14', rival: 'Pedro Sánchez', resultado: 'Victoria', cambio: +16, rating: 1225 },
-  ];
+      try {
+        setIsLoading(true);
+        // Cargar ranking completo (200 jugadores para tener más contexto)
+        const rankingData = await apiService.getRankingGeneral(200, 0);
+        
+        // Filtrar por género del usuario
+        const rankingFiltrado = rankingData.filter(
+          (j: any) => j.sexo === usuario.sexo
+        );
+        
+        setRanking(rankingFiltrado);
 
-  const winRate = ((stats.partidosGanados / stats.partidosJugados) * 100).toFixed(1);
+        // Encontrar mi posición
+        const posicion = rankingFiltrado.findIndex(
+          (j: any) => j.id_usuario === usuario.id_usuario
+        );
+        setMiPosicion(posicion !== -1 ? posicion + 1 : null);
+      } catch (error) {
+        logger.error('Error al cargar ranking:', error);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    cargarRanking();
+  }, [usuario]);
+
+  if (!usuario) return null;
+
+  const categoriaInfo = getCategoriaInfo(usuario.rating);
+  const proximaCategoria = CATEGORIAS.find(cat => cat.ratingMin > usuario.rating);
+  const puntosParaProxima = proximaCategoria ? proximaCategoria.ratingMin - usuario.rating : 0;
 
   return (
     <div className="space-y-8">
@@ -37,249 +69,150 @@ export default function MiRanking() {
       <motion.div
         initial={{ opacity: 0, y: -30 }}
         animate={{ opacity: 1, y: 0 }}
-        className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4"
+        className="relative"
       >
-        <div>
-          <div className="flex items-center gap-3 mb-2">
-            <div className="h-1 w-12 bg-gradient-to-r from-primary to-secondary rounded-full" />
-            <h1 className="text-5xl font-black text-textPrimary tracking-tight">
-              Mi Ranking
-            </h1>
-          </div>
-          <p className="text-textSecondary text-base ml-15">
-            Tu progreso y estadísticas
-          </p>
+        <div className="flex items-center gap-3 mb-2">
+          <div className="h-1 w-12 bg-gradient-to-r from-primary to-secondary rounded-full" />
+          <h1 className="text-5xl font-black text-textPrimary tracking-tight">
+            Mi Ranking
+          </h1>
         </div>
+        <p className="text-textSecondary text-base ml-15">
+          Tu posición y progreso en el ranking
+        </p>
       </motion.div>
 
-      {/* Rating Principal */}
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.1 }}
-      >
-        <Card className="bg-gradient-to-br from-primary/10 to-secondary/10 border-primary/30">
-          <div className="p-6">
-            <div className="flex items-center justify-between mb-6">
-              <div>
-                <p className="text-textSecondary text-sm mb-1">Rating Actual</p>
-                <div className="flex items-baseline gap-3">
-                  <h2 className="text-6xl font-black text-primary">{stats.ratingActual}</h2>
-                  <div className="flex items-center gap-1">
-                    {stats.cambioSemanal > 0 ? (
-                      <TrendingUp size={20} className="text-secondary" />
-                    ) : (
-                      <TrendingDown size={20} className="text-red-500" />
-                    )}
-                    <span className={`text-lg font-bold ${stats.cambioSemanal > 0 ? 'text-secondary' : 'text-red-500'}`}>
-                      {stats.cambioSemanal > 0 ? '+' : ''}{stats.cambioSemanal}
-                    </span>
-                    <span className="text-textSecondary text-sm">esta semana</span>
-                  </div>
-                </div>
-              </div>
-              <div className="text-right">
-                <p className="text-textSecondary text-sm mb-1">Cambio Mensual</p>
-                <p className={`text-2xl font-bold ${stats.cambioMensual > 0 ? 'text-secondary' : 'text-red-500'}`}>
-                  {stats.cambioMensual > 0 ? '+' : ''}{stats.cambioMensual}
-                </p>
-              </div>
-            </div>
-
-            <RatingProgressBar
-              currentRating={stats.ratingActual}
-              size="lg"
-            />
+      {/* Estadísticas Principales */}
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+        <Card gradient>
+          <div className="text-center">
+            <Trophy className="text-accent mx-auto mb-3" size={40} />
+            <p className="text-4xl font-black text-textPrimary mb-1">
+              {miPosicion ? `#${miPosicion}` : '-'}
+            </p>
+            <p className="text-textSecondary text-sm">Posición General</p>
           </div>
         </Card>
-      </motion.div>
 
-      {/* Posiciones */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        <motion.div
-          initial={{ opacity: 0, x: -20 }}
-          animate={{ opacity: 1, x: 0 }}
-          transition={{ delay: 0.2 }}
-        >
-          <Card>
-            <div className="p-6">
-              <div className="flex items-center gap-3 mb-4">
-                <div className="w-12 h-12 rounded-full bg-primary/20 flex items-center justify-center">
-                  <Trophy size={24} className="text-primary" />
-                </div>
-                <div>
-                  <p className="text-textSecondary text-sm">Posición General</p>
-                  <p className="text-3xl font-black text-primary">#{stats.posicionGeneral}</p>
-                </div>
-              </div>
-              <p className="text-textSecondary text-sm">
-                De todos los jugadores registrados
-              </p>
-            </div>
-          </Card>
-        </motion.div>
+        <Card gradient>
+          <div className="text-center">
+            <Target className="text-primary mx-auto mb-3" size={40} />
+            <p className="text-4xl font-black text-primary mb-1">{usuario.rating}</p>
+            <p className="text-textSecondary text-sm">Rating Actual</p>
+          </div>
+        </Card>
 
-        <motion.div
-          initial={{ opacity: 0, x: 20 }}
-          animate={{ opacity: 1, x: 0 }}
-          transition={{ delay: 0.2 }}
-        >
-          <Card>
-            <div className="p-6">
-              <div className="flex items-center gap-3 mb-4">
-                <div className="w-12 h-12 rounded-full bg-secondary/20 flex items-center justify-center">
-                  <Award size={24} className="text-secondary" />
-                </div>
-                <div>
-                  <p className="text-textSecondary text-sm">Posición en Categoría</p>
-                  <p className="text-3xl font-black text-secondary">#{stats.posicionCategoria}</p>
-                </div>
-              </div>
-              <p className="text-textSecondary text-sm">
-                En tu categoría (Oro)
-              </p>
-            </div>
-          </Card>
-        </motion.div>
+        <Card gradient>
+          <div className="text-center">
+            <Award className="text-secondary mx-auto mb-3" size={40} />
+            <p className="text-4xl font-black text-textPrimary mb-1">
+              {usuario.partidos_jugados}
+            </p>
+            <p className="text-textSecondary text-sm">Partidos Jugados</p>
+          </div>
+        </Card>
+
+        <Card gradient>
+          <div className="text-center">
+            <Medal className="text-purple-400 mx-auto mb-3" size={40} />
+            <p className={`text-4xl font-black mb-1 bg-gradient-to-r ${categoriaInfo.color} bg-clip-text text-transparent`}>
+              {categoriaInfo.nombre}
+            </p>
+            <p className="text-textSecondary text-sm">Categoría</p>
+          </div>
+        </Card>
       </div>
 
-      {/* Estadísticas */}
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.3 }}
-      >
-        <Card>
-          <div className="p-6">
-            <h3 className="text-xl font-bold text-textPrimary mb-6">Estadísticas</h3>
-            
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
-              <div className="text-center">
-                <p className="text-4xl font-black text-primary mb-2">{stats.partidosJugados}</p>
-                <p className="text-textSecondary text-sm">Partidos Jugados</p>
-              </div>
-              
-              <div className="text-center">
-                <p className="text-4xl font-black text-secondary mb-2">{winRate}%</p>
-                <p className="text-textSecondary text-sm">Win Rate</p>
-              </div>
-              
-              <div className="text-center">
-                <p className="text-4xl font-black text-accent mb-2">{stats.rachaActual}</p>
-                <p className="text-textSecondary text-sm">Racha Actual</p>
-              </div>
-              
-              <div className="text-center">
-                <p className="text-4xl font-black text-textPrimary mb-2">{stats.mejorRacha}</p>
-                <p className="text-textSecondary text-sm">Mejor Racha</p>
-              </div>
+      {/* Información de Categoría */}
+      <Card>
+        <h2 className="text-2xl font-bold text-textPrimary mb-4">Tu Categoría</h2>
+        <div className={`bg-gradient-to-r ${categoriaInfo.color} rounded-xl p-6 text-white mb-4`}>
+          <div className="flex items-center justify-between">
+            <div>
+              <h3 className="text-3xl font-black mb-2">{categoriaInfo.nombre}</h3>
+              <p className="text-white/90">{categoriaInfo.descripcion}</p>
+              <p className="text-white/80 text-sm mt-2">
+                Rango: {categoriaInfo.ratingMin} - {categoriaInfo.ratingMax === 9999 ? '∞' : categoriaInfo.ratingMax}
+              </p>
             </div>
+            <Trophy size={64} className="text-white/30" />
+          </div>
+        </div>
 
-            <div className="mt-6 pt-6 border-t border-cardBorder">
-              <div className="flex justify-around">
-                <div className="text-center">
-                  <p className="text-2xl font-bold text-secondary mb-1">{stats.partidosGanados}</p>
-                  <p className="text-textSecondary text-xs">Victorias</p>
-                </div>
-                <div className="text-center">
-                  <p className="text-2xl font-bold text-red-500 mb-1">{stats.partidosPerdidos}</p>
-                  <p className="text-textSecondary text-xs">Derrotas</p>
-                </div>
-              </div>
+        {proximaCategoria && (
+          <div className="bg-background rounded-xl p-4">
+            <div className="flex items-center justify-between mb-2">
+              <p className="text-textSecondary text-sm">Próxima categoría: <span className="text-textPrimary font-bold">{proximaCategoria.nombre}</span></p>
+              <p className="text-primary font-bold">{puntosParaProxima} puntos</p>
+            </div>
+            <div className="w-full bg-cardBorder rounded-full h-3 overflow-hidden">
+              <div
+                className={`h-full bg-gradient-to-r ${proximaCategoria.color} transition-all duration-500`}
+                style={{
+                  width: `${Math.max(0, Math.min(100, ((categoriaInfo.ratingMax - categoriaInfo.ratingMin - puntosParaProxima) / (categoriaInfo.ratingMax - categoriaInfo.ratingMin)) * 100))}%`
+                }}
+              />
             </div>
           </div>
-        </Card>
-      </motion.div>
+        )}
+      </Card>
 
-      {/* Historial Reciente */}
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.4 }}
-      >
-        <Card>
-          <div className="p-6">
-            <div className="flex items-center gap-2 mb-6">
-              <Calendar size={24} className="text-primary" />
-              <h3 className="text-xl font-bold text-textPrimary">Historial Reciente</h3>
-            </div>
+      {/* Jugadores Cercanos */}
+      <Card>
+        <h2 className="text-2xl font-bold text-textPrimary mb-6 flex items-center gap-2">
+          <TrendingUp className="text-primary" size={28} />
+          Jugadores Cercanos en el Ranking
+        </h2>
 
-            <div className="space-y-3">
-              {historialReciente.map((partido, index) => (
-                <motion.div
-                  key={index}
-                  initial={{ opacity: 0, x: -20 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  transition={{ delay: 0.5 + index * 0.1 }}
-                  className="flex items-center justify-between p-4 bg-background rounded-xl border border-cardBorder hover:border-primary/50 transition-colors"
-                >
-                  <div className="flex items-center gap-4">
-                    <div className={`w-2 h-2 rounded-full ${
-                      partido.resultado === 'Victoria' ? 'bg-secondary' : 'bg-red-500'
-                    }`} />
-                    <div>
-                      <p className="text-textPrimary font-semibold">{partido.rival}</p>
-                      <p className="text-textSecondary text-sm">
-                        {new Date(partido.fecha).toLocaleDateString('es-ES', {
-                          day: 'numeric',
-                          month: 'short'
-                        })}
-                      </p>
-                    </div>
-                  </div>
+        {isLoading ? (
+          <p className="text-center text-textSecondary py-8">Cargando...</p>
+        ) : (
+          <div className="space-y-2">
+            {ranking
+              .slice(Math.max(0, (miPosicion || 1) - 3), (miPosicion || 1) + 2)
+              .map((jugador, index) => {
+                const posicion = Math.max(0, (miPosicion || 1) - 3) + index + 1;
+                const esUsuarioActual = jugador.id_usuario === usuario.id_usuario;
+                const nombreCompleto = `${jugador.nombre} ${jugador.apellido}`;
 
-                  <div className="flex items-center gap-4">
-                    <span className={`px-3 py-1 rounded-full text-sm font-bold ${
-                      partido.resultado === 'Victoria'
-                        ? 'bg-secondary/20 text-secondary'
-                        : 'bg-red-500/20 text-red-500'
-                    }`}>
-                      {partido.resultado}
-                    </span>
-                    
-                    <div className="text-right">
-                      <p className={`text-lg font-bold ${
-                        partido.cambio > 0 ? 'text-secondary' : 'text-red-500'
+                return (
+                  <motion.div
+                    key={jugador.id_usuario}
+                    initial={{ opacity: 0, x: -20 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    transition={{ delay: index * 0.1 }}
+                    className={`flex items-center justify-between p-4 rounded-xl ${
+                      esUsuarioActual
+                        ? 'bg-primary/10 border-2 border-primary'
+                        : 'bg-background'
+                    }`}
+                  >
+                    <div className="flex items-center gap-4">
+                      <div className={`w-12 h-12 rounded-full flex items-center justify-center font-black ${
+                        posicion === 1 ? 'bg-gradient-to-br from-yellow-400 to-yellow-600 text-white' :
+                        posicion === 2 ? 'bg-gradient-to-br from-gray-300 to-gray-500 text-white' :
+                        posicion === 3 ? 'bg-gradient-to-br from-orange-400 to-orange-600 text-white' :
+                        'bg-cardBorder text-textSecondary'
                       }`}>
-                        {partido.cambio > 0 ? '+' : ''}{partido.cambio}
-                      </p>
-                      <p className="text-textSecondary text-xs">{partido.rating}</p>
+                        #{posicion}
+                      </div>
+                      <div>
+                        <p className={`font-bold ${esUsuarioActual ? 'text-primary' : 'text-textPrimary'}`}>
+                          {nombreCompleto} {esUsuarioActual && '(Tú)'}
+                        </p>
+                        <p className="text-textSecondary text-sm">@{jugador.nombre_usuario}</p>
+                      </div>
                     </div>
-                  </div>
-                </motion.div>
-              ))}
-            </div>
+                    <div className="text-right">
+                      <p className="text-2xl font-black text-primary">{jugador.rating}</p>
+                      <p className="text-textSecondary text-xs">{jugador.partidos_jugados} partidos</p>
+                    </div>
+                  </motion.div>
+                );
+              })}
           </div>
-        </Card>
-      </motion.div>
-
-      {/* Próximo Objetivo */}
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.9 }}
-      >
-        <Card className="bg-gradient-to-br from-accent/10 to-accent/5 border-accent/30">
-          <div className="p-6">
-            <div className="flex items-center gap-3 mb-4">
-              <Target size={28} className="text-accent" />
-              <h3 className="text-xl font-bold text-textPrimary">Próximo Objetivo</h3>
-            </div>
-            
-            <p className="text-textSecondary mb-4">
-              Alcanza <span className="text-accent font-bold">1300 puntos</span> para subir a <span className="text-accent font-bold">Platino</span>
-            </p>
-            
-            <RatingProgressBar
-              currentRating={stats.ratingActual}
-              minRating={1100}
-              maxRating={1300}
-              categoria="Oro → Platino"
-              size="md"
-            />
-          </div>
-        </Card>
-      </motion.div>
+        )}
+      </Card>
     </div>
   );
 }

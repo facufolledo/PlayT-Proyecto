@@ -34,6 +34,7 @@ class JugadorCategoriaResponse(BaseModel):
     nombre_usuario: str
     rating: int
     partidos_jugados: int
+    sexo: str
     
     class Config:
         from_attributes = True
