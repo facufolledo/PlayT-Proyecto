@@ -32,12 +32,18 @@ export default function MiRanking() {
 
       try {
         setIsLoading(true);
-        const sexo = usuario.sexo === 'M' ? 'M' : 'F';
-        const rankingData = await apiService.getRankingGeneral(sexo);
-        setRanking(rankingData);
+        // Cargar ranking completo (200 jugadores para tener más contexto)
+        const rankingData = await apiService.getRankingGeneral(200, 0);
+        
+        // Filtrar por género del usuario
+        const rankingFiltrado = rankingData.filter(
+          (j: any) => j.sexo === usuario.sexo
+        );
+        
+        setRanking(rankingFiltrado);
 
         // Encontrar mi posición
-        const posicion = rankingData.findIndex(
+        const posicion = rankingFiltrado.findIndex(
           (j: any) => j.id_usuario === usuario.id_usuario
         );
         setMiPosicion(posicion !== -1 ? posicion + 1 : null);

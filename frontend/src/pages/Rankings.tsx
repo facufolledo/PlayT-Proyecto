@@ -10,21 +10,12 @@ import { logger } from '../utils/logger';
 
 // Categorías según la documentación
 const CATEGORIAS = [
-  { nombre: '8va', descripcion: 'Principiante / Princ. avanzado', ratingMin: 0, ratingMax: 899, color: 'from-gray-500 to-gray-600' },
-  { nombre: '7ma', descripcion: 'Golpes más sólidos', ratingMin: 900, ratingMax: 1049, color: 'from-blue-500 to-blue-600' },
-  { nombre: '6ta', descripcion: 'Mejor dominio y estrategia', ratingMin: 1050, ratingMax: 1199, color: 'from-green-500 to-green-600' },
-  { nombre: '5ta', descripcion: 'Buenos jugadores, constancia', ratingMin: 1200, ratingMax: 1349, color: 'from-yellow-500 to-yellow-600' },
-  { nombre: '4ta', descripcion: 'Muy buenos, técnica + estrategia', ratingMin: 1350, ratingMax: 1499, color: 'from-orange-500 to-orange-600' },
-  { nombre: 'Libre', descripcion: 'Élite local (top provincia)', ratingMin: 1500, ratingMax: 9999, color: 'from-purple-500 to-pink-500' },
-];
-
-// Datos mock de jugadores (esto vendrá del backend)
-const jugadoresMock = [
-  { id: '1', nombre: 'Juan Pérez', rating: 1450, partidosJugados: 45, partidosGanados: 30, categoria: '4ta', tendencia: 'up', cambioReciente: +15, genero: 'masculino' },
-  { id: '2', nombre: 'María García', rating: 1420, partidosJugados: 38, partidosGanados: 25, categoria: '4ta', tendencia: 'down', cambioReciente: -8, genero: 'femenino' },
-  { id: '3', nombre: 'Carlos López', rating: 1380, partidosJugados: 52, partidosGanados: 28, categoria: '4ta', tendencia: 'up', cambioReciente: +12, genero: 'masculino' },
-  { id: '4', nombre: 'Ana Martínez', rating: 1350, partidosJugados: 41, partidosGanados: 22, categoria: '5ta', tendencia: 'stable', cambioReciente: 0, genero: 'femenino' },
-  { id: '5', nombre: 'Pedro Sánchez', rating: 1320, partidosJugados: 35, partidosGanados: 20, categoria: '5ta', tendencia: 'up', cambioReciente: +18, genero: 'masculino' },
+  { id: 1, nombre: '8va', descripcion: 'Principiante / Princ. avanzado', ratingMin: 0, ratingMax: 899, color: 'from-gray-500 to-gray-600' },
+  { id: 2, nombre: '7ma', descripcion: 'Golpes más sólidos', ratingMin: 900, ratingMax: 1049, color: 'from-blue-500 to-blue-600' },
+  { id: 3, nombre: '6ta', descripcion: 'Mejor dominio y estrategia', ratingMin: 1050, ratingMax: 1199, color: 'from-green-500 to-green-600' },
+  { id: 4, nombre: '5ta', descripcion: 'Buenos jugadores, constancia', ratingMin: 1200, ratingMax: 1349, color: 'from-yellow-500 to-yellow-600' },
+  { id: 5, nombre: '4ta', descripcion: 'Muy buenos, técnica + estrategia', ratingMin: 1350, ratingMax: 1499, color: 'from-orange-500 to-orange-600' },
+  { id: 6, nombre: 'Libre', descripcion: 'Élite local (top provincia)', ratingMin: 1500, ratingMax: 9999, color: 'from-purple-500 to-pink-500' },
 ];
 
 function getCategoriaInfo(rating: number) {
@@ -50,13 +41,13 @@ export default function Rankings() {
         const categoriasData = await apiService.getCategorias();
         setCategorias(categoriasData);
         
-        // Cargar ranking general
-        const rankingData = await apiService.getRankingGeneral();
+        // Cargar ranking general (100 jugadores)
+        const rankingData = await apiService.getRankingGeneral(100, 0);
         setJugadores(rankingData);
       } catch (error) {
         logger.error('Error al cargar datos:', error);
-        // Si falla, usar datos mock
-        setJugadores(jugadoresMock);
+        // Si falla, mostrar array vacío
+        setJugadores([]);
       } finally {
         setIsLoading(false);
       }
@@ -65,26 +56,40 @@ export default function Rankings() {
     cargarDatos();
   }, []);
 
-  // Recargar cuando cambie el filtro de género
+  // Recargar cuando cambie el filtro de categoría
   useEffect(() => {
     const cargarRanking = async () => {
-      try {
-        setIsLoading(true);
-        const sexo = filtroGenero === 'masculino' ? 'M' : filtroGenero === 'femenino' ? 'F' : 'todos';
-        const rankingData = await apiService.getRankingGeneral(sexo as any);
-        setJugadores(rankingData);
-      } catch (error) {
-        logger.error('Error al cargar ranking:', error);
-        setJugadores(jugadoresMock);
-      } finally {
-        setIsLoading(false);
+      if (filtroCategoria === 'todas') {
+        try {
+          setIsLoading(true);
+          const rankingData = await apiService.getRankingGeneral(100, 0);
+          setJugadores(rankingData);
+        } catch (error) {
+          logger.error('Error al cargar ranking:', error);
+          setJugadores([]);
+        } finally {
+          setIsLoading(false);
+        }
+      } else {
+        // Buscar la categoría por nombre
+        const categoria = CATEGORIAS.find(c => c.nombre === filtroCategoria);
+        if (categoria) {
+          try {
+            setIsLoading(true);
+            const categoriaData = await apiService.getRankingPorCategoria(categoria.id || 1);
+            setJugadores(categoriaData.jugadores || []);
+          } catch (error) {
+            logger.error('Error al cargar ranking por categoría:', error);
+            setJugadores([]);
+          } finally {
+            setIsLoading(false);
+          }
+        }
       }
     };
 
-    if (filtroCategoria === 'todas') {
-      cargarRanking();
-    }
-  }, [filtroGenero]);
+    cargarRanking();
+  }, [filtroCategoria]);
 
   // Datos de progresión de rating (mock)
   const progresionRating = [
@@ -96,12 +101,18 @@ export default function Rankings() {
     { mes: 'Jun', rating: 1450 },
   ];
 
-  // Filtrar jugadores localmente por búsqueda
+  // Filtrar jugadores localmente por búsqueda y género
   const jugadoresFiltrados = jugadores.filter(jugador => {
     const nombreCompleto = `${jugador.nombre || ''} ${jugador.apellido || ''}`.toLowerCase();
     const cumpleBusqueda = nombreCompleto.includes(busqueda.toLowerCase()) || 
                           (jugador.nombre_usuario || '').toLowerCase().includes(busqueda.toLowerCase());
-    return cumpleBusqueda;
+    
+    // Filtro por género
+    const cumpleGenero = filtroGenero === 'todos' || 
+                        (filtroGenero === 'masculino' && jugador.sexo === 'M') ||
+                        (filtroGenero === 'femenino' && jugador.sexo === 'F');
+    
+    return cumpleBusqueda && cumpleGenero;
   });
 
   return (

@@ -121,10 +121,11 @@ class ApiService {
   }
 
   // Obtener ranking general
-  async getRankingGeneral(sexo?: 'M' | 'F' | 'todos'): Promise<any[]> {
+  async getRankingGeneral(limit: number = 100, offset: number = 0): Promise<any[]> {
     try {
-      const params = sexo && sexo !== 'todos' ? { sexo } : {};
-      const response = await this.api.get('/ranking/general', { params });
+      const response = await this.api.get('/ranking/', {
+        params: { limit, offset }
+      });
       return response.data;
     } catch (error: any) {
       logger.error('Error al obtener ranking general:', error);
@@ -133,13 +134,25 @@ class ApiService {
   }
 
   // Obtener ranking por categoría
-  async getRankingPorCategoria(idCategoria: number, sexo?: 'M' | 'F' | 'todos'): Promise<any[]> {
+  async getRankingPorCategoria(idCategoria: number): Promise<any> {
     try {
-      const params = sexo && sexo !== 'todos' ? { sexo } : {};
-      const response = await this.api.get(`/ranking/categoria/${idCategoria}`, { params });
+      const response = await this.api.get(`/categorias/${idCategoria}/jugadores`);
       return response.data;
     } catch (error: any) {
       logger.error('Error al obtener ranking por categoría:', error);
+      throw error;
+    }
+  }
+
+  // Obtener ranking global (endpoint alternativo)
+  async getRankingGlobal(limit: number = 100): Promise<any[]> {
+    try {
+      const response = await this.api.get('/categorias/ranking/global', {
+        params: { limit }
+      });
+      return response.data;
+    } catch (error: any) {
+      logger.error('Error al obtener ranking global:', error);
       throw error;
     }
   }
