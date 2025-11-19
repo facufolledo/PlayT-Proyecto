@@ -121,11 +121,13 @@ class ApiService {
   }
 
   // Obtener ranking general
-  async getRankingGeneral(limit: number = 100, offset: number = 0): Promise<any[]> {
+  async getRankingGeneral(limit: number = 100, offset: number = 0, sexo?: 'M' | 'F'): Promise<any[]> {
     try {
-      const response = await this.api.get('/ranking/', {
-        params: { limit, offset }
-      });
+      const params: any = { limit, offset };
+      if (sexo) {
+        params.sexo = sexo;
+      }
+      const response = await this.api.get('/ranking/', { params });
       return response.data;
     } catch (error: any) {
       logger.error('Error al obtener ranking general:', error);

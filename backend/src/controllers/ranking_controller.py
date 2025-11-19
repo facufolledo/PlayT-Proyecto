@@ -13,17 +13,40 @@ router = APIRouter(prefix="/ranking", tags=["Ranking"])
 
 @router.get("/", response_model=List[RankingResponse])
 async def get_ranking(
-    limit: int = Query(10, description="Número de jugadores a retornar"),
+    limit: int = Query(100, description="Número de jugadores a retornar"),
     offset: int = Query(0, description="Número de jugadores a saltar"),
+    sexo: Optional[str] = Query(None, description="Filtrar por sexo: M o F"),
     db: Session = Depends(get_db)
 ):
     """Obtener el ranking general de jugadores"""
     
     try:
         from ..models.playt_models import PartidoJugador, ResultadoPartido, Partido
+        from sqlalchemy import case
         
-        # Obtener usuarios ordenados por rating descendente
-        usuarios = (
+        # Subquery para calcular partidos ganados de forma eficiente
+        partidos_ganados_subq = (
+            db.query(
+                PartidoJugador.id_usuario,
+                func.count(PartidoJugador.id_partido).label("partidos_ganados")
+            )
+            .join(ResultadoPartido, PartidoJugador.id_partido == ResultadoPartido.id_partido)
+            .join(Partido, PartidoJugador.id_partido == Partido.id_partido)
+            .filter(
+                Partido.estado == "finalizado",
+                ResultadoPartido.confirmado == True,
+                # Equipo 1 gana si sets_eq1 > sets_eq2, Equipo 2 gana si sets_eq2 > sets_eq1
+                (
+                    ((PartidoJugador.equipo == 1) & (ResultadoPartido.sets_eq1 > ResultadoPartido.sets_eq2)) |
+                    ((PartidoJugador.equipo == 2) & (ResultadoPartido.sets_eq2 > ResultadoPartido.sets_eq1))
+                )
+            )
+            .group_by(PartidoJugador.id_usuario)
+            .subquery()
+        )
+        
+        # Query principal con JOIN a la subquery
+        query = (
             db.query(
                 Usuario.id_usuario,
                 Usuario.nombre_usuario,
@@ -36,37 +59,23 @@ async def get_ranking(
                 PerfilUsuario.pais,
                 PerfilUsuario.url_avatar,
                 Categoria.nombre.label("categoria_nombre"),
+                func.coalesce(partidos_ganados_subq.c.partidos_ganados, 0).label("partidos_ganados")
             )
             .join(PerfilUsuario, Usuario.id_usuario == PerfilUsuario.id_usuario, isouter=True)
             .join(Categoria, Usuario.id_categoria == Categoria.id_categoria, isouter=True)
-            .order_by(desc(Usuario.rating))
-            .offset(offset)
-            .limit(limit)
-            .all()
+            .join(partidos_ganados_subq, Usuario.id_usuario == partidos_ganados_subq.c.id_usuario, isouter=True)
         )
         
-        # Formatear respuesta y calcular partidos ganados
+        # Filtrar por sexo si se especifica
+        if sexo and sexo in ['M', 'F']:
+            query = query.filter(Usuario.sexo == sexo)
+        
+        # Ordenar y paginar
+        usuarios = query.order_by(desc(Usuario.rating)).offset(offset).limit(limit).all()
+        
+        # Formatear respuesta
         ranking = []
         for i, usuario in enumerate(usuarios):
-            # Calcular partidos ganados
-            partidos_ganados = (
-                db.query(func.count(PartidoJugador.id_partido))
-                .join(ResultadoPartido, PartidoJugador.id_partido == ResultadoPartido.id_partido)
-                .join(Partido, PartidoJugador.id_partido == Partido.id_partido)
-                .filter(
-                    PartidoJugador.id_usuario == usuario.id_usuario,
-                    Partido.estado == "finalizado",
-                    ResultadoPartido.confirmado == True,
-                    # Equipo 1 gana si sets_eq1 > sets_eq2
-                    # Equipo 2 gana si sets_eq2 > sets_eq1
-                    (
-                        ((PartidoJugador.equipo == 1) & (ResultadoPartido.sets_eq1 > ResultadoPartido.sets_eq2)) |
-                        ((PartidoJugador.equipo == 2) & (ResultadoPartido.sets_eq2 > ResultadoPartido.sets_eq1))
-                    )
-                )
-                .scalar() or 0
-            )
-            
             ranking.append(RankingResponse(
                 posicion=offset + i + 1,
                 id_usuario=usuario.id_usuario,
@@ -77,7 +86,7 @@ async def get_ranking(
                 pais=usuario.pais or "",
                 rating=usuario.rating,
                 partidos_jugados=usuario.partidos_jugados,
-                partidos_ganados=partidos_ganados,
+                partidos_ganados=usuario.partidos_ganados,
                 categoria=getattr(usuario, "categoria_nombre", None),
                 sexo=usuario.sexo,
                 imagen_url=usuario.url_avatar or None

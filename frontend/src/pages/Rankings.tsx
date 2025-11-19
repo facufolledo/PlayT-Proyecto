@@ -42,7 +42,8 @@ export default function Rankings() {
         setCategorias(categoriasData);
         
         // Cargar ranking general (100 jugadores)
-        const rankingData = await apiService.getRankingGeneral(100, 0);
+        const sexoParam = filtroGenero === 'masculino' ? 'M' : filtroGenero === 'femenino' ? 'F' : undefined;
+        const rankingData = await apiService.getRankingGeneral(100, 0, sexoParam);
         setJugadores(rankingData);
       } catch (error) {
         logger.error('Error al cargar datos:', error);
@@ -54,7 +55,7 @@ export default function Rankings() {
     };
 
     cargarDatos();
-  }, []);
+  }, [filtroGenero]); // Agregar filtroGenero como dependencia
 
   // Recargar cuando cambie el filtro de categoría
   useEffect(() => {
@@ -62,7 +63,8 @@ export default function Rankings() {
       if (filtroCategoria === 'todas') {
         try {
           setIsLoading(true);
-          const rankingData = await apiService.getRankingGeneral(100, 0);
+          const sexoParam = filtroGenero === 'masculino' ? 'M' : filtroGenero === 'femenino' ? 'F' : undefined;
+          const rankingData = await apiService.getRankingGeneral(100, 0, sexoParam);
           setJugadores(rankingData);
         } catch (error) {
           logger.error('Error al cargar ranking:', error);
@@ -89,7 +91,7 @@ export default function Rankings() {
     };
 
     cargarRanking();
-  }, [filtroCategoria]);
+  }, [filtroCategoria, filtroGenero]); // Agregar filtroGenero como dependencia
 
   // Datos de progresión de rating (mock)
   const progresionRating = [
@@ -101,18 +103,13 @@ export default function Rankings() {
     { mes: 'Jun', rating: 1450 },
   ];
 
-  // Filtrar jugadores localmente por búsqueda y género
+  // Filtrar jugadores localmente solo por búsqueda (el género ya se filtra en el backend)
   const jugadoresFiltrados = jugadores.filter(jugador => {
     const nombreCompleto = `${jugador.nombre || ''} ${jugador.apellido || ''}`.toLowerCase();
     const cumpleBusqueda = nombreCompleto.includes(busqueda.toLowerCase()) || 
                           (jugador.nombre_usuario || '').toLowerCase().includes(busqueda.toLowerCase());
     
-    // Filtro por género
-    const cumpleGenero = filtroGenero === 'todos' || 
-                        (filtroGenero === 'masculino' && jugador.sexo === 'M') ||
-                        (filtroGenero === 'femenino' && jugador.sexo === 'F');
-    
-    return cumpleBusqueda && cumpleGenero;
+    return cumpleBusqueda;
   });
 
   return (
