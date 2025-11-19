@@ -256,9 +256,9 @@ export default function Rankings() {
                 jugadoresFiltrados.map((jugador, index) => {
                   const catInfo = getCategoriaInfo(jugador.rating);
                   const nombreCompleto = `${jugador.nombre || ''} ${jugador.apellido || ''}`.trim() || jugador.nombre_usuario;
-                  const partidosJugados = jugador.partidos_jugados || jugador.partidosJugados || 0;
-                  const partidosGanados = jugador.partidos_ganados || jugador.partidosGanados || 0;
-                  const porcentaje = partidosJugados > 0 ? ((partidosGanados / partidosJugados) * 100).toFixed(0) : '0';
+                  const partidosJugados = jugador.partidos_jugados || 0;
+                  // Por ahora no tenemos partidos_ganados en el backend, mostrar N/A
+                  const porcentaje = 'N/A';
                   
                   return (
                     <motion.tr
