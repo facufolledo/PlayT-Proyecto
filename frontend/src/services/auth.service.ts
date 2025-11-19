@@ -134,6 +134,11 @@ class AuthService {
       throw new Error(error.message || 'Error al completar el perfil');
     }
   }
+
+  // Obtener usuario actual de Firebase
+  getCurrentFirebaseUser(): User | null {
+    return auth.currentUser;
+  }
 }
 
 export const authService = new AuthService();

@@ -98,8 +98,25 @@ export default function ModalConfirmarResultado({ isOpen, onClose, sala }: Modal
             </div>
           </div>
 
+          {/* Detalle de sets */}
+          {sala.sets && sala.sets.length > 0 && (
+            <div className="mt-4 space-y-2">
+              <p className="text-textSecondary text-sm font-medium">Detalle por sets:</p>
+              <div className="grid grid-cols-3 gap-2">
+                {sala.sets.map((set, index) => (
+                  <div key={index} className="bg-cardBg rounded-lg p-2 text-center">
+                    <p className="text-textSecondary text-xs mb-1">Set {index + 1}</p>
+                    <p className="text-textPrimary font-bold">
+                      {set.equipoA} - {set.equipoB}
+                    </p>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
           {sala.ganador && (
-            <div className="flex items-center justify-center gap-2 py-3 bg-accent/10 rounded-lg">
+            <div className="flex items-center justify-center gap-2 py-3 bg-accent/10 rounded-lg mt-4">
               <Trophy size={20} className="text-accent" />
               <span className="text-accent font-bold">
                 Ganador: {sala.ganador === 'equipoA' ? 'Equipo A' : 'Equipo B'}
