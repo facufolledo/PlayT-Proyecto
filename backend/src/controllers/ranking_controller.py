@@ -5,7 +5,7 @@ from typing import List, Optional
 from datetime import datetime, timedelta
 
 from ..database.config import get_db
-from ..models.playt_models import Usuario, PerfilUsuario
+from ..models.playt_models import Usuario, PerfilUsuario, Categoria
 from ..schemas.ranking import RankingResponse, TopWeeklyResponse
 from ..auth.auth_utils import get_current_user
 
@@ -21,22 +21,27 @@ async def get_ranking(
     
     try:
         # Obtener usuarios ordenados por rating descendente
-        usuarios = db.query(
-            Usuario.id_usuario,
-            Usuario.nombre_usuario,
-            Usuario.email,
-            Usuario.rating,
-            Usuario.partidos_jugados,
-            PerfilUsuario.nombre,
-            PerfilUsuario.apellido,
-            PerfilUsuario.ciudad,
-            PerfilUsuario.pais,
-            PerfilUsuario.url_avatar
-        ).join(
-            PerfilUsuario, Usuario.id_usuario == PerfilUsuario.id_usuario, isouter=True
-        ).order_by(
-            desc(Usuario.rating)
-        ).offset(offset).limit(limit).all()
+        usuarios = (
+            db.query(
+                Usuario.id_usuario,
+                Usuario.nombre_usuario,
+                Usuario.rating,
+                Usuario.partidos_jugados,
+                Usuario.sexo,
+                PerfilUsuario.nombre,
+                PerfilUsuario.apellido,
+                PerfilUsuario.ciudad,
+                PerfilUsuario.pais,
+                PerfilUsuario.url_avatar,
+                Categoria.nombre.label("categoria_nombre"),
+            )
+            .join(PerfilUsuario, Usuario.id_usuario == PerfilUsuario.id_usuario, isouter=True)
+            .join(Categoria, Usuario.id_categoria == Categoria.id_categoria, isouter=True)
+            .order_by(desc(Usuario.rating))
+            .offset(offset)
+            .limit(limit)
+            .all()
+        )
         
         # Formatear respuesta
         ranking = []
@@ -51,6 +56,8 @@ async def get_ranking(
                 pais=usuario.pais or "",
                 rating=usuario.rating,
                 partidos_jugados=usuario.partidos_jugados,
+                categoria=getattr(usuario, "categoria_nombre", None),
+                sexo=usuario.sexo,
                 imagen_url=usuario.url_avatar or None
             ))
         

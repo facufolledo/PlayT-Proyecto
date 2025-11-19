@@ -12,14 +12,10 @@ import { logger } from '../utils/logger';
 export interface PerfilCompleto {
   nombre: string;
   apellido: string;
-  dni: string;
-  fecha_nacimiento: string;
-  genero: 'masculino' | 'femenino';
-  categoria_inicial: string;
-  mano_habil?: 'derecha' | 'zurda';
-  posicion_preferida?: 'drive' | 'reves' | 'indiferente';
-  telefono?: string;
+  sexo: 'masculino' | 'femenino';
+  id_categoria_inicial: number;
   ciudad?: string;
+  pais?: string;
 }
 
 class AuthService {

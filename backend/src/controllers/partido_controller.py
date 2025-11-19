@@ -4,9 +4,9 @@ from typing import List, Optional
 from datetime import datetime
 
 from ..database.config import get_db
-from ..models.playt_models import Partido, PartidoJugador, ResultadoPartido, Usuario, Club, HistorialRating, PerfilUsuario, Categoria
+from ..models.playt_models import Partido, PartidoJugador, ResultadoPartido, Usuario, Club, HistorialRating, PerfilUsuario
 from ..schemas.partido import PartidoCreate, PartidoResponse, PartidoCompleto, ResultadoCreate
-from ..controllers.auth_controller import get_current_user
+from ..auth.auth_utils import get_current_user
 from ..services.elo_service import EloService
 
 router = APIRouter(prefix="/partidos", tags=["Partidos"])
@@ -704,42 +704,3 @@ async def partidos_usuario(
         ))
     
     return partidos_completos
-
-@router.get("/ranking", response_model=List[dict])
-async def obtener_ranking(
-    limit: int = Query(50, ge=1, le=100),
-    db: Session = Depends(get_db)
-):
-    """Obtener ranking de jugadores ordenado por rating Elo"""
-    
-    # Obtener usuarios ordenados por rating (descendente)
-    usuarios = db.query(Usuario).order_by(Usuario.rating.desc()).limit(limit).all()
-    
-    ranking = []
-    for i, usuario in enumerate(usuarios):
-        # Obtener perfil del usuario
-        perfil = db.query(PerfilUsuario).filter(
-            PerfilUsuario.id_usuario == usuario.id_usuario
-        ).first()
-        
-        # Obtener categoría
-        categoria = None
-        if usuario.id_categoria:
-            categoria = db.query(Categoria).filter(
-                Categoria.id_categoria == usuario.id_categoria
-            ).first()
-        
-        ranking.append({
-            "posicion": i + 1,
-            "id_usuario": usuario.id_usuario,
-            "nombre_usuario": usuario.nombre_usuario,
-            "nombre": perfil.nombre if perfil else "",
-            "apellido": perfil.apellido if perfil else "",
-            "rating": usuario.rating,
-            "partidos_jugados": usuario.partidos_jugados,
-            "categoria": categoria.nombre if categoria else "Sin categoría",
-            "ciudad": perfil.ciudad if perfil else "",
-            "pais": perfil.pais if perfil else ""
-        })
-    
-    return ranking

@@ -17,6 +17,9 @@ from src.controllers.auth_controller import router as auth_router
 from src.controllers.categoria_controller import router as categoria_router
 from src.controllers.partido_controller import router as partido_router
 from src.controllers.ranking_controller import router as ranking_router
+from src.controllers.estadisticas_controller import router as estadisticas_router
+from src.controllers.sala_controller import router as sala_router
+from src.controllers.websocket_controller import router as websocket_router
 
 
 # ---- Lifespan (startup/shutdown) ----
@@ -49,7 +52,7 @@ app = FastAPI(
 )
 
 # ---- CORS (json.loads en vez de eval) ----
-_default_origins = '["http://localhost:3000", "http://127.0.0.1:3000", "http://localhost:8080"]'
+_default_origins = '["http://localhost:3000", "http://127.0.0.1:3000", "http://localhost:8080", "http://localhost:5173", "http://127.0.0.1:5173", "http://localhost:5174", "http://127.0.0.1:5174"]'
 try:
     origins = json.loads(os.getenv("CORS_ORIGINS", _default_origins))
     if not isinstance(origins, list):
@@ -68,8 +71,11 @@ app.add_middleware(
 # ---- Routers ----
 app.include_router(auth_router)
 app.include_router(categoria_router)
+app.include_router(sala_router)
 app.include_router(partido_router)
 app.include_router(ranking_router)
+app.include_router(estadisticas_router)
+app.include_router(websocket_router)
 
 # ---- Endpoints básicos ----
 @app.get("/")

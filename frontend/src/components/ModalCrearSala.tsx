@@ -1,5 +1,6 @@
 import { useState } from 'react';
-import { X } from 'lucide-react';
+import { X, Copy, Share2, MessageCircle } from 'lucide-react';
+import { motion } from 'framer-motion';
 import Modal from './Modal';
 import Input from './Input';
 import Button from './Button';
@@ -9,144 +10,253 @@ import { useAuth } from '../context/AuthContext';
 interface ModalCrearSalaProps {
   isOpen: boolean;
   onClose: () => void;
+  onSalaCreada?: (salaId: string, codigo: string) => void;
 }
 
-export default function ModalCrearSala({ isOpen, onClose }: ModalCrearSalaProps) {
+export default function ModalCrearSala({ isOpen, onClose, onSalaCreada }: ModalCrearSalaProps) {
   const { addSala } = useSalas();
   const { usuario } = useAuth();
   const [formData, setFormData] = useState({
     nombre: '',
-    fecha: new Date().toISOString().split('T')[0],
-    jugador1A: '',
-    jugador2A: '',
-    jugador1B: '',
-    jugador2B: '',
+    fecha: '',
+    hora: '',
   });
+  const [salaCreada, setSalaCreada] = useState<{ id: string; codigo: string } | null>(null);
+  const [copiado, setCopiado] = useState(false);
+  const [creando, setCreando] = useState(false);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    if (!formData.nombre || !formData.jugador1A || !formData.jugador2A || 
-        !formData.jugador1B || !formData.jugador2B) {
+    if (!formData.nombre || !formData.fecha || !formData.hora) {
       alert('Por favor completa todos los campos');
       return;
     }
 
-    addSala({
-      nombre: formData.nombre,
-      fecha: formData.fecha,
-      estado: 'programada',
-      creadoPor: usuario?.id || '',
-      estadoConfirmacion: 'pendiente',
-      resultadoFinal: false,
-      equipoA: {
-        jugador1: { id: crypto.randomUUID(), nombre: formData.jugador1A },
-        jugador2: { id: crypto.randomUUID(), nombre: formData.jugador2A },
-        puntos: 0,
-        confirmado: false
-      },
-      equipoB: {
-        jugador1: { id: crypto.randomUUID(), nombre: formData.jugador1B },
-        jugador2: { id: crypto.randomUUID(), nombre: formData.jugador2B },
-        puntos: 0,
-        confirmado: false
-      }
-    });
+    if (!usuario) {
+      alert('Debes iniciar sesión para crear una sala');
+      return;
+    }
 
+    try {
+      setCreando(true);
+      
+      // Combinar fecha y hora
+      const fechaHora = `${formData.fecha}T${formData.hora}`;
+      
+      // Crear sala en el backend
+      const codigo = await addSala({
+        nombre: formData.nombre,
+        fecha: fechaHora,
+        estado: 'esperando',
+        creadoPor: usuario.id,
+        estadoConfirmacion: 'pendiente',
+        resultadoFinal: false,
+        equipoA: {
+          jugador1: { id: '', nombre: '' },
+          jugador2: { id: '', nombre: '' },
+          puntos: 0,
+          confirmado: false
+        },
+        equipoB: {
+          jugador1: { id: '', nombre: '' },
+          jugador2: { id: '', nombre: '' },
+          puntos: 0,
+          confirmado: false
+        }
+      });
+
+      setSalaCreada({ id: crypto.randomUUID(), codigo });
+      
+      if (onSalaCreada) {
+        onSalaCreada(crypto.randomUUID(), codigo);
+      }
+    } catch (error: any) {
+      alert(error.message || 'Error al crear la sala');
+    } finally {
+      setCreando(false);
+    }
+  };
+
+  const handleCerrar = () => {
     setFormData({
       nombre: '',
-      fecha: new Date().toISOString().split('T')[0],
-      jugador1A: '',
-      jugador2A: '',
-      jugador1B: '',
-      jugador2B: '',
+      fecha: '',
+      hora: '',
     });
+    setSalaCreada(null);
+    setCopiado(false);
     onClose();
   };
 
+  const copiarCodigo = () => {
+    if (salaCreada) {
+      navigator.clipboard.writeText(salaCreada.codigo);
+      setCopiado(true);
+      setTimeout(() => setCopiado(false), 2000);
+    }
+  };
+
+  const compartirWhatsApp = () => {
+    if (salaCreada) {
+      const mensaje = `¡Únete a mi partido de pádel!\n\n📍 ${formData.nombre}\n📅 ${new Date(formData.fecha).toLocaleDateString()}\n⏰ ${formData.hora}\n\n🔑 Código: ${salaCreada.codigo}\n\nEntra a PlayR y usa este código para unirte.`;
+      window.open(`https://wa.me/?text=${encodeURIComponent(mensaje)}`, '_blank');
+    }
+  };
+
+  const copiarLink = () => {
+    if (salaCreada) {
+      const link = `${window.location.origin}/salas/unirse/${salaCreada.codigo}`;
+      navigator.clipboard.writeText(link);
+      alert('¡Link copiado!');
+    }
+  };
+
   return (
-    <Modal isOpen={isOpen} onClose={onClose}>
-      <div className="bg-cardBg rounded-2xl p-6 w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+    <Modal isOpen={isOpen} onClose={handleCerrar}>
+      <div className="bg-cardBg rounded-2xl p-8 w-full max-w-lg border border-cardBorder">
         <div className="flex items-center justify-between mb-6">
-          <h2 className="text-2xl font-bold text-textPrimary">Nueva Sala</h2>
+          <h2 className="text-2xl font-bold text-textPrimary">
+            {salaCreada ? '¡Sala Creada!' : 'Nueva Sala'}
+          </h2>
           <button
-            onClick={onClose}
+            onClick={handleCerrar}
             className="text-textSecondary hover:text-textPrimary transition-colors"
           >
             <X size={24} />
           </button>
         </div>
 
-        <form onSubmit={handleSubmit} className="space-y-6">
-          <div>
-            <label className="block text-textSecondary text-sm mb-2">Nombre de la Sala</label>
-            <Input
-              value={formData.nombre}
-              onChange={(e) => setFormData({ ...formData, nombre: e.target.value })}
-              placeholder="Ej: Final del Torneo"
-            />
-          </div>
+        {!salaCreada ? (
+          <form onSubmit={handleSubmit} className="space-y-6">
+            <div>
+              <label className="block text-textSecondary text-sm font-medium mb-2">
+                Nombre de la Sala
+              </label>
+              <Input
+                value={formData.nombre}
+                onChange={(e) => setFormData({ ...formData, nombre: e.target.value })}
+                placeholder="Ej: Partido del Viernes"
+                autoFocus
+              />
+            </div>
 
-          <div>
-            <label className="block text-textSecondary text-sm mb-2">Fecha</label>
-            <Input
-              type="date"
-              value={formData.fecha}
-              onChange={(e) => setFormData({ ...formData, fecha: e.target.value })}
-            />
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div className="space-y-4">
-              <h3 className="text-lg font-semibold text-primary">Equipo A</h3>
+            <div className="grid grid-cols-2 gap-4">
               <div>
-                <label className="block text-textSecondary text-sm mb-2">Jugador 1</label>
+                <label className="block text-textSecondary text-sm font-medium mb-2">
+                  Fecha
+                </label>
                 <Input
-                  value={formData.jugador1A}
-                  onChange={(e) => setFormData({ ...formData, jugador1A: e.target.value })}
-                  placeholder="Nombre del jugador"
+                  type="date"
+                  value={formData.fecha}
+                  onChange={(e) => setFormData({ ...formData, fecha: e.target.value })}
+                  min={new Date().toISOString().split('T')[0]}
                 />
               </div>
               <div>
-                <label className="block text-textSecondary text-sm mb-2">Jugador 2</label>
+                <label className="block text-textSecondary text-sm font-medium mb-2">
+                  Hora
+                </label>
                 <Input
-                  value={formData.jugador2A}
-                  onChange={(e) => setFormData({ ...formData, jugador2A: e.target.value })}
-                  placeholder="Nombre del jugador"
+                  type="time"
+                  value={formData.hora}
+                  onChange={(e) => setFormData({ ...formData, hora: e.target.value })}
                 />
               </div>
             </div>
 
-            <div className="space-y-4">
-              <h3 className="text-lg font-semibold text-secondary">Equipo B</h3>
-              <div>
-                <label className="block text-textSecondary text-sm mb-2">Jugador 1</label>
-                <Input
-                  value={formData.jugador1B}
-                  onChange={(e) => setFormData({ ...formData, jugador1B: e.target.value })}
-                  placeholder="Nombre del jugador"
-                />
+            <div className="bg-primary/10 border border-primary/30 rounded-xl p-4">
+              <p className="text-textSecondary text-sm">
+                💡 <strong>Tip:</strong> Después de crear la sala, recibirás un código 
+                de invitación para compartir con los demás jugadores.
+              </p>
+            </div>
+
+            <div className="flex gap-3">
+              <Button type="button" variant="secondary" onClick={handleCerrar} className="flex-1" disabled={creando}>
+                Cancelar
+              </Button>
+              <Button type="submit" variant="primary" className="flex-1" disabled={creando}>
+                {creando ? 'Creando...' : 'Crear Sala'}
+              </Button>
+            </div>
+          </form>
+        ) : (
+          <motion.div
+            initial={{ opacity: 0, scale: 0.9 }}
+            animate={{ opacity: 1, scale: 1 }}
+            className="space-y-6"
+          >
+            <div className="text-center">
+              <div className="bg-secondary/20 rounded-full w-20 h-20 flex items-center justify-center mx-auto mb-4">
+                <span className="text-4xl">✓</span>
               </div>
-              <div>
-                <label className="block text-textSecondary text-sm mb-2">Jugador 2</label>
-                <Input
-                  value={formData.jugador2B}
-                  onChange={(e) => setFormData({ ...formData, jugador2B: e.target.value })}
-                  placeholder="Nombre del jugador"
-                />
+              <p className="text-textSecondary mb-2">Tu código de invitación es:</p>
+              <motion.div
+                whileHover={{ scale: 1.05 }}
+                className="text-5xl font-black text-primary tracking-widest cursor-pointer"
+                onClick={copiarCodigo}
+              >
+                {salaCreada.codigo}
+              </motion.div>
+              {copiado && (
+                <motion.p
+                  initial={{ opacity: 0, y: -5 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  className="text-secondary text-sm mt-2"
+                >
+                  ✓ Copiado al portapapeles
+                </motion.p>
+              )}
+            </div>
+
+            <div className="bg-background rounded-xl p-4 space-y-2">
+              <p className="text-textPrimary font-semibold">📍 {formData.nombre}</p>
+              <p className="text-textSecondary text-sm">
+                📅 {new Date(formData.fecha).toLocaleDateString('es-ES', { 
+                  weekday: 'long', 
+                  day: 'numeric', 
+                  month: 'long' 
+                })}
+              </p>
+              <p className="text-textSecondary text-sm">⏰ {formData.hora}</p>
+            </div>
+
+            <div className="space-y-2">
+              <p className="text-textSecondary text-sm font-medium">Compartir invitación:</p>
+              <div className="grid grid-cols-3 gap-2">
+                <Button
+                  variant="ghost"
+                  onClick={copiarCodigo}
+                  className="flex flex-col items-center gap-1 py-3"
+                >
+                  <Copy size={20} />
+                  <span className="text-xs">Copiar</span>
+                </Button>
+                <Button
+                  variant="ghost"
+                  onClick={compartirWhatsApp}
+                  className="flex flex-col items-center gap-1 py-3 bg-[#25D366]/20 hover:bg-[#25D366]/30 text-[#25D366]"
+                >
+                  <MessageCircle size={20} />
+                  <span className="text-xs">WhatsApp</span>
+                </Button>
+                <Button
+                  variant="ghost"
+                  onClick={copiarLink}
+                  className="flex flex-col items-center gap-1 py-3"
+                >
+                  <Share2 size={20} />
+                  <span className="text-xs">Link</span>
+                </Button>
               </div>
             </div>
-          </div>
 
-          <div className="flex gap-3 pt-4">
-            <Button type="button" variant="secondary" onClick={onClose} className="flex-1">
-              Cancelar
+            <Button variant="primary" onClick={handleCerrar} className="w-full">
+              Ir a la Sala
             </Button>
-            <Button type="submit" variant="primary" className="flex-1">
-              Crear Sala
-            </Button>
-          </div>
-        </form>
+          </motion.div>
+        )}
       </div>
     </Modal>
   );

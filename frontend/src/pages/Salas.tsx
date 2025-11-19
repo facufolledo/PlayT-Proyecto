@@ -3,25 +3,28 @@ import { motion, AnimatePresence } from 'framer-motion';
 import Card from '../components/Card';
 import Button from '../components/Button';
 import ModalCrearSala from '../components/ModalCrearSala';
+import ModalUnirseSala from '../components/ModalUnirseSala';
 import MarcadorInteractivo from '../components/MarcadorInteractivo';
 import ModalConfirmarResultado from '../components/ModalConfirmarResultado';
 import SalaCard from '../components/SalaCard';
-import { Plus, Filter, AlertCircle } from 'lucide-react';
+import { Plus, Filter, AlertCircle, LogIn } from 'lucide-react';
 import { useSalas } from '../context/SalasContext';
 import { useAuth } from '../context/AuthContext';
 import { Sala } from '../utils/types';
 
 export default function Salas() {
-  const { salas, getSalasPendientesConfirmacion } = useSalas();
+  const { salas, loading, error, getSalasPendientesConfirmacion } = useSalas();
   const { usuario } = useAuth();
   const [modalCrearOpen, setModalCrearOpen] = useState(false);
+  const [modalUnirseOpen, setModalUnirseOpen] = useState(false);
   const [modalMarcadorOpen, setModalMarcadorOpen] = useState(false);
   const [modalConfirmarOpen, setModalConfirmarOpen] = useState(false);
   const [salaSeleccionada, setSalaSeleccionada] = useState<Sala | null>(null);
-  const [filtro, setFiltro] = useState<'todas' | 'activa' | 'programada' | 'finalizada'>('todas');
+  const [filtro, setFiltro] = useState<'todas' | 'esperando' | 'activa' | 'programada' | 'finalizada'>('todas');
 
   const salasPendientes = usuario ? getSalasPendientesConfirmacion(usuario.id) : [];
 
+  const salasEsperando = salas.filter(s => s.estado === 'esperando');
   const salasActivas = salas.filter(s => s.estado === 'activa');
   const salasProgramadas = salas.filter(s => s.estado === 'programada');
   const salasFinalizadas = salas.filter(s => s.estado === 'finalizada');
@@ -33,6 +36,16 @@ export default function Salas() {
   const handleOpenMarcador = (sala: Sala) => {
     setSalaSeleccionada(sala);
     setModalMarcadorOpen(true);
+  };
+
+  const handleSalaCreada = (salaId: string, codigo: string) => {
+    // Opcional: navegar a la sala de espera
+    console.log('Sala creada:', salaId, codigo);
+  };
+
+  const handleUnido = (salaId: string) => {
+    // Opcional: navegar a la sala de espera
+    console.log('Unido a sala:', salaId);
   };
 
   return (
@@ -53,17 +66,30 @@ export default function Salas() {
           </div>
           <p className="text-textSecondary text-base ml-15">Gestiona tus partidos de pádel</p>
         </div>
-        <motion.div
-          whileHover={{ scale: 1.05 }}
-          whileTap={{ scale: 0.95 }}
-        >
-          <Button variant="primary" onClick={() => setModalCrearOpen(true)}>
-            <div className="flex items-center gap-2">
-              <Plus size={20} />
-              Nueva Sala
-            </div>
-          </Button>
-        </motion.div>
+        <div className="flex gap-3">
+          <motion.div
+            whileHover={{ scale: 1.05 }}
+            whileTap={{ scale: 0.95 }}
+          >
+            <Button variant="secondary" onClick={() => setModalUnirseOpen(true)}>
+              <div className="flex items-center gap-2">
+                <LogIn size={20} />
+                Unirse a Sala
+              </div>
+            </Button>
+          </motion.div>
+          <motion.div
+            whileHover={{ scale: 1.05 }}
+            whileTap={{ scale: 0.95 }}
+          >
+            <Button variant="primary" onClick={() => setModalCrearOpen(true)}>
+              <div className="flex items-center gap-2">
+                <Plus size={20} />
+                Nueva Sala
+              </div>
+            </Button>
+          </motion.div>
+        </div>
       </motion.div>
 
       {/* Alerta de confirmaciones pendientes */}
@@ -98,9 +124,10 @@ export default function Salas() {
       )}
 
       {/* Estadísticas estilo gaming */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
         {[
           { label: 'Total', value: salas.length, color: 'from-cyan-500 to-blue-500', icon: '📊', borderColor: 'cyan-500' },
+          { label: 'Esperando', value: salasEsperando.length, color: 'from-purple-500 to-pink-500', icon: '⏳', borderColor: 'purple-500' },
           { label: 'En Juego', value: salasActivas.length, color: 'from-secondary to-pink-500', icon: '🎾', borderColor: 'secondary' },
           { label: 'Programadas', value: salasProgramadas.length, color: 'from-primary to-blue-500', icon: '📅', borderColor: 'primary' },
           { label: 'Finalizadas', value: salasFinalizadas.length, color: 'from-accent to-yellow-400', icon: '🏆', borderColor: 'accent' }
@@ -141,33 +168,73 @@ export default function Salas() {
           <Filter size={18} />
           <span className="text-sm">Filtrar:</span>
         </div>
-        {(['todas', 'activa', 'programada', 'finalizada'] as const).map((f) => (
+        {(['todas', 'esperando', 'activa', 'programada', 'finalizada'] as const).map((f) => (
           <Button
             key={f}
             variant={filtro === f ? 'primary' : 'secondary'}
             onClick={() => setFiltro(f)}
             className="text-sm"
           >
-            {f === 'todas' ? 'Todas' : f === 'activa' ? 'En Juego' : f === 'programada' ? 'Programadas' : 'Finalizadas'}
+            {f === 'todas' ? 'Todas' : 
+             f === 'esperando' ? 'Esperando' :
+             f === 'activa' ? 'En Juego' : 
+             f === 'programada' ? 'Programadas' : 
+             'Finalizadas'}
           </Button>
         ))}
       </div>
 
+      {/* Error */}
+      {error && (
+        <motion.div
+          initial={{ opacity: 0, y: -20 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="bg-red-500/10 border border-red-500/30 rounded-xl p-4"
+        >
+          <div className="flex items-center gap-3">
+            <AlertCircle size={24} className="text-red-500" />
+            <div className="flex-1">
+              <p className="text-red-500 font-bold">Error al cargar salas</p>
+              <p className="text-textSecondary text-sm">{error}</p>
+            </div>
+          </div>
+        </motion.div>
+      )}
+
+      {/* Loading */}
+      {loading && (
+        <Card>
+          <div className="text-center py-12">
+            <motion.div
+              animate={{ rotate: 360 }}
+              transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
+              className="w-12 h-12 border-4 border-primary border-t-transparent rounded-full mx-auto mb-4"
+            />
+            <p className="text-textSecondary">Cargando salas...</p>
+          </div>
+        </Card>
+      )}
+
       {/* Lista de salas */}
-      {salasFiltradas.length === 0 ? (
+      {!loading && salasFiltradas.length === 0 ? (
         <Card>
           <div className="text-center py-12 text-textSecondary">
             <p className="text-lg mb-4">
               {filtro === 'todas' 
                 ? 'No hay salas creadas' 
-                : `No hay salas ${filtro === 'activa' ? 'en juego' : filtro === 'programada' ? 'programadas' : 'finalizadas'}`}
+                : `No hay salas ${
+                    filtro === 'esperando' ? 'esperando jugadores' :
+                    filtro === 'activa' ? 'en juego' : 
+                    filtro === 'programada' ? 'programadas' : 
+                    'finalizadas'
+                  }`}
             </p>
             <p className="text-sm">
               {filtro === 'todas' && 'Crea tu primera sala para comenzar a gestionar partidos'}
             </p>
           </div>
         </Card>
-      ) : (
+      ) : !loading && (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           <AnimatePresence mode="popLayout">
             {salasFiltradas.map((sala) => (
@@ -182,7 +249,16 @@ export default function Salas() {
       )}
 
       {/* Modales */}
-      <ModalCrearSala isOpen={modalCrearOpen} onClose={() => setModalCrearOpen(false)} />
+      <ModalCrearSala 
+        isOpen={modalCrearOpen} 
+        onClose={() => setModalCrearOpen(false)}
+        onSalaCreada={handleSalaCreada}
+      />
+      <ModalUnirseSala
+        isOpen={modalUnirseOpen}
+        onClose={() => setModalUnirseOpen(false)}
+        onUnido={handleUnido}
+      />
       <MarcadorInteractivo
         isOpen={modalMarcadorOpen}
         onClose={() => {

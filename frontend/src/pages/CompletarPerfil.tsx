@@ -1,33 +1,55 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
-import { User, Calendar, Hash, MapPin, Phone, Trophy } from 'lucide-react';
+import { User, MapPin, Trophy, Globe } from 'lucide-react';
 import Button from '../components/Button';
 import Input from '../components/Input';
 import Card from '../components/Card';
 import { authService, PerfilCompleto } from '../services/auth.service';
 import { useAuth } from '../context/AuthContext';
 
-const CATEGORIAS = ['8va', '7ma', '6ta', '5ta', '4ta', 'Libre'];
+interface Categoria {
+  id_categoria: number;
+  nombre: string;
+  descripcion: string;
+  rating_min: number;
+  rating_max: number;
+}
 
 export default function CompletarPerfil() {
   const navigate = useNavigate();
   const { usuario } = useAuth();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [categorias, setCategorias] = useState<Categoria[]>([]);
   
   const [formData, setFormData] = useState<PerfilCompleto>({
     nombre: '',
     apellido: '',
-    dni: '',
-    fecha_nacimiento: '',
-    genero: 'masculino',
-    categoria_inicial: '8va',
-    mano_habil: 'derecha',
-    posicion_preferida: 'indiferente',
-    telefono: '',
-    ciudad: ''
+    sexo: 'masculino',
+    id_categoria_inicial: 0,
+    ciudad: '',
+    pais: 'Argentina'
   });
+
+  // Cargar categorías desde el backend
+  useEffect(() => {
+    const cargarCategorias = async () => {
+      try {
+        const response = await fetch(`${import.meta.env.VITE_API_URL}/auth/categorias`);
+        if (response.ok) {
+          const data = await response.json();
+          setCategorias(data);
+          if (data.length > 0) {
+            setFormData(prev => ({ ...prev, id_categoria_inicial: data[0].id_categoria }));
+          }
+        }
+      } catch (error) {
+        console.error('Error cargando categorías:', error);
+      }
+    };
+    cargarCategorias();
+  }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -106,41 +128,13 @@ export default function CompletarPerfil() {
                     required
                   />
                 </div>
-                <div>
-                  <label className="block text-textSecondary text-sm font-medium mb-2">
-                    <div className="flex items-center gap-2">
-                      <Hash size={16} />
-                      DNI *
-                    </div>
-                  </label>
-                  <Input
-                    value={formData.dni}
-                    onChange={(e) => setFormData({ ...formData, dni: e.target.value })}
-                    placeholder="12345678"
-                    required
-                  />
-                </div>
-                <div>
-                  <label className="block text-textSecondary text-sm font-medium mb-2">
-                    <div className="flex items-center gap-2">
-                      <Calendar size={16} />
-                      Fecha de Nacimiento *
-                    </div>
-                  </label>
-                  <Input
-                    type="date"
-                    value={formData.fecha_nacimiento}
-                    onChange={(e) => setFormData({ ...formData, fecha_nacimiento: e.target.value })}
-                    required
-                  />
-                </div>
               </div>
             </div>
 
-            {/* Género */}
+            {/* Sexo */}
             <div>
               <label className="block text-textSecondary text-sm font-medium mb-2">
-                Género *
+                Sexo *
               </label>
               <div className="grid grid-cols-2 gap-3">
                 {[
@@ -152,9 +146,9 @@ export default function CompletarPerfil() {
                     type="button"
                     whileHover={{ scale: 1.02 }}
                     whileTap={{ scale: 0.98 }}
-                    onClick={() => setFormData({ ...formData, genero: gen.value as any })}
+                    onClick={() => setFormData({ ...formData, sexo: gen.value as any })}
                     className={`py-3 px-4 rounded-lg font-bold transition-all flex items-center justify-center gap-2 ${
-                      formData.genero === gen.value
+                      formData.sexo === gen.value
                         ? 'bg-gradient-to-r from-primary to-blue-600 text-white'
                         : 'bg-cardBorder text-textSecondary hover:text-textPrimary'
                     }`}
@@ -166,89 +160,51 @@ export default function CompletarPerfil() {
               </div>
             </div>
 
-            {/* Datos Deportivos */}
+            {/* Categoría Inicial */}
             <div>
               <h3 className="text-lg font-bold text-textPrimary mb-4 flex items-center gap-2">
                 <Trophy size={20} className="text-accent" />
-                Datos Deportivos
+                Categoría Inicial
               </h3>
               
-              {/* Categoría Inicial */}
               <div className="mb-4">
                 <label className="block text-textSecondary text-sm font-medium mb-2">
-                  Categoría Inicial *
+                  Selecciona tu categoría *
                 </label>
-                <div className="grid grid-cols-3 md:grid-cols-6 gap-2">
-                  {CATEGORIAS.map((cat) => (
+                <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+                  {categorias.map((cat) => (
                     <motion.button
-                      key={cat}
+                      key={cat.id_categoria}
                       type="button"
-                      whileHover={{ scale: 1.05 }}
-                      whileTap={{ scale: 0.95 }}
-                      onClick={() => setFormData({ ...formData, categoria_inicial: cat })}
-                      className={`py-2 px-3 rounded-lg font-bold transition-all ${
-                        formData.categoria_inicial === cat
+                      whileHover={{ scale: 1.02 }}
+                      whileTap={{ scale: 0.98 }}
+                      onClick={() => setFormData({ ...formData, id_categoria_inicial: cat.id_categoria })}
+                      className={`p-4 rounded-lg font-bold transition-all text-left ${
+                        formData.id_categoria_inicial === cat.id_categoria
                           ? 'bg-gradient-to-r from-accent to-yellow-500 text-white'
                           : 'bg-cardBorder text-textSecondary hover:text-textPrimary'
                       }`}
                     >
-                      {cat}
+                      <div className="text-2xl font-black mb-1">{cat.nombre}</div>
+                      <div className="text-xs opacity-80">
+                        {cat.rating_min && cat.rating_max 
+                          ? `${cat.rating_min}-${cat.rating_max}` 
+                          : cat.rating_min 
+                          ? `${cat.rating_min}+` 
+                          : 'Inicial'}
+                      </div>
                     </motion.button>
                   ))}
                 </div>
               </div>
-
-              {/* Mano Hábil y Posición */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-textSecondary text-sm font-medium mb-2">
-                    Mano Hábil
-                  </label>
-                  <select
-                    value={formData.mano_habil}
-                    onChange={(e) => setFormData({ ...formData, mano_habil: e.target.value as any })}
-                    className="w-full bg-background border border-cardBorder rounded-lg px-4 py-3 text-textPrimary focus:outline-none focus:border-primary transition-colors"
-                  >
-                    <option value="derecha">Derecha</option>
-                    <option value="zurda">Zurda</option>
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-textSecondary text-sm font-medium mb-2">
-                    Posición Preferida
-                  </label>
-                  <select
-                    value={formData.posicion_preferida}
-                    onChange={(e) => setFormData({ ...formData, posicion_preferida: e.target.value as any })}
-                    className="w-full bg-background border border-cardBorder rounded-lg px-4 py-3 text-textPrimary focus:outline-none focus:border-primary transition-colors"
-                  >
-                    <option value="drive">Drive</option>
-                    <option value="reves">Revés</option>
-                    <option value="indiferente">Indiferente</option>
-                  </select>
-                </div>
-              </div>
             </div>
 
-            {/* Datos Opcionales */}
+            {/* Ubicación (Opcional) */}
             <div>
               <h3 className="text-lg font-bold text-textPrimary mb-4">
-                Datos Opcionales
+                Ubicación (Opcional)
               </h3>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-textSecondary text-sm font-medium mb-2">
-                    <div className="flex items-center gap-2">
-                      <Phone size={16} />
-                      Teléfono
-                    </div>
-                  </label>
-                  <Input
-                    value={formData.telefono}
-                    onChange={(e) => setFormData({ ...formData, telefono: e.target.value })}
-                    placeholder="+54 9 11 1234-5678"
-                  />
-                </div>
                 <div>
                   <label className="block text-textSecondary text-sm font-medium mb-2">
                     <div className="flex items-center gap-2">
@@ -260,6 +216,19 @@ export default function CompletarPerfil() {
                     value={formData.ciudad}
                     onChange={(e) => setFormData({ ...formData, ciudad: e.target.value })}
                     placeholder="Buenos Aires"
+                  />
+                </div>
+                <div>
+                  <label className="block text-textSecondary text-sm font-medium mb-2">
+                    <div className="flex items-center gap-2">
+                      <Globe size={16} />
+                      País
+                    </div>
+                  </label>
+                  <Input
+                    value={formData.pais}
+                    onChange={(e) => setFormData({ ...formData, pais: e.target.value })}
+                    placeholder="Argentina"
                   />
                 </div>
               </div>

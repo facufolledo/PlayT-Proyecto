@@ -7,8 +7,10 @@ import os
 
 from ..database.config import get_db
 from ..models.playt_models import Usuario, PerfilUsuario, Categoria
-from ..schemas.auth import UserLogin, UserRegister, Token, UserResponse
+from ..schemas.auth import UserLogin, UserRegister, Token, UserResponse, FirebaseAuthRequest
 from ..auth.jwt_handler import JWTHandler
+from ..auth.firebase_handler import FirebaseHandler
+from ..auth.auth_utils import get_current_user
 
 router = APIRouter(prefix="/auth", tags=["Autenticación"])
 
@@ -144,32 +146,8 @@ async def login_user(form_data: OAuth2PasswordRequestForm = Depends(), db: Sessi
         expires_in=int(access_token_expires.total_seconds())
     )
 
-async def get_current_user(token: str = Depends(oauth2_scheme), db: Session = Depends(get_db)):
-    """Obtener usuario actual desde el token"""
-    
-    credentials_exception = HTTPException(
-        status_code=status.HTTP_401_UNAUTHORIZED,
-        detail="No se pudieron validar las credenciales",
-        headers={"WWW-Authenticate": "Bearer"},
-    )
-    
-    try:
-        payload = JWTHandler.verify_token(token)
-        if payload is None:
-            raise credentials_exception
-        
-        user_id: str = payload.get("sub")
-        if user_id is None:
-            raise credentials_exception
-            
-    except Exception:
-        raise credentials_exception
-    
-    user = db.query(Usuario).filter(Usuario.id_usuario == int(user_id)).first()
-    if user is None:
-        raise credentials_exception
-    
-    return user
+# La función get_current_user ahora se importa desde auth_utils
+# que soporta tanto JWT tradicional como tokens de Firebase
 
 @router.get("/categorias")
 async def get_categorias(db: Session = Depends(get_db)):
@@ -186,9 +164,69 @@ async def get_categorias(db: Session = Depends(get_db)):
         for cat in categorias
     ]
 
+@router.post("/firebase-auth", response_model=UserResponse)
+async def firebase_auth(
+    request: FirebaseAuthRequest,
+    db: Session = Depends(get_db)
+):
+    """
+    Autenticar usuario con token de Firebase
+    Verifica el token de Firebase y retorna información del usuario
+    """
+    # Validar token de Firebase
+    firebase_payload = FirebaseHandler.verify_token(request.firebase_token)
+    
+    if not firebase_payload:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Token de Firebase inválido",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+    
+    firebase_email = firebase_payload.get("firebase_email")
+    
+    if not firebase_email:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Token de Firebase inválido: email no encontrado",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+    
+    # Buscar usuario por email
+    user = db.query(Usuario).filter(Usuario.email == firebase_email).first()
+    
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Usuario no encontrado. Por favor, completa tu perfil primero.",
+        )
+    
+    # Obtener perfil del usuario
+    perfil = db.query(PerfilUsuario).filter(PerfilUsuario.id_usuario == user.id_usuario).first()
+    
+    if not perfil:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Perfil de usuario no encontrado",
+        )
+    
+    return UserResponse(
+        id_usuario=user.id_usuario,
+        nombre_usuario=user.nombre_usuario,
+        email=user.email,
+        nombre=perfil.nombre,
+        apellido=perfil.apellido,
+        sexo=user.sexo,
+        ciudad=perfil.ciudad,
+        pais=perfil.pais,
+        rating=user.rating,
+        partidos_jugados=user.partidos_jugados,
+        id_categoria=user.id_categoria
+    )
+
 @router.get("/me", response_model=UserResponse)
 async def get_current_user_info(current_user: Usuario = Depends(get_current_user), db: Session = Depends(get_db)):
-    """Obtener información del usuario actual"""
+    """Obtener información del usuario actual (soporta JWT y Firebase tokens)"""
     
     # Obtener perfil del usuario
     perfil = db.query(PerfilUsuario).filter(PerfilUsuario.id_usuario == current_user.id_usuario).first()
@@ -205,6 +243,7 @@ async def get_current_user_info(current_user: Usuario = Depends(get_current_user
         email=current_user.email,
         nombre=perfil.nombre,
         apellido=perfil.apellido,
+        sexo=current_user.sexo,
         ciudad=perfil.ciudad,
         pais=perfil.pais,
         rating=current_user.rating,

@@ -1,6 +1,10 @@
 from pydantic import BaseModel, EmailStr
 from typing import Optional
 
+class FirebaseAuthRequest(BaseModel):
+    """Esquema para autenticación con Firebase"""
+    firebase_token: str
+
 class UserLogin(BaseModel):
     """Esquema para login de usuario"""
     email: EmailStr

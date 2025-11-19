@@ -7,6 +7,8 @@ import Torneos from './pages/Torneos';
 import TorneoDetalle from './pages/TorneoDetalle';
 import Estadisticas from './pages/Estadisticas';
 import Rankings from './pages/Rankings';
+import MiRanking from './pages/MiRanking';
+import RankingsCategorias from './pages/RankingsCategorias';
 import Confirmaciones from './pages/Confirmaciones';
 import MiPerfil from './pages/MiPerfil';
 import Login from './pages/Login';
@@ -97,11 +99,21 @@ function App() {
                 }
               />
               <Route
+                path="/mi-ranking"
+                element={
+                  <PrivateRoute>
+                    <Layout>
+                      <MiRanking />
+                    </Layout>
+                  </PrivateRoute>
+                }
+              />
+              <Route
                 path="/rankings/categorias"
                 element={
                   <PrivateRoute>
                     <Layout>
-                      <div className="text-textPrimary">Rankings por Categoría - Próximamente</div>
+                      <RankingsCategorias />
                     </Layout>
                   </PrivateRoute>
                 }

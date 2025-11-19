@@ -47,7 +47,7 @@ export default function MarcadorInteractivo({ isOpen, onClose, sala }: MarcadorI
       alert('No puede haber empate. Ajusta el marcador.');
       return;
     }
-    finalizarPartido(sala.id);
+    finalizarPartido(sala.id, []);
     onClose();
   };
 
