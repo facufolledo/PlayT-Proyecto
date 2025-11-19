@@ -20,6 +20,8 @@ async def get_ranking(
     """Obtener el ranking general de jugadores"""
     
     try:
+        from ..models.playt_models import PartidoJugador, ResultadoPartido, Partido
+        
         # Obtener usuarios ordenados por rating descendente
         usuarios = (
             db.query(
@@ -43,9 +45,28 @@ async def get_ranking(
             .all()
         )
         
-        # Formatear respuesta
+        # Formatear respuesta y calcular partidos ganados
         ranking = []
         for i, usuario in enumerate(usuarios):
+            # Calcular partidos ganados
+            partidos_ganados = (
+                db.query(func.count(PartidoJugador.id_partido))
+                .join(ResultadoPartido, PartidoJugador.id_partido == ResultadoPartido.id_partido)
+                .join(Partido, PartidoJugador.id_partido == Partido.id_partido)
+                .filter(
+                    PartidoJugador.id_usuario == usuario.id_usuario,
+                    Partido.estado == "finalizado",
+                    ResultadoPartido.confirmado == True,
+                    # Equipo 1 gana si sets_eq1 > sets_eq2
+                    # Equipo 2 gana si sets_eq2 > sets_eq1
+                    (
+                        ((PartidoJugador.equipo == 1) & (ResultadoPartido.sets_eq1 > ResultadoPartido.sets_eq2)) |
+                        ((PartidoJugador.equipo == 2) & (ResultadoPartido.sets_eq2 > ResultadoPartido.sets_eq1))
+                    )
+                )
+                .scalar() or 0
+            )
+            
             ranking.append(RankingResponse(
                 posicion=offset + i + 1,
                 id_usuario=usuario.id_usuario,
@@ -56,6 +77,7 @@ async def get_ranking(
                 pais=usuario.pais or "",
                 rating=usuario.rating,
                 partidos_jugados=usuario.partidos_jugados,
+                partidos_ganados=partidos_ganados,
                 categoria=getattr(usuario, "categoria_nombre", None),
                 sexo=usuario.sexo,
                 imagen_url=usuario.url_avatar or None

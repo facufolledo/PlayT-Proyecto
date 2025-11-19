@@ -257,8 +257,8 @@ export default function Rankings() {
                   const catInfo = getCategoriaInfo(jugador.rating);
                   const nombreCompleto = `${jugador.nombre || ''} ${jugador.apellido || ''}`.trim() || jugador.nombre_usuario;
                   const partidosJugados = jugador.partidos_jugados || 0;
-                  // Por ahora no tenemos partidos_ganados en el backend, mostrar N/A
-                  const porcentaje = 'N/A';
+                  const partidosGanados = jugador.partidos_ganados || 0;
+                  const porcentaje = partidosJugados > 0 ? Math.round((partidosGanados / partidosJugados) * 100) : 0;
                   
                   return (
                     <motion.tr
