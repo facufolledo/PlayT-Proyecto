@@ -121,7 +121,7 @@ class ApiService {
   }
 
   // Obtener ranking general
-  async getRankingGeneral(limit: number = 100, offset: number = 0, sexo?: 'M' | 'F'): Promise<any[]> {
+  async getRankingGeneral(limit: number = 100, offset: number = 0, sexo?: 'masculino' | 'femenino'): Promise<any[]> {
     try {
       const params: any = { limit, offset };
       if (sexo) {
@@ -136,9 +136,13 @@ class ApiService {
   }
 
   // Obtener ranking por categoría
-  async getRankingPorCategoria(idCategoria: number): Promise<any> {
+  async getRankingPorCategoria(idCategoria: number, sexo?: 'masculino' | 'femenino'): Promise<any> {
     try {
-      const response = await this.api.get(`/categorias/${idCategoria}/jugadores`);
+      const params: any = {};
+      if (sexo) {
+        params.sexo = sexo;
+      }
+      const response = await this.api.get(`/categorias/${idCategoria}/jugadores`, { params });
       return response.data;
     } catch (error: any) {
       logger.error('Error al obtener ranking por categoría:', error);

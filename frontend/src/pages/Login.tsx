@@ -9,7 +9,7 @@ import { useAuth } from '../context/AuthContext';
 
 export default function Login() {
   const navigate = useNavigate();
-  const { login, loginWithGoogle, isLoading } = useAuth();
+  const { login, loginWithGoogle, isLoading, needsProfileCompletion } = useAuth();
   const [showPassword, setShowPassword] = useState(false);
   const [formData, setFormData] = useState({
     email: '',
@@ -28,7 +28,17 @@ export default function Login() {
 
     try {
       await login(formData.email, formData.password);
-      navigate('/dashboard');
+      
+      // Verificar si necesita completar perfil
+      const needsProfile = localStorage.getItem('needsProfileCompletion') === 'true';
+      
+      if (needsProfile) {
+        console.log('➡️ Redirigiendo a completar-perfil');
+        navigate('/completar-perfil');
+      } else {
+        console.log('➡️ Redirigiendo a dashboard');
+        navigate('/dashboard');
+      }
     } catch (err: any) {
       setError(err.message || 'Credenciales inválidas');
     }
@@ -38,8 +48,21 @@ export default function Login() {
     setError('');
     try {
       await loginWithGoogle();
-      navigate('/dashboard');
+      console.log('🔄 loginWithGoogle completado');
+      
+      // Verificar si necesita completar perfil
+      const needsProfile = localStorage.getItem('needsProfileCompletion') === 'true';
+      console.log('📋 needsProfile:', needsProfile);
+      
+      if (needsProfile) {
+        console.log('➡️ Redirigiendo a completar-perfil');
+        navigate('/completar-perfil');
+      } else {
+        console.log('➡️ Redirigiendo a dashboard');
+        navigate('/dashboard');
+      }
     } catch (err: any) {
+      console.log('❌ Error en handleGoogleLogin:', err);
       setError(err.message || 'Error al iniciar sesión con Google');
     }
   };
@@ -175,6 +198,12 @@ export default function Login() {
           </form>
 
           <div className="mt-6 text-center space-y-3">
+            <Link 
+              to="/forgot-password" 
+              className="text-textSecondary hover:text-primary text-sm transition-colors block"
+            >
+              ¿Olvidaste tu contraseña?
+            </Link>
             <p className="text-textSecondary text-sm">
               ¿No tienes cuenta?{' '}
               <Link to="/register" className="text-primary hover:text-blue-400 font-bold transition-colors">

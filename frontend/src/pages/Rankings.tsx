@@ -8,14 +8,15 @@ import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContai
 import { apiService } from '../services/api';
 import { logger } from '../utils/logger';
 
-// Categorías según la documentación
+// Categorías según la base de datos (masculino)
 const CATEGORIAS = [
-  { id: 1, nombre: '8va', descripcion: 'Principiante / Princ. avanzado', ratingMin: 0, ratingMax: 899, color: 'from-gray-500 to-gray-600' },
-  { id: 2, nombre: '7ma', descripcion: 'Golpes más sólidos', ratingMin: 900, ratingMax: 1049, color: 'from-blue-500 to-blue-600' },
-  { id: 3, nombre: '6ta', descripcion: 'Mejor dominio y estrategia', ratingMin: 1050, ratingMax: 1199, color: 'from-green-500 to-green-600' },
-  { id: 4, nombre: '5ta', descripcion: 'Buenos jugadores, constancia', ratingMin: 1200, ratingMax: 1349, color: 'from-yellow-500 to-yellow-600' },
-  { id: 5, nombre: '4ta', descripcion: 'Muy buenos, técnica + estrategia', ratingMin: 1350, ratingMax: 1499, color: 'from-orange-500 to-orange-600' },
-  { id: 6, nombre: 'Libre', descripcion: 'Élite local (top provincia)', ratingMin: 1500, ratingMax: 9999, color: 'from-purple-500 to-pink-500' },
+  { id: 7, nombre: 'Principiante', descripcion: 'Categoría para principiantes', ratingMin: 0, ratingMax: 499, color: 'from-slate-500 to-slate-600' },
+  { id: 1, nombre: '8va', descripcion: 'Principiante / Princ. avanzado', ratingMin: 500, ratingMax: 999, color: 'from-gray-500 to-gray-600' },
+  { id: 2, nombre: '7ma', descripcion: 'Golpes más sólidos', ratingMin: 1000, ratingMax: 1199, color: 'from-blue-500 to-blue-600' },
+  { id: 3, nombre: '6ta', descripcion: 'Mejor dominio y estrategia', ratingMin: 1200, ratingMax: 1399, color: 'from-green-500 to-green-600' },
+  { id: 4, nombre: '5ta', descripcion: 'Buenos jugadores, constancia', ratingMin: 1400, ratingMax: 1599, color: 'from-yellow-500 to-yellow-600' },
+  { id: 5, nombre: '4ta', descripcion: 'Muy buenos, técnica + estrategia', ratingMin: 1600, ratingMax: 1799, color: 'from-orange-500 to-orange-600' },
+  { id: 6, nombre: 'Libre', descripcion: 'Élite local (top provincia)', ratingMin: 1800, ratingMax: 9999, color: 'from-purple-500 to-pink-500' },
 ];
 
 function getCategoriaInfo(rating: number) {
@@ -31,67 +32,50 @@ export default function Rankings() {
   const [isLoading, setIsLoading] = useState(true);
   const [categorias, setCategorias] = useState<any[]>([]);
 
-  // Cargar categorías y jugadores al montar
+  // Cargar categorías al montar (solo una vez)
   useEffect(() => {
-    const cargarDatos = async () => {
+    const cargarCategorias = async () => {
+      try {
+        const categoriasData = await apiService.getCategorias();
+        setCategorias(categoriasData);
+      } catch (error) {
+        logger.error('Error al cargar categorías:', error);
+      }
+    };
+
+    cargarCategorias();
+  }, []);
+
+  // Recargar cuando cambie el filtro de categoría o género
+  useEffect(() => {
+    const cargarRanking = async () => {
       try {
         setIsLoading(true);
         
-        // Cargar categorías
-        const categoriasData = await apiService.getCategorias();
-        setCategorias(categoriasData);
-        
-        // Cargar ranking general (100 jugadores)
-        const sexoParam = filtroGenero === 'masculino' ? 'M' : filtroGenero === 'femenino' ? 'F' : undefined;
-        const rankingData = await apiService.getRankingGeneral(100, 0, sexoParam);
-        setJugadores(rankingData);
+        if (filtroCategoria === 'todas') {
+          // Cargar ranking general con filtro de género
+          const sexoParam = filtroGenero === 'masculino' ? 'masculino' : filtroGenero === 'femenino' ? 'femenino' : undefined;
+          const rankingData = await apiService.getRankingGeneral(100, 0, sexoParam as any);
+          setJugadores(rankingData);
+        } else {
+          // Buscar la categoría por nombre
+          const categoria = CATEGORIAS.find(c => c.nombre === filtroCategoria);
+          if (categoria) {
+            const sexoParam = filtroGenero === 'masculino' ? 'masculino' : filtroGenero === 'femenino' ? 'femenino' : 'masculino';
+            const categoriaData = await apiService.getRankingPorCategoria(categoria.id || 1, sexoParam as any);
+            setJugadores(categoriaData.jugadores || []);
+          }
+        }
       } catch (error) {
-        logger.error('Error al cargar datos:', error);
-        // Si falla, mostrar array vacío
+        logger.error('Error al cargar ranking:', error);
         setJugadores([]);
       } finally {
         setIsLoading(false);
       }
     };
 
-    cargarDatos();
-  }, [filtroGenero]); // Agregar filtroGenero como dependencia
-
-  // Recargar cuando cambie el filtro de categoría
-  useEffect(() => {
-    const cargarRanking = async () => {
-      if (filtroCategoria === 'todas') {
-        try {
-          setIsLoading(true);
-          const sexoParam = filtroGenero === 'masculino' ? 'M' : filtroGenero === 'femenino' ? 'F' : undefined;
-          const rankingData = await apiService.getRankingGeneral(100, 0, sexoParam);
-          setJugadores(rankingData);
-        } catch (error) {
-          logger.error('Error al cargar ranking:', error);
-          setJugadores([]);
-        } finally {
-          setIsLoading(false);
-        }
-      } else {
-        // Buscar la categoría por nombre
-        const categoria = CATEGORIAS.find(c => c.nombre === filtroCategoria);
-        if (categoria) {
-          try {
-            setIsLoading(true);
-            const categoriaData = await apiService.getRankingPorCategoria(categoria.id || 1);
-            setJugadores(categoriaData.jugadores || []);
-          } catch (error) {
-            logger.error('Error al cargar ranking por categoría:', error);
-            setJugadores([]);
-          } finally {
-            setIsLoading(false);
-          }
-        }
-      }
-    };
-
     cargarRanking();
-  }, [filtroCategoria, filtroGenero]); // Agregar filtroGenero como dependencia
+  }, [filtroCategoria, filtroGenero]);
 
   // Datos de progresión de rating (mock)
   const progresionRating = [

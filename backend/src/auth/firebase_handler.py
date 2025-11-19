@@ -101,6 +101,7 @@ class FirebaseHandler:
                 "name": decoded_token.get("name"),
                 "firebase_uid": decoded_token.get("uid"),
                 "firebase_email": decoded_token.get("email"),
+                "email_verified": decoded_token.get("email_verified", False),
                 "firebase": True,  # Marca para identificar que es token de Firebase
             }
         except Exception as e:

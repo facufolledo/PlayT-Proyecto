@@ -67,8 +67,12 @@ async def get_ranking(
         )
         
         # Filtrar por sexo si se especifica
-        if sexo and sexo in ['M', 'F']:
-            query = query.filter(Usuario.sexo == sexo)
+        if sexo:
+            # Aceptar tanto 'M'/'F' como 'masculino'/'femenino'
+            if sexo in ['M', 'masculino']:
+                query = query.filter(Usuario.sexo.in_(['M', 'masculino']))
+            elif sexo in ['F', 'femenino']:
+                query = query.filter(Usuario.sexo.in_(['F', 'femenino']))
         
         # Ordenar y paginar
         usuarios = query.order_by(desc(Usuario.rating)).offset(offset).limit(limit).all()

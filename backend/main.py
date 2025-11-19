@@ -14,6 +14,7 @@ load_dotenv()
 # Imports del proyecto
 from src.database.config import engine
 from src.controllers.auth_controller import router as auth_router
+from src.controllers.usuario_controller import router as usuario_router
 from src.controllers.categoria_controller import router as categoria_router
 from src.controllers.partido_controller import router as partido_router
 from src.controllers.ranking_controller import router as ranking_router
@@ -69,6 +70,7 @@ app.add_middleware(
 
 # ---- Routers ----
 app.include_router(auth_router)
+app.include_router(usuario_router)
 app.include_router(categoria_router)
 app.include_router(sala_router)
 app.include_router(partido_router)

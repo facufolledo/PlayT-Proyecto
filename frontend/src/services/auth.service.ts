@@ -51,14 +51,45 @@ class AuthService {
   async registerWithEmail(email: string, password: string): Promise<User> {
     try {
       const result = await createUserWithEmailAndPassword(auth, email, password);
+      
+      // Enviar email de verificación
+      await this.sendVerificationEmail(result.user);
+      
       logger.log('Registro exitoso:', result.user.email);
       return result.user;
     } catch (error: any) {
       logger.error('Error en registro:', error);
       if (error.code === 'auth/email-already-in-use') {
-        throw new Error('El email ya está registrado');
+        throw new Error('El email ya está registrado en Firebase. Intenta iniciar sesión en su lugar.');
+      }
+      if (error.code === 'auth/weak-password') {
+        throw new Error('La contraseña debe tener al menos 6 caracteres');
+      }
+      if (error.code === 'auth/invalid-email') {
+        throw new Error('Email inválido');
       }
       throw new Error(error.message || 'Error al registrar usuario');
+    }
+  }
+
+  // Enviar email de verificación
+  async sendVerificationEmail(user: User): Promise<void> {
+    try {
+      const { sendEmailVerification } = await import('firebase/auth');
+      
+      // Configuración opcional para personalizar el email
+      const actionCodeSettings = {
+        // URL a la que redirigir después de verificar
+        url: `${window.location.origin}/login?verified=true`,
+        // Esto permite que el enlace se abra en la misma ventana
+        handleCodeInApp: false,
+      };
+      
+      await sendEmailVerification(user, actionCodeSettings);
+      logger.log('Email de verificación enviado');
+    } catch (error: any) {
+      logger.error('Error al enviar email de verificación:', error);
+      throw new Error('Error al enviar email de verificación');
     }
   }
 
@@ -109,12 +140,11 @@ class AuthService {
   }
 
   // Completar perfil del usuario
-  async completarPerfil(datos: PerfilCompleto): Promise<void> {
+  async completarPerfil(datos: PerfilCompleto): Promise<any> {
     try {
       const token = await this.getToken();
       if (!token) throw new Error('No hay sesión activa');
 
-      // TODO: Llamar al backend para guardar los datos
       const response = await fetch(`${import.meta.env.VITE_API_URL}/usuarios/completar-perfil`, {
         method: 'POST',
         headers: {
@@ -125,10 +155,13 @@ class AuthService {
       });
 
       if (!response.ok) {
-        throw new Error('Error al guardar el perfil');
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.detail || 'Error al guardar el perfil');
       }
 
+      const usuario = await response.json();
       logger.log('Perfil completado exitosamente');
+      return usuario;
     } catch (error: any) {
       logger.error('Error al completar perfil:', error);
       throw new Error(error.message || 'Error al completar el perfil');
@@ -138,6 +171,31 @@ class AuthService {
   // Obtener usuario actual de Firebase
   getCurrentFirebaseUser(): User | null {
     return auth.currentUser;
+  }
+
+  // Enviar email para restablecer contraseña
+  async sendPasswordResetEmail(email: string): Promise<void> {
+    try {
+      const { sendPasswordResetEmail } = await import('firebase/auth');
+      
+      // Configuración opcional para personalizar el email
+      const actionCodeSettings = {
+        url: `${window.location.origin}/login?reset=true`,
+        handleCodeInApp: false,
+      };
+      
+      await sendPasswordResetEmail(auth, email, actionCodeSettings);
+      logger.log('Email de recuperación enviado a:', email);
+    } catch (error: any) {
+      logger.error('Error al enviar email de recuperación:', error);
+      if (error.code === 'auth/user-not-found') {
+        throw new Error('No existe una cuenta con este email');
+      }
+      if (error.code === 'auth/invalid-email') {
+        throw new Error('Email inválido');
+      }
+      throw new Error('Error al enviar email de recuperación');
+    }
   }
 }
 

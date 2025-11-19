@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, DateTime, Boolean, Float, Text, ForeignKey, BigInteger, SmallInteger, JSON
+from sqlalchemy import Column, Integer, String, DateTime, Date, Boolean, Float, Text, ForeignKey, BigInteger, SmallInteger, JSON
 from sqlalchemy.sql import func
 from sqlalchemy.orm import relationship
 from ..database.config import Base
@@ -37,6 +37,13 @@ class PerfilUsuario(Base):
     url_avatar = Column(Text, nullable=True)
     id_categoria_inicial = Column(BigInteger, ForeignKey("categorias.id_categoria"), nullable=True)
     actualizado_en = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+    
+    # Campos adicionales para perfil completo
+    dni = Column(String(20), nullable=True)
+    fecha_nacimiento = Column(Date, nullable=True)
+    telefono = Column(String(20), nullable=True)
+    mano_habil = Column(String(10), nullable=True)  # 'derecha' o 'zurda'
+    posicion_preferida = Column(String(15), nullable=True)  # 'drive', 'reves', 'indiferente'
     
     # Relaciones
     usuario = relationship("Usuario", back_populates="perfil")

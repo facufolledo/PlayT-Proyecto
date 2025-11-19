@@ -12,7 +12,7 @@ const CATEGORIAS = ['8va', '7ma', '6ta', '5ta', '4ta', 'Libre'];
 
 export default function CompletarPerfil() {
   const navigate = useNavigate();
-  const { usuario } = useAuth();
+  const { usuario, firebaseUser, completeProfile } = useAuth();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   
@@ -35,7 +35,7 @@ export default function CompletarPerfil() {
     setLoading(true);
 
     try {
-      await authService.completarPerfil(formData);
+      await completeProfile(formData);
       navigate('/dashboard');
     } catch (err: any) {
       setError(err.message || 'Error al completar el perfil');
@@ -59,9 +59,9 @@ export default function CompletarPerfil() {
             <p className="text-textSecondary">
               Necesitamos algunos datos adicionales para crear tu cuenta de jugador
             </p>
-            {usuario && (
+            {(usuario || firebaseUser) && (
               <p className="text-primary text-sm mt-2">
-                Registrado como: {usuario.email}
+                Registrado como: {usuario?.email || firebaseUser?.email}
               </p>
             )}
           </div>

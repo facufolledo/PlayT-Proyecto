@@ -9,23 +9,17 @@ import { useAuth } from '../context/AuthContext';
 
 export default function Register() {
   const navigate = useNavigate();
-  const { register, isLoading } = useAuth();
+  const { register, loginWithGoogle, isLoading } = useAuth();
   const [showPassword, setShowPassword] = useState(false);
-  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const [emailSent, setEmailSent] = useState(false);
   const [formData, setFormData] = useState({
-    nombre: '',
     email: '',
     password: '',
-    confirmPassword: '',
   });
   const [errors, setErrors] = useState<Record<string, string>>({});
 
   const validateForm = () => {
     const newErrors: Record<string, string> = {};
-
-    if (!formData.nombre) {
-      newErrors.nombre = 'El nombre es requerido';
-    }
 
     if (!formData.email) {
       newErrors.email = 'El email es requerido';
@@ -39,10 +33,6 @@ export default function Register() {
       newErrors.password = 'La contraseña debe tener al menos 6 caracteres';
     }
 
-    if (formData.password !== formData.confirmPassword) {
-      newErrors.confirmPassword = 'Las contraseñas no coinciden';
-    }
-
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };
@@ -53,10 +43,21 @@ export default function Register() {
     if (!validateForm()) return;
 
     try {
-      await register(formData.nombre, formData.email, formData.password);
-      navigate('/dashboard');
-    } catch (err) {
-      setErrors({ general: 'Error al registrar usuario' });
+      await register('', formData.email, formData.password);
+      // Mostrar mensaje de verificación de email
+      setEmailSent(true);
+    } catch (err: any) {
+      setErrors({ general: err.message || 'Error al registrar usuario' });
+    }
+  };
+
+  const handleGoogleRegister = async () => {
+    try {
+      await loginWithGoogle();
+      // El AuthContext ya maneja la redirección a completar-perfil
+      navigate('/completar-perfil');
+    } catch (err: any) {
+      setErrors({ general: err.message || 'Error al registrar con Google' });
     }
   };
 
@@ -103,34 +104,45 @@ export default function Register() {
         <div className="bg-cardBg rounded-2xl p-8 border border-cardBorder shadow-2xl">
           <h2 className="text-2xl font-bold text-textPrimary mb-6">Crear Cuenta</h2>
 
-          {errors.general && (
+          {emailSent ? (
             <motion.div
-              initial={{ opacity: 0, y: -10 }}
-              animate={{ opacity: 1, y: 0 }}
-              className="bg-red-500/10 border border-red-500/50 rounded-lg p-3 mb-4"
+              initial={{ opacity: 0, scale: 0.9 }}
+              animate={{ opacity: 1, scale: 1 }}
+              className="text-center py-8"
             >
-              <p className="text-red-500 text-sm">{errors.general}</p>
+              <div className="w-16 h-16 bg-primary/20 rounded-full flex items-center justify-center mx-auto mb-4">
+                <Mail className="text-primary" size={32} />
+              </div>
+              <h3 className="text-xl font-bold text-textPrimary mb-2">
+                ¡Verifica tu email!
+              </h3>
+              <p className="text-textSecondary mb-4">
+                Te enviamos un correo a <span className="text-primary font-bold">{formData.email}</span>
+              </p>
+              <p className="text-textSecondary text-sm mb-6">
+                Haz clic en el enlace del correo para verificar tu cuenta y luego inicia sesión.
+              </p>
+              <Button
+                variant="primary"
+                onClick={() => navigate('/login')}
+                className="w-full"
+              >
+                Ir a Iniciar Sesión
+              </Button>
             </motion.div>
-          )}
+          ) : (
+            <>
+              {errors.general && (
+                <motion.div
+                  initial={{ opacity: 0, y: -10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  className="bg-red-500/10 border border-red-500/50 rounded-lg p-3 mb-4"
+                >
+                  <p className="text-red-500 text-sm">{errors.general}</p>
+                </motion.div>
+              )}
 
           <form onSubmit={handleSubmit} className="space-y-4">
-            <div>
-              <label className="block text-textSecondary text-sm font-medium mb-2">
-                Nombre completo
-              </label>
-              <div className="relative">
-                <User className="absolute left-3 top-1/2 -translate-y-1/2 text-textSecondary" size={20} />
-                <Input
-                  type="text"
-                  value={formData.nombre}
-                  onChange={(e) => setFormData({ ...formData, nombre: e.target.value })}
-                  placeholder="Juan Pérez"
-                  className="pl-10"
-                />
-              </div>
-              {errors.nombre && <p className="text-red-500 text-xs mt-1">{errors.nombre}</p>}
-            </div>
-
             <div>
               <label className="block text-textSecondary text-sm font-medium mb-2">
                 Email
@@ -172,30 +184,6 @@ export default function Register() {
               {errors.password && <p className="text-red-500 text-xs mt-1">{errors.password}</p>}
             </div>
 
-            <div>
-              <label className="block text-textSecondary text-sm font-medium mb-2">
-                Confirmar contraseña
-              </label>
-              <div className="relative">
-                <Lock className="absolute left-3 top-1/2 -translate-y-1/2 text-textSecondary" size={20} />
-                <Input
-                  type={showConfirmPassword ? 'text' : 'password'}
-                  value={formData.confirmPassword}
-                  onChange={(e) => setFormData({ ...formData, confirmPassword: e.target.value })}
-                  placeholder="••••••••"
-                  className="pl-10 pr-10"
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-textSecondary hover:text-textPrimary transition-colors"
-                >
-                  {showConfirmPassword ? <EyeOff size={20} /> : <Eye size={20} />}
-                </button>
-              </div>
-              {errors.confirmPassword && <p className="text-red-500 text-xs mt-1">{errors.confirmPassword}</p>}
-            </div>
-
             <Button
               type="submit"
               variant="primary"
@@ -206,20 +194,48 @@ export default function Register() {
             </Button>
           </form>
 
-          <div className="mt-6 text-center space-y-3">
-            <p className="text-textSecondary text-sm">
-              ¿Ya tienes cuenta?{' '}
-              <Link to="/login" className="text-primary hover:text-blue-400 font-bold transition-colors">
-                Inicia sesión
-              </Link>
-            </p>
-            <button
-              onClick={() => navigate('/')}
-              className="text-textSecondary hover:text-textPrimary text-sm transition-colors"
-            >
-              ← Volver al inicio
-            </button>
+          <div className="relative my-6">
+            <div className="absolute inset-0 flex items-center">
+              <div className="w-full border-t border-cardBorder"></div>
+            </div>
+            <div className="relative flex justify-center text-sm">
+              <span className="px-2 bg-cardBg text-textSecondary">O continúa con</span>
+            </div>
           </div>
+
+          <motion.button
+            type="button"
+            onClick={handleGoogleRegister}
+            disabled={isLoading}
+            whileHover={{ scale: 1.02 }}
+            whileTap={{ scale: 0.98 }}
+            className="w-full bg-white hover:bg-gray-50 text-gray-900 font-bold py-3 px-4 rounded-lg border-2 border-gray-300 transition-all flex items-center justify-center gap-3 disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            <svg className="w-5 h-5" viewBox="0 0 24 24">
+              <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
+              <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
+              <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/>
+              <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
+            </svg>
+            {isLoading ? 'Registrando...' : 'Continuar con Google'}
+          </motion.button>
+
+              <div className="mt-6 text-center space-y-3">
+                <p className="text-textSecondary text-sm">
+                  ¿Ya tienes cuenta?{' '}
+                  <Link to="/login" className="text-primary hover:text-blue-400 font-bold transition-colors">
+                    Inicia sesión
+                  </Link>
+                </p>
+                <button
+                  onClick={() => navigate('/')}
+                  className="text-textSecondary hover:text-textPrimary text-sm transition-colors"
+                >
+                  ← Volver al inicio
+                </button>
+              </div>
+            </>
+          )}
         </div>
 
         {/* Nota de desarrollo */}

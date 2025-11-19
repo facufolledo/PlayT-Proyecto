@@ -12,6 +12,8 @@ import MiPerfil from './pages/MiPerfil';
 import MiRanking from './pages/MiRanking';
 import Login from './pages/Login';
 import Register from './pages/Register';
+import ForgotPassword from './pages/ForgotPassword';
+import CompletarPerfil from './pages/CompletarPerfil';
 import PrivateRoute from './components/PrivateRoute';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { AuthProvider } from './context/AuthContext';
@@ -35,6 +37,17 @@ function App() {
               {/* Rutas públicas */}
               <Route path="/login" element={<Login />} />
               <Route path="/register" element={<Register />} />
+              <Route path="/forgot-password" element={<ForgotPassword />} />
+              
+              {/* Ruta semi-protegida: requiere Firebase auth pero no usuario completo */}
+              <Route
+                path="/completar-perfil"
+                element={
+                  <PrivateRoute>
+                    <CompletarPerfil />
+                  </PrivateRoute>
+                }
+              />
 
               {/* Rutas protegidas */}
               <Route
