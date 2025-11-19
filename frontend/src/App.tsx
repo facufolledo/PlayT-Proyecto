@@ -1,24 +1,40 @@
+import { lazy, Suspense } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import Layout from './components/Layout';
-import Landing from './pages/Landing';
-import Dashboard from './pages/Dashboard';
-import Salas from './pages/Salas';
-import Torneos from './pages/Torneos';
-import TorneoDetalle from './pages/TorneoDetalle';
-import Estadisticas from './pages/Estadisticas';
-import Rankings from './pages/Rankings';
-import Confirmaciones from './pages/Confirmaciones';
-import MiPerfil from './pages/MiPerfil';
-import MiRanking from './pages/MiRanking';
-import Login from './pages/Login';
-import Register from './pages/Register';
-import ForgotPassword from './pages/ForgotPassword';
-import CompletarPerfil from './pages/CompletarPerfil';
 import PrivateRoute from './components/PrivateRoute';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { AuthProvider } from './context/AuthContext';
 import { SalasProvider } from './context/SalasContext';
 import { TorneosProvider } from './context/TorneosContext';
+
+// Páginas críticas (carga inmediata)
+import Landing from './pages/Landing';
+import Login from './pages/Login';
+import Register from './pages/Register';
+
+// Lazy loading para páginas secundarias
+const Dashboard = lazy(() => import('./pages/Dashboard'));
+const Salas = lazy(() => import('./pages/Salas'));
+const Torneos = lazy(() => import('./pages/Torneos'));
+const TorneoDetalle = lazy(() => import('./pages/TorneoDetalle'));
+const Estadisticas = lazy(() => import('./pages/Estadisticas'));
+const Rankings = lazy(() => import('./pages/Rankings'));
+// const RankingsCategorias = lazy(() => import('./pages/RankingsCategorias'));
+const Confirmaciones = lazy(() => import('./pages/Confirmaciones'));
+const MiPerfil = lazy(() => import('./pages/MiPerfil'));
+const MiRanking = lazy(() => import('./pages/MiRanking'));
+const CompletarPerfil = lazy(() => import('./pages/CompletarPerfil'));
+const ForgotPassword = lazy(() => import('./pages/ForgotPassword'));
+
+// Loading component
+const PageLoader = () => (
+  <div className="min-h-screen bg-background flex items-center justify-center">
+    <div className="text-center">
+      <div className="w-16 h-16 border-4 border-primary border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+      <p className="text-textSecondary">Cargando...</p>
+    </div>
+  </div>
+);
 
 // La Landing siempre es accesible, incluso si estás autenticado
 // El usuario decide cuándo entrar a la app
@@ -30,7 +46,8 @@ function App() {
         <AuthProvider>
           <SalasProvider>
             <TorneosProvider>
-              <Routes>
+              <Suspense fallback={<PageLoader />}>
+                <Routes>
               {/* Ruta principal - Landing siempre visible */}
               <Route path="/" element={<Landing />} />
 
@@ -183,7 +200,8 @@ function App() {
 
               {/* Ruta 404 */}
               <Route path="*" element={<Navigate to="/" replace />} />
-            </Routes>
+                </Routes>
+              </Suspense>
           </TorneosProvider>
         </SalasProvider>
       </AuthProvider>

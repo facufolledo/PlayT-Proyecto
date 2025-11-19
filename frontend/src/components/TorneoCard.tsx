@@ -1,4 +1,4 @@
-import { motion } from 'framer-motion';
+import { motion, useReducedMotion } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
 import { Trophy, Calendar, Users, Play, CheckCircle, Clock } from 'lucide-react';
 import { Torneo } from '../utils/types';
@@ -24,6 +24,7 @@ const GENERO_LABELS = {
 
 export default function TorneoCard({ torneo }: TorneoCardProps) {
   const navigate = useNavigate();
+  const shouldReduceMotion = useReducedMotion();
   const getEstadoColor = () => {
     switch (torneo.estado) {
       case 'activo':
@@ -61,28 +62,29 @@ export default function TorneoCard({ torneo }: TorneoCardProps) {
 
   return (
     <motion.div
-      initial={{ opacity: 0, y: 20 }}
+      initial={shouldReduceMotion ? false : { opacity: 0, y: 10 }}
       animate={{ opacity: 1, y: 0 }}
-      whileHover={{ y: -6, scale: 1.02 }}
-      className="group cursor-pointer"
+      whileHover={shouldReduceMotion ? {} : { y: -4, scale: 1.005 }}
+      whileTap={{ scale: 0.98 }}
+      className="group cursor-pointer active:scale-[0.98]"
       onClick={() => navigate(`/torneos/${torneo.id}`)}
     >
-      <div className="relative bg-cardBg rounded-xl p-6 border border-cardBorder group-hover:border-transparent transition-all duration-300 overflow-hidden">
+      <div className="relative bg-cardBg/95 backdrop-blur-sm rounded-lg md:rounded-xl p-3 md:p-5 border border-cardBorder group-hover:border-transparent transition-all duration-200 overflow-hidden">
         {/* Glow effect on hover */}
-        <div className={`absolute -inset-[1px] bg-gradient-to-br ${getEstadoColor()} opacity-0 group-hover:opacity-100 transition-opacity duration-300 rounded-xl -z-10 blur-sm`} />
+        <div className={`absolute -inset-[1px] bg-gradient-to-br ${getEstadoColor()} opacity-0 group-hover:opacity-100 transition-opacity duration-200 rounded-lg -z-10 blur-sm`} />
         
         <div className="relative z-10">
           {/* Header */}
-          <div className="flex items-start justify-between mb-4">
-            <div className="flex items-center gap-3">
-              <div className={`bg-gradient-to-br ${getEstadoColor()} p-3 rounded-lg`}>
-                <Trophy className="text-white" size={24} />
+          <div className="flex items-start justify-between mb-2 md:mb-3 gap-2">
+            <div className="flex items-center gap-1.5 md:gap-2 min-w-0 flex-1">
+              <div className={`bg-gradient-to-br ${getEstadoColor()} p-1.5 md:p-2 rounded-md flex-shrink-0`}>
+                <Trophy className="text-white" size={14} />
               </div>
-              <div>
-                <h3 className="text-xl font-bold text-textPrimary group-hover:text-white transition-colors">
+              <div className="min-w-0">
+                <h3 className="text-base md:text-lg font-bold text-textPrimary group-hover:text-white transition-colors truncate">
                   {torneo.nombre}
                 </h3>
-                <p className="text-textSecondary text-sm">{FORMATO_LABELS[torneo.formato]}</p>
+                <p className="text-textSecondary text-[10px] md:text-xs truncate">{FORMATO_LABELS[torneo.formato]}</p>
               </div>
             </div>
             

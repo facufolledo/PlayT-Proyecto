@@ -1,6 +1,8 @@
 export interface Jugador {
   id: string;
   nombre: string;
+  rating?: number;
+  esCreador?: boolean;
 }
 
 export interface Equipo {
@@ -16,14 +18,18 @@ export interface Sala {
   id: string;
   nombre: string;
   fecha: string;
-  estado: 'activa' | 'finalizada' | 'programada';
+  estado: 'esperando' | 'activa' | 'finalizada' | 'programada';
+  codigoInvitacion?: string;
+  jugadores?: Jugador[];
+  equiposAsignados?: boolean;
   equipoA: Equipo;
   equipoB: Equipo;
+  sets?: Set[];
   ganador?: 'equipoA' | 'equipoB';
   torneoId?: string;
-  creadoPor: string; // ID del usuario que creó la sala
+  creadoPor: string;
   estadoConfirmacion: 'pendiente' | 'parcial' | 'confirmado' | 'disputado';
-  resultadoFinal: boolean; // true cuando ambos equipos confirman
+  resultadoFinal: boolean;
   motivoDisputa?: string;
   createdAt: string;
 }
