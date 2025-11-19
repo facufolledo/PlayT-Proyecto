@@ -9,6 +9,7 @@ import Estadisticas from './pages/Estadisticas';
 import Rankings from './pages/Rankings';
 import Confirmaciones from './pages/Confirmaciones';
 import MiPerfil from './pages/MiPerfil';
+import MiRanking from './pages/MiRanking';
 import Login from './pages/Login';
 import Register from './pages/Register';
 import PrivateRoute from './components/PrivateRoute';
@@ -111,7 +112,7 @@ function App() {
                 element={
                   <PrivateRoute>
                     <Layout>
-                      <div className="text-textPrimary">Mi Ranking - Próximamente</div>
+                      <MiRanking />
                     </Layout>
                   </PrivateRoute>
                 }
