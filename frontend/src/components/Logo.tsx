@@ -9,7 +9,7 @@ interface LogoProps {
 export default function Logo({ size = 48, className = '', animated = false }: LogoProps) {
   const LogoImage = (
     <img
-      src="/logo playR.png"
+      src={`${import.meta.env.BASE_URL}logo-playr.png`}
       alt="PlayR Logo"
       width={size}
       height={size}

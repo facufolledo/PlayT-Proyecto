@@ -69,9 +69,9 @@ export default function TorneoCard({ torneo }: TorneoCardProps) {
       className="group cursor-pointer active:scale-[0.98]"
       onClick={() => navigate(`/torneos/${torneo.id}`)}
     >
-      <div className="relative bg-cardBg/95 backdrop-blur-sm rounded-lg md:rounded-xl p-3 md:p-5 border border-cardBorder group-hover:border-transparent transition-all duration-200 overflow-hidden">
-        {/* Glow effect on hover */}
-        <div className={`absolute -inset-[1px] bg-gradient-to-br ${getEstadoColor()} opacity-0 group-hover:opacity-100 transition-opacity duration-200 rounded-lg -z-10 blur-sm`} />
+      <div className="relative bg-cardBg/95 backdrop-blur-sm rounded-lg md:rounded-xl p-2.5 md:p-5 border border-cardBorder group-hover:border-transparent transition-all duration-200 overflow-hidden">
+        {/* Glow effect on hover - solo desktop */}
+        <div className={`hidden md:block absolute -inset-[1px] bg-gradient-to-br ${getEstadoColor()} opacity-0 group-hover:opacity-100 transition-opacity duration-200 rounded-lg -z-10 blur-sm`} />
         
         <div className="relative z-10">
           {/* Header */}
@@ -89,17 +89,17 @@ export default function TorneoCard({ torneo }: TorneoCardProps) {
             </div>
             
             {/* Estado badge */}
-            <div className={`flex items-center gap-1 px-3 py-1 rounded-full bg-gradient-to-r ${getEstadoColor()} text-white text-xs font-bold`}>
-              {getEstadoIcon()}
-              {getEstadoLabel()}
+            <div className={`flex items-center gap-0.5 md:gap-1 px-2 md:px-3 py-0.5 md:py-1 rounded-full bg-gradient-to-r ${getEstadoColor()} text-white text-[10px] md:text-xs font-bold flex-shrink-0`}>
+              <span className="w-3 h-3 md:w-4 md:h-4">{getEstadoIcon()}</span>
+              <span className="hidden sm:inline">{getEstadoLabel()}</span>
             </div>
           </div>
 
           {/* Info */}
-          <div className="space-y-3 mb-4">
-            <div className="flex items-center gap-2 text-textSecondary">
-              <Calendar size={16} />
-              <span className="text-sm">
+          <div className="space-y-1.5 md:space-y-3 mb-2 md:mb-4">
+            <div className="flex items-center gap-1.5 md:gap-2 text-textSecondary">
+              <Calendar size={14} className="md:w-4 md:h-4 flex-shrink-0" />
+              <span className="text-[11px] md:text-sm truncate">
                 {new Date(torneo.fechaInicio).toLocaleDateString('es-ES', { 
                   day: 'numeric', 
                   month: 'short' 
@@ -111,35 +111,35 @@ export default function TorneoCard({ torneo }: TorneoCardProps) {
               </span>
             </div>
             
-            <div className="flex items-center gap-2 text-textSecondary">
-              <Users size={16} />
-              <span className="text-sm">
+            <div className="flex items-center gap-1.5 md:gap-2 text-textSecondary">
+              <Users size={14} className="md:w-4 md:h-4 flex-shrink-0" />
+              <span className="text-[11px] md:text-sm">
                 {torneo.participantes} participantes ({torneo.participantes / 2} parejas)
               </span>
             </div>
 
             {/* Categoría y Género */}
-            <div className="flex items-center gap-2 flex-wrap">
-              <span className="px-3 py-1 rounded-full bg-primary/10 text-primary text-xs font-bold">
-                Categoría {torneo.categoria}
+            <div className="flex items-center gap-1.5 md:gap-2 flex-wrap">
+              <span className="px-2 md:px-3 py-0.5 md:py-1 rounded-full bg-primary/10 text-primary text-[10px] md:text-xs font-bold">
+                Cat. {torneo.categoria}
               </span>
-              <span className={`px-3 py-1 rounded-full bg-gradient-to-r ${GENERO_LABELS[torneo.genero].color} text-white text-xs font-bold flex items-center gap-1`}>
+              <span className={`px-2 md:px-3 py-0.5 md:py-1 rounded-full bg-gradient-to-r ${GENERO_LABELS[torneo.genero].color} text-white text-[10px] md:text-xs font-bold flex items-center gap-0.5 md:gap-1`}>
                 <span>{GENERO_LABELS[torneo.genero].icon}</span>
-                <span>{GENERO_LABELS[torneo.genero].label}</span>
+                <span className="hidden sm:inline">{GENERO_LABELS[torneo.genero].label}</span>
               </span>
             </div>
           </div>
 
           {/* Descripción */}
           {torneo.descripcion && (
-            <p className="text-textSecondary text-sm mb-4 line-clamp-2">
+            <p className="text-textSecondary text-[11px] md:text-sm mb-2 md:mb-4 line-clamp-2">
               {torneo.descripcion}
             </p>
           )}
 
           {/* Footer */}
-          <div className="flex items-center justify-between pt-4 border-t border-cardBorder">
-            <div className="text-textSecondary text-xs">
+          <div className="flex items-center justify-between pt-2 md:pt-4 border-t border-cardBorder">
+            <div className="text-textSecondary text-[10px] md:text-xs">
               {torneo.salasIds.length} {torneo.salasIds.length === 1 ? 'partido' : 'partidos'}
             </div>
             <Button
@@ -149,8 +149,10 @@ export default function TorneoCard({ torneo }: TorneoCardProps) {
                 e.stopPropagation();
                 navigate(`/torneos/${torneo.id}`);
               }}
+              className="text-[11px] md:text-sm px-2.5 md:px-4 py-1 md:py-2"
             >
-              Ver Detalles
+              <span className="hidden sm:inline">Ver Detalles</span>
+              <span className="sm:hidden">Ver</span>
             </Button>
           </div>
         </div>

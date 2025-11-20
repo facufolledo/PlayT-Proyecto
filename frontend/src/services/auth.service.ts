@@ -60,7 +60,7 @@ class AuthService {
     } catch (error: any) {
       logger.error('Error en registro:', error);
       if (error.code === 'auth/email-already-in-use') {
-        throw new Error('El email ya está registrado en Firebase. Intenta iniciar sesión en su lugar.');
+        throw new Error('Este email ya está registrado. Por favor, inicia sesión o recupera tu contraseña.');
       }
       if (error.code === 'auth/weak-password') {
         throw new Error('La contraseña debe tener al menos 6 caracteres');

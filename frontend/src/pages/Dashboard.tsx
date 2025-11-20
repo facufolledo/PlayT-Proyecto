@@ -1,4 +1,4 @@
-import { motion } from 'framer-motion';
+import { motion, useReducedMotion } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
 import Card from '../components/Card';
 import Button from '../components/Button';
@@ -11,6 +11,7 @@ export default function Dashboard() {
   const { salas } = useSalas();
   const { torneos } = useTorneos();
   const navigate = useNavigate();
+  const shouldReduceMotion = useReducedMotion();
 
   const partidosJugados = salas.filter(s => s.estado === 'finalizada').length;
   const proximosPartidos = salas.filter(s => s.estado === 'programada').length;
@@ -88,67 +89,54 @@ export default function Dashboard() {
     <div className="space-y-8">
         {/* Header estilo gaming */}
         <motion.div
-          initial={{ opacity: 0, y: -30 }}
+          initial={shouldReduceMotion ? false : { opacity: 0, y: -30 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.6, ease: "easeOut" }}
+          transition={shouldReduceMotion ? { duration: 0 } : { duration: 0.4, ease: "easeOut" }}
           className="relative mb-2"
         >
-          <div className="flex items-center gap-3 mb-3">
-            <div className="h-1 w-12 bg-gradient-to-r from-primary to-secondary rounded-full" />
-            <h1 className="text-5xl font-black text-textPrimary tracking-tight">
+          <div className="flex items-center gap-2 md:gap-3 mb-2 md:mb-3">
+            <div className="h-0.5 md:h-1 w-8 md:w-12 bg-gradient-to-r from-primary to-secondary rounded-full" />
+            <h1 className="text-2xl md:text-5xl font-black text-textPrimary tracking-tight">
               Bienvenido de vuelta
             </h1>
           </div>
-          <p className="text-textSecondary text-base ml-15">Aquí está tu resumen de rendimiento</p>
+          <p className="text-textSecondary text-xs md:text-base ml-10 md:ml-15">Aquí está tu resumen de rendimiento</p>
         </motion.div>
 
       {/* Stats Cards estilo eSports */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 md:gap-6">
         {stats.map((stat, index) => {
           const Icon = stat.icon;
           return (
             <motion.div
               key={stat.label}
-              initial={{ opacity: 0, y: 20 }}
+              initial={shouldReduceMotion ? false : { opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
-              transition={{ 
-                delay: index * 0.1,
-                duration: 0.4
+              transition={shouldReduceMotion ? { duration: 0 } : { 
+                delay: index * 0.05,
+                duration: 0.3
               }}
-              whileHover={{ y: -6, scale: 1.02 }}
+              whileHover={shouldReduceMotion ? {} : { y: -4, scale: 1.02 }}
+              whileTap={{ scale: 0.98 }}
               className="group cursor-pointer"
             >
-              <div className="relative bg-cardBg rounded-xl p-6 border border-cardBorder group-hover:border-transparent transition-all duration-300 overflow-hidden">
-                {/* Glow effect on hover */}
-                <div className={`absolute inset-0 bg-gradient-to-br ${stat.color} opacity-0 group-hover:opacity-10 transition-opacity duration-300`} />
-                <div className={`absolute -inset-[1px] bg-gradient-to-br ${stat.color} opacity-0 group-hover:opacity-100 transition-opacity duration-300 rounded-xl -z-10 blur-sm`} />
+              <div className="relative bg-cardBg rounded-lg md:rounded-xl p-3 md:p-6 border border-cardBorder group-hover:border-transparent transition-all duration-200 overflow-hidden">
+                {/* Glow effect on hover - solo desktop */}
+                <div className={`hidden md:block absolute inset-0 bg-gradient-to-br ${stat.color} opacity-0 group-hover:opacity-10 transition-opacity duration-200`} />
+                <div className={`hidden md:block absolute -inset-[1px] bg-gradient-to-br ${stat.color} opacity-0 group-hover:opacity-100 transition-opacity duration-200 rounded-xl -z-10 blur-sm`} />
                 
                 <div className="relative z-10">
-                  <div className="flex items-center justify-between mb-4">
-                    <motion.div 
-                      className={`${stat.iconBg} p-3 rounded-lg relative`}
-                      whileHover={{ scale: 1.1 }}
-                    >
-                      <Icon size={28} className={stat.iconColor} strokeWidth={2.5} />
-                    </motion.div>
-                    <motion.div
-                      initial={{ scale: 0 }}
-                      animate={{ scale: 1 }}
-                      transition={{ delay: index * 0.1 + 0.2, type: "spring", stiffness: 300 }}
-                      className="text-right"
-                    >
-                      <motion.p 
-                        className="text-5xl font-black text-textPrimary tracking-tight"
-                        key={stat.value}
-                        initial={{ scale: 1.3, opacity: 0 }}
-                        animate={{ scale: 1, opacity: 1 }}
-                        transition={{ type: "spring", stiffness: 200 }}
-                      >
+                  <div className="flex items-center justify-between mb-2 md:mb-4">
+                    <div className={`${stat.iconBg} p-2 md:p-3 rounded-lg relative`}>
+                      <Icon size={20} className={`${stat.iconColor} md:w-7 md:h-7`} strokeWidth={2.5} />
+                    </div>
+                    <div className="text-right">
+                      <p className="text-3xl md:text-5xl font-black text-textPrimary tracking-tight">
                         {stat.value}
-                      </motion.p>
-                    </motion.div>
+                      </p>
+                    </div>
                   </div>
-                  <p className="text-textSecondary text-xs font-bold uppercase tracking-wider">{stat.label}</p>
+                  <p className="text-textSecondary text-[10px] md:text-xs font-bold uppercase tracking-wider">{stat.label}</p>
                 </div>
               </div>
             </motion.div>

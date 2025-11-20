@@ -10,6 +10,7 @@ interface ModalProps {
 }
 
 export default function Modal({ isOpen, onClose, children, title }: ModalProps) {
+  // Bloquear scroll del body cuando el modal está abierto
   useEffect(() => {
     if (isOpen) {
       document.body.style.overflow = 'hidden';
@@ -20,6 +21,18 @@ export default function Modal({ isOpen, onClose, children, title }: ModalProps) 
       document.body.style.overflow = 'unset';
     };
   }, [isOpen]);
+
+  // Cerrar con tecla ESC
+  useEffect(() => {
+    const handleEscape = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && isOpen) {
+        onClose();
+      }
+    };
+
+    document.addEventListener('keydown', handleEscape);
+    return () => document.removeEventListener('keydown', handleEscape);
+  }, [isOpen, onClose]);
 
   return (
     <AnimatePresence>

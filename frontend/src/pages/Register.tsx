@@ -57,7 +57,14 @@ export default function Register() {
       // El AuthContext ya maneja la redirección a completar-perfil
       navigate('/completar-perfil');
     } catch (err: any) {
-      setErrors({ general: err.message || 'Error al registrar con Google' });
+      const errorMessage = err.message || 'Error al registrar con Google';
+      // Si el error indica que ya existe, agregar información adicional
+      if (errorMessage.includes('ya existe') || errorMessage.includes('already exists')) {
+        setErrors({ general: 'Esta cuenta de Google ya está registrada. Serás redirigido al inicio de sesión.' });
+        setTimeout(() => navigate('/login'), 2000);
+      } else {
+        setErrors({ general: errorMessage });
+      }
     }
   };
 
@@ -78,31 +85,31 @@ export default function Register() {
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.5 }}
-        className="w-full max-w-md relative z-10"
+        className="w-full max-w-md relative z-10 px-4"
       >
         {/* Logo y título */}
-        <div className="text-center mb-8">
+        <div className="text-center mb-6 md:mb-8">
           <motion.div
             initial={{ scale: 0 }}
             animate={{ scale: 1 }}
             transition={{ type: "spring", stiffness: 200 }}
-            className="inline-flex flex-col items-center justify-center mb-4"
+            className="inline-flex flex-col items-center justify-center mb-3 md:mb-4"
           >
             <img 
-              src="/logo playR.png" 
+              src={`${import.meta.env.BASE_URL}logo-playr.png`}
               alt="PlayR Logo" 
-              className="w-32 h-32 mb-4"
+              className="w-20 h-20 md:w-28 md:h-28 mb-2 md:mb-3"
             />
-            <h1 className="text-4xl font-black text-textPrimary">
+            <h1 className="text-2xl md:text-3xl font-black text-textPrimary">
               Play<span className="text-primary">R</span>
             </h1>
           </motion.div>
-          <p className="text-textSecondary text-center">Únete a la comunidad</p>
+          <p className="text-textSecondary text-center text-sm md:text-base">Únete a la comunidad</p>
         </div>
 
         {/* Formulario */}
-        <div className="bg-cardBg rounded-2xl p-8 border border-cardBorder shadow-2xl">
-          <h2 className="text-2xl font-bold text-textPrimary mb-6">Crear Cuenta</h2>
+        <div className="bg-cardBg rounded-xl md:rounded-2xl p-5 md:p-8 border border-cardBorder shadow-2xl">
+          <h2 className="text-xl md:text-2xl font-bold text-textPrimary mb-4 md:mb-6">Crear Cuenta</h2>
 
           {emailSent ? (
             <motion.div
@@ -136,9 +143,17 @@ export default function Register() {
                 <motion.div
                   initial={{ opacity: 0, y: -10 }}
                   animate={{ opacity: 1, y: 0 }}
-                  className="bg-red-500/10 border border-red-500/50 rounded-lg p-3 mb-4"
+                  className="bg-red-500/10 border border-red-500/50 rounded-lg p-4 mb-4"
                 >
-                  <p className="text-red-500 text-sm">{errors.general}</p>
+                  <p className="text-red-500 text-sm font-semibold mb-2">{errors.general}</p>
+                  {errors.general.includes('ya está registrado') && (
+                    <Link 
+                      to="/login" 
+                      className="text-primary hover:text-blue-400 text-sm font-bold underline inline-block"
+                    >
+                      Ir a Iniciar Sesión →
+                    </Link>
+                  )}
                 </motion.div>
               )}
 
@@ -238,17 +253,6 @@ export default function Register() {
           )}
         </div>
 
-        {/* Nota de desarrollo */}
-        <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ delay: 0.5 }}
-          className="mt-4 text-center"
-        >
-          <p className="text-textSecondary text-xs">
-            💡 Modo desarrollo: Los datos se guardan localmente
-          </p>
-        </motion.div>
       </motion.div>
     </div>
   );

@@ -10,9 +10,15 @@ export default function PWAInstallPrompt() {
   const [showOfflineBanner, setShowOfflineBanner] = useState(false);
 
   useEffect(() => {
+    // Verificar si es dispositivo móvil
+    const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+    
     // Verificar si puede instalarse
     const checkInstallable = () => {
-      setShowInstall(canInstall());
+      // Solo mostrar en móviles
+      if (isMobile) {
+        setShowInstall(canInstall());
+      }
     };
 
     // Escuchar evento personalizado
@@ -52,36 +58,35 @@ export default function PWAInstallPrompt() {
             initial={{ y: 100, opacity: 0 }}
             animate={{ y: 0, opacity: 1 }}
             exit={{ y: 100, opacity: 0 }}
-            className="fixed bottom-4 left-4 right-4 md:left-auto md:right-4 md:w-96 z-50"
+            className="fixed bottom-4 right-4 left-4 md:left-auto md:w-80 z-50"
           >
-            <div className="bg-gradient-to-r from-primary to-blue-600 rounded-2xl p-4 shadow-2xl border border-blue-400/20">
+            <div className="bg-cardBg/95 backdrop-blur-xl rounded-lg border border-primary/30 shadow-2xl p-2.5">
               <button
                 onClick={() => setShowInstall(false)}
-                className="absolute top-2 right-2 text-white/80 hover:text-white transition-colors"
+                className="absolute top-1 right-1 text-textSecondary hover:text-textPrimary transition-colors"
               >
-                <X size={20} />
+                <X size={16} />
               </button>
 
-              <div className="flex items-start gap-4">
-                <div className="bg-white/20 p-3 rounded-xl">
-                  <Download size={24} className="text-white" />
+              <div className="flex items-center gap-2 pr-6">
+                <div className="bg-primary/10 p-2 rounded-lg flex-shrink-0">
+                  <Download size={18} className="text-primary" />
                 </div>
                 
-                <div className="flex-1">
-                  <h3 className="text-white font-bold text-lg mb-1">
+                <div className="flex-1 min-w-0">
+                  <h3 className="text-textPrimary font-bold text-xs mb-0.5">
                     Instalar PlayR
                   </h3>
-                  <p className="text-white/90 text-sm mb-3">
-                    Instala la app para acceso rápido y funcionalidad offline
+                  <p className="text-textSecondary text-[10px] mb-1.5">
+                    Acceso rápido
                   </p>
                   
-                  <Button
-                    variant="ghost"
+                  <button
                     onClick={handleInstall}
-                    className="bg-white text-primary hover:bg-white/90 w-full"
+                    className="bg-primary hover:bg-primary/90 text-white w-full text-xs py-1.5 rounded-lg font-bold transition-colors"
                   >
-                    Instalar Ahora
-                  </Button>
+                    Instalar
+                  </button>
                 </div>
               </div>
             </div>
@@ -111,19 +116,15 @@ export default function PWAInstallPrompt() {
         )}
       </AnimatePresence>
 
-      {/* Indicador de conexión (pequeño) */}
+      {/* Indicador de conexión (solo icono) */}
       {!showOfflineBanner && (
-        <div className="fixed top-4 right-4 z-40">
+        <div className="fixed bottom-4 right-4 z-40">
           <motion.div
             initial={{ scale: 0 }}
             animate={{ scale: 1 }}
-            className={`p-2 rounded-full ${
-              online 
-                ? 'bg-green-500/20 text-green-500' 
-                : 'bg-red-500/20 text-red-500'
-            }`}
+            className={online ? 'text-green-500' : 'text-red-500'}
           >
-            {online ? <Wifi size={16} /> : <WifiOff size={16} />}
+            {online ? <Wifi size={20} /> : <WifiOff size={20} />}
           </motion.div>
         </div>
       )}

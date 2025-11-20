@@ -1,7 +1,7 @@
 // Configuración de Firebase
 // IMPORTANTE: Reemplazar con tus credenciales reales de Firebase Console
 import { initializeApp } from 'firebase/app';
-import { getAuth, GoogleAuthProvider } from 'firebase/auth';
+import { getAuth, GoogleAuthProvider, setPersistence, browserLocalPersistence } from 'firebase/auth';
 
 const firebaseConfig = {
   apiKey: import.meta.env.VITE_FIREBASE_API_KEY || "tu-api-key",
@@ -17,6 +17,11 @@ const app = initializeApp(firebaseConfig);
 
 // Inicializar Auth
 export const auth = getAuth(app);
+
+// Configurar persistencia LOCAL (mantiene sesión incluso después de cerrar el navegador)
+setPersistence(auth, browserLocalPersistence).catch((error) => {
+  console.error('Error al configurar persistencia de Firebase:', error);
+});
 
 // Provider de Google
 export const googleProvider = new GoogleAuthProvider();
