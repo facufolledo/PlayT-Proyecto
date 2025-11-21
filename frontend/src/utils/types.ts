@@ -28,8 +28,10 @@ export interface Sala {
   ganador?: 'equipoA' | 'equipoB';
   torneoId?: string;
   creadoPor: string;
-  estadoConfirmacion: 'pendiente' | 'parcial' | 'confirmado' | 'disputado';
-  resultadoFinal: boolean;
+  creador_id?: string | number; // ID del creador para comparación
+  estadoConfirmacion?: 'sin_resultado' | 'pendiente_confirmacion' | 'confirmado' | 'disputado';
+  resultado?: any; // ResultadoPartido from padelTypes
+  resultadoFinal?: boolean;
   motivoDisputa?: string;
   createdAt: string;
 }

@@ -12,6 +12,8 @@ export default function Torneos() {
   const [modalCrearOpen, setModalCrearOpen] = useState(false);
   const [filtro, setFiltro] = useState<'todos' | 'activo' | 'programado' | 'finalizado'>('todos');
   const [filtroGenero, setFiltroGenero] = useState<'todos' | 'masculino' | 'femenino' | 'mixto'>('todos');
+  const [mostrarTodos, setMostrarTodos] = useState(false);
+  const ITEMS_POR_PAGINA = 20;
 
   const torneosActivos = torneos.filter(t => t.estado === 'activo');
   const torneosProgramados = torneos.filter(t => t.estado === 'programado');
@@ -27,39 +29,42 @@ export default function Torneos() {
     torneosFiltrados = torneosFiltrados.filter(t => t.genero === filtroGenero);
   }
 
+  const torneosMostrados = mostrarTodos ? torneosFiltrados : torneosFiltrados.slice(0, ITEMS_POR_PAGINA);
+
   return (
     <div className="space-y-8">
       {/* Header */}
       <motion.div
         initial={{ opacity: 0, y: -30 }}
         animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.6 }}
-        className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4"
+        transition={{ duration: 0.4 }}
+        className="flex flex-col md:flex-row items-start md:items-center justify-between gap-3 md:gap-4"
       >
         <div className="relative">
-          <div className="flex items-center gap-3 mb-2">
-            <div className="h-1 w-12 bg-gradient-to-r from-accent to-yellow-500 rounded-full" />
-            <h1 className="text-5xl font-black text-textPrimary tracking-tight">
+          <div className="flex items-center gap-2 md:gap-3 mb-1 md:mb-2">
+            <div className="h-0.5 md:h-1 w-8 md:w-12 bg-gradient-to-r from-accent to-yellow-500 rounded-full" />
+            <h1 className="text-2xl md:text-5xl font-black text-textPrimary tracking-tight">
               Torneos
             </h1>
           </div>
-          <p className="text-textSecondary text-base ml-15">Organiza y gestiona competencias</p>
+          <p className="text-textSecondary text-xs md:text-base ml-10 md:ml-15">Organiza y gestiona competencias</p>
         </div>
         <motion.div
           whileHover={{ scale: 1.05 }}
           whileTap={{ scale: 0.95 }}
         >
-          <Button variant="accent" onClick={() => setModalCrearOpen(true)}>
-            <div className="flex items-center gap-2">
-              <Plus size={20} />
-              Nuevo Torneo
+          <Button variant="accent" onClick={() => setModalCrearOpen(true)} className="text-sm md:text-base">
+            <div className="flex items-center gap-1.5 md:gap-2">
+              <Plus size={18} className="md:w-5 md:h-5" />
+              <span className="hidden sm:inline">Nuevo Torneo</span>
+              <span className="sm:hidden">Nuevo</span>
             </div>
           </Button>
         </motion.div>
       </motion.div>
 
       {/* Estadísticas */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-2 md:gap-4">
         {[
           { label: 'Total', value: torneos.length, color: 'from-cyan-500 to-blue-500', icon: '🏆' },
           { label: 'En Curso', value: torneosActivos.length, color: 'from-secondary to-pink-500', icon: '⚡' },
@@ -70,26 +75,27 @@ export default function Torneos() {
             key={stat.label}
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: index * 0.1 }}
-            whileHover={{ y: -6, scale: 1.03 }}
+            transition={{ delay: index * 0.05 }}
+            whileHover={{ y: -4, scale: 1.02 }}
+            whileTap={{ scale: 0.98 }}
             className="group cursor-pointer relative"
           >
-            <div className="bg-cardBg rounded-xl p-4 border border-cardBorder group-hover:border-transparent transition-all duration-300 relative overflow-hidden">
-              <div className={`absolute -inset-[1px] bg-gradient-to-br ${stat.color} opacity-0 group-hover:opacity-100 transition-opacity duration-300 rounded-xl -z-10 blur-sm`} />
+            <div className="bg-cardBg rounded-lg md:rounded-xl p-2 md:p-4 border border-cardBorder group-hover:border-transparent transition-all duration-200 relative overflow-hidden">
+              <div className={`absolute -inset-[1px] bg-gradient-to-br ${stat.color} opacity-0 group-hover:opacity-100 transition-opacity duration-200 rounded-lg md:rounded-xl -z-10 blur-sm`} />
               
-              <div className="flex items-center justify-between mb-2">
-                <span className="text-2xl">{stat.icon}</span>
+              <div className="flex items-center justify-between mb-1 md:mb-2">
+                <span className="text-lg md:text-2xl">{stat.icon}</span>
                 <motion.p 
-                  className="text-4xl font-black text-textPrimary tracking-tight"
+                  className="text-2xl md:text-4xl font-black text-textPrimary tracking-tight"
                   key={stat.value}
-                  initial={{ scale: 1.3, opacity: 0 }}
+                  initial={{ scale: 1.2, opacity: 0 }}
                   animate={{ scale: 1, opacity: 1 }}
-                  transition={{ type: "spring", stiffness: 300 }}
+                  transition={{ type: "spring", stiffness: 300, duration: 0.3 }}
                 >
                   {stat.value}
                 </motion.p>
               </div>
-              <p className="text-textSecondary text-xs font-bold uppercase tracking-wider">{stat.label}</p>
+              <p className="text-textSecondary text-[10px] md:text-xs font-bold uppercase tracking-wider">{stat.label}</p>
             </div>
           </motion.div>
         ))}
@@ -143,39 +149,70 @@ export default function Torneos() {
       {/* Lista de torneos */}
       {torneosFiltrados.length === 0 ? (
         <Card>
-          <div className="text-center py-12 text-textSecondary">
-            <div className="bg-accent/10 rounded-full w-20 h-20 flex items-center justify-center mx-auto mb-4">
-              <Trophy size={40} className="text-accent" />
+          <div className="text-center py-8 md:py-12 text-textSecondary px-4">
+            <div className="bg-accent/10 rounded-full w-16 h-16 md:w-20 md:h-20 flex items-center justify-center mx-auto mb-3 md:mb-4">
+              <Trophy size={32} className="text-accent md:w-10 md:h-10" />
             </div>
-            <p className="text-lg mb-4">
+            <p className="text-base md:text-lg mb-2 md:mb-4">
               {filtro === 'todos' 
                 ? 'No hay torneos creados' 
                 : `No hay torneos ${filtro === 'activo' ? 'en curso' : filtro === 'programado' ? 'programados' : 'finalizados'}`}
             </p>
-            <p className="text-sm mb-4">
+            <p className="text-xs md:text-sm mb-3 md:mb-4">
               {filtro === 'todos' && 'Crea tu primer torneo para comenzar a organizar competencias'}
             </p>
             {filtro === 'todos' && (
-              <Button variant="accent" onClick={() => setModalCrearOpen(true)}>
-                <div className="flex items-center gap-2">
-                  <Plus size={20} />
-                  Crear Primer Torneo
+              <Button variant="accent" onClick={() => setModalCrearOpen(true)} className="text-sm md:text-base">
+                <div className="flex items-center gap-1.5 md:gap-2">
+                  <Plus size={18} className="md:w-5 md:h-5" />
+                  <span className="hidden sm:inline">Crear Primer Torneo</span>
+                  <span className="sm:hidden">Crear Torneo</span>
                 </div>
               </Button>
             )}
           </div>
         </Card>
       ) : (
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          <AnimatePresence mode="popLayout">
-            {torneosFiltrados.map((torneo) => (
-              <TorneoCard
-                key={torneo.id}
-                torneo={torneo}
-              />
-            ))}
-          </AnimatePresence>
-        </div>
+        <>
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 md:gap-6">
+            <AnimatePresence mode="popLayout">
+              {torneosMostrados.map((torneo) => (
+                <TorneoCard
+                  key={torneo.id}
+                  torneo={torneo}
+                />
+              ))}
+            </AnimatePresence>
+          </div>
+
+          {/* Botón Cargar Más */}
+          {!mostrarTodos && torneosFiltrados.length > ITEMS_POR_PAGINA && (
+            <div className="mt-4 md:mt-6 text-center">
+              <Button
+                variant="accent"
+                onClick={() => setMostrarTodos(true)}
+                className="w-full md:w-auto"
+              >
+                Cargar más ({torneosFiltrados.length - ITEMS_POR_PAGINA} restantes)
+              </Button>
+            </div>
+          )}
+
+          {mostrarTodos && torneosFiltrados.length > ITEMS_POR_PAGINA && (
+            <div className="mt-4 md:mt-6 text-center">
+              <Button
+                variant="ghost"
+                onClick={() => {
+                  setMostrarTodos(false);
+                  window.scrollTo({ top: 0, behavior: 'smooth' });
+                }}
+                className="w-full md:w-auto"
+              >
+                Mostrar menos
+              </Button>
+            </div>
+          )}
+        </>
       )}
 
       {/* Modal */}

@@ -1,16 +1,15 @@
 // Service Worker para PlayR PWA
-const CACHE_NAME = 'playr-v1.0.0';
-const RUNTIME_CACHE = 'playr-runtime';
-const API_CACHE = 'playr-api';
+const CACHE_NAME = 'playr-v1.0.1'; // Incrementado para forzar actualización
+const RUNTIME_CACHE = 'playr-runtime-v1.0.1';
+const API_CACHE = 'playr-api-v1.0.1';
+const BASE_PATH = '/PlayR';
 
 // Assets críticos para cachear en instalación
 const PRECACHE_ASSETS = [
-  '/',
-  '/index.html',
-  '/manifest.json',
-  '/logo playR.png',
-  '/icons/icon-192x192.png',
-  '/icons/icon-512x512.png'
+  `${BASE_PATH}/`,
+  `${BASE_PATH}/index.html`,
+  `${BASE_PATH}/manifest.json`,
+  `${BASE_PATH}/logo-playr.png`
 ];
 
 // Instalación del Service Worker
@@ -104,6 +103,10 @@ self.addEventListener('fetch', (event) => {
         });
 
         return response;
+      }).catch((error) => {
+        console.log('❌ Error fetching:', request.url, error);
+        // Si es un 404, no hacer nada especial
+        return new Response('Not found', { status: 404 });
       });
     })
   );

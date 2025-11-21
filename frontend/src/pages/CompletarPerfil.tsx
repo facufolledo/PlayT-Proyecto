@@ -45,22 +45,22 @@ export default function CompletarPerfil() {
   };
 
   return (
-    <div className="min-h-screen bg-background flex items-center justify-center p-4">
+    <div className="min-h-screen bg-background flex items-center justify-center p-3 md:p-4 py-4 md:py-8">
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         className="w-full max-w-3xl"
       >
         <Card>
-          <div className="mb-6">
-            <h1 className="text-3xl font-black text-textPrimary mb-2">
+          <div className="mb-4 md:mb-6">
+            <h1 className="text-xl md:text-3xl font-black text-textPrimary mb-1 md:mb-2">
               Completá tu Perfil
             </h1>
-            <p className="text-textSecondary">
-              Necesitamos algunos datos adicionales para crear tu cuenta de jugador
+            <p className="text-textSecondary text-sm md:text-base">
+              Necesitamos algunos datos para crear tu cuenta
             </p>
             {(usuario || firebaseUser) && (
-              <p className="text-primary text-sm mt-2">
+              <p className="text-primary text-xs md:text-sm mt-2">
                 Registrado como: {usuario?.email || firebaseUser?.email}
               </p>
             )}
@@ -76,16 +76,16 @@ export default function CompletarPerfil() {
             </motion.div>
           )}
 
-          <form onSubmit={handleSubmit} className="space-y-6">
+          <form onSubmit={handleSubmit} className="space-y-4 md:space-y-6">
             {/* Datos Personales */}
             <div>
-              <h3 className="text-lg font-bold text-textPrimary mb-4 flex items-center gap-2">
-                <User size={20} className="text-primary" />
+              <h3 className="text-base md:text-lg font-bold text-textPrimary mb-3 md:mb-4 flex items-center gap-2">
+                <User size={18} className="text-primary md:w-5 md:h-5" />
                 Datos Personales
               </h3>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3 md:gap-4">
                 <div>
-                  <label className="block text-textSecondary text-sm font-medium mb-2">
+                  <label className="block text-textSecondary text-xs md:text-sm font-medium mb-1.5 md:mb-2">
                     Nombre *
                   </label>
                   <Input
@@ -93,10 +93,11 @@ export default function CompletarPerfil() {
                     onChange={(e) => setFormData({ ...formData, nombre: e.target.value })}
                     placeholder="Juan"
                     required
+                    className="text-sm md:text-base"
                   />
                 </div>
                 <div>
-                  <label className="block text-textSecondary text-sm font-medium mb-2">
+                  <label className="block text-textSecondary text-xs md:text-sm font-medium mb-1.5 md:mb-2">
                     Apellido *
                   </label>
                   <Input
@@ -104,12 +105,13 @@ export default function CompletarPerfil() {
                     onChange={(e) => setFormData({ ...formData, apellido: e.target.value })}
                     placeholder="Pérez"
                     required
+                    className="text-sm md:text-base"
                   />
                 </div>
                 <div>
-                  <label className="block text-textSecondary text-sm font-medium mb-2">
-                    <div className="flex items-center gap-2">
-                      <Hash size={16} />
+                  <label className="block text-textSecondary text-xs md:text-sm font-medium mb-1.5 md:mb-2">
+                    <div className="flex items-center gap-1.5 md:gap-2">
+                      <Hash size={14} className="md:w-4 md:h-4" />
                       DNI *
                     </div>
                   </label>
@@ -118,12 +120,13 @@ export default function CompletarPerfil() {
                     onChange={(e) => setFormData({ ...formData, dni: e.target.value })}
                     placeholder="12345678"
                     required
+                    className="text-sm md:text-base"
                   />
                 </div>
                 <div>
-                  <label className="block text-textSecondary text-sm font-medium mb-2">
-                    <div className="flex items-center gap-2">
-                      <Calendar size={16} />
+                  <label className="block text-textSecondary text-xs md:text-sm font-medium mb-1.5 md:mb-2">
+                    <div className="flex items-center gap-1.5 md:gap-2">
+                      <Calendar size={14} className="md:w-4 md:h-4" />
                       Fecha de Nacimiento *
                     </div>
                   </label>
@@ -132,6 +135,7 @@ export default function CompletarPerfil() {
                     value={formData.fecha_nacimiento}
                     onChange={(e) => setFormData({ ...formData, fecha_nacimiento: e.target.value })}
                     required
+                    className="text-sm md:text-base"
                   />
                 </div>
               </div>
@@ -139,10 +143,10 @@ export default function CompletarPerfil() {
 
             {/* Género */}
             <div>
-              <label className="block text-textSecondary text-sm font-medium mb-2">
+              <label className="block text-textSecondary text-xs md:text-sm font-medium mb-1.5 md:mb-2">
                 Género *
               </label>
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-2 gap-2 md:gap-3">
                 {[
                   { value: 'masculino', label: 'Masculino', icon: '♂' },
                   { value: 'femenino', label: 'Femenino', icon: '♀' }
@@ -153,13 +157,13 @@ export default function CompletarPerfil() {
                     whileHover={{ scale: 1.02 }}
                     whileTap={{ scale: 0.98 }}
                     onClick={() => setFormData({ ...formData, genero: gen.value as any })}
-                    className={`py-3 px-4 rounded-lg font-bold transition-all flex items-center justify-center gap-2 ${
+                    className={`py-2.5 md:py-3 px-3 md:px-4 rounded-lg font-bold transition-all flex items-center justify-center gap-1.5 md:gap-2 text-sm md:text-base ${
                       formData.genero === gen.value
                         ? 'bg-gradient-to-r from-primary to-blue-600 text-white'
                         : 'bg-cardBorder text-textSecondary hover:text-textPrimary'
                     }`}
                   >
-                    <span className="text-xl">{gen.icon}</span>
+                    <span className="text-lg md:text-xl">{gen.icon}</span>
                     <span>{gen.label}</span>
                   </motion.button>
                 ))}
@@ -168,17 +172,17 @@ export default function CompletarPerfil() {
 
             {/* Datos Deportivos */}
             <div>
-              <h3 className="text-lg font-bold text-textPrimary mb-4 flex items-center gap-2">
-                <Trophy size={20} className="text-accent" />
+              <h3 className="text-base md:text-lg font-bold text-textPrimary mb-3 md:mb-4 flex items-center gap-2">
+                <Trophy size={18} className="text-accent md:w-5 md:h-5" />
                 Datos Deportivos
               </h3>
               
               {/* Categoría Inicial */}
-              <div className="mb-4">
-                <label className="block text-textSecondary text-sm font-medium mb-2">
+              <div className="mb-3 md:mb-4">
+                <label className="block text-textSecondary text-xs md:text-sm font-medium mb-1.5 md:mb-2">
                   Categoría Inicial *
                 </label>
-                <div className="grid grid-cols-3 md:grid-cols-6 gap-2">
+                <div className="grid grid-cols-3 md:grid-cols-6 gap-1.5 md:gap-2">
                   {CATEGORIAS.map((cat) => (
                     <motion.button
                       key={cat}
@@ -186,7 +190,7 @@ export default function CompletarPerfil() {
                       whileHover={{ scale: 1.05 }}
                       whileTap={{ scale: 0.95 }}
                       onClick={() => setFormData({ ...formData, categoria_inicial: cat })}
-                      className={`py-2 px-3 rounded-lg font-bold transition-all ${
+                      className={`py-1.5 md:py-2 px-2 md:px-3 rounded-lg font-bold transition-all text-sm md:text-base ${
                         formData.categoria_inicial === cat
                           ? 'bg-gradient-to-r from-accent to-yellow-500 text-white'
                           : 'bg-cardBorder text-textSecondary hover:text-textPrimary'
@@ -199,28 +203,28 @@ export default function CompletarPerfil() {
               </div>
 
               {/* Mano Hábil y Posición */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3 md:gap-4">
                 <div>
-                  <label className="block text-textSecondary text-sm font-medium mb-2">
+                  <label className="block text-textSecondary text-xs md:text-sm font-medium mb-1.5 md:mb-2">
                     Mano Hábil
                   </label>
                   <select
                     value={formData.mano_habil}
                     onChange={(e) => setFormData({ ...formData, mano_habil: e.target.value as any })}
-                    className="w-full bg-background border border-cardBorder rounded-lg px-4 py-3 text-textPrimary focus:outline-none focus:border-primary transition-colors"
+                    className="w-full bg-background border border-cardBorder rounded-lg px-3 md:px-4 py-2.5 md:py-3 text-textPrimary text-sm md:text-base focus:outline-none focus:border-primary transition-colors"
                   >
                     <option value="derecha">Derecha</option>
                     <option value="zurda">Zurda</option>
                   </select>
                 </div>
                 <div>
-                  <label className="block text-textSecondary text-sm font-medium mb-2">
+                  <label className="block text-textSecondary text-xs md:text-sm font-medium mb-1.5 md:mb-2">
                     Posición Preferida
                   </label>
                   <select
                     value={formData.posicion_preferida}
                     onChange={(e) => setFormData({ ...formData, posicion_preferida: e.target.value as any })}
-                    className="w-full bg-background border border-cardBorder rounded-lg px-4 py-3 text-textPrimary focus:outline-none focus:border-primary transition-colors"
+                    className="w-full bg-background border border-cardBorder rounded-lg px-3 md:px-4 py-2.5 md:py-3 text-textPrimary text-sm md:text-base focus:outline-none focus:border-primary transition-colors"
                   >
                     <option value="drive">Drive</option>
                     <option value="reves">Revés</option>
@@ -232,14 +236,14 @@ export default function CompletarPerfil() {
 
             {/* Datos Opcionales */}
             <div>
-              <h3 className="text-lg font-bold text-textPrimary mb-4">
+              <h3 className="text-base md:text-lg font-bold text-textPrimary mb-3 md:mb-4">
                 Datos Opcionales
               </h3>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3 md:gap-4">
                 <div>
-                  <label className="block text-textSecondary text-sm font-medium mb-2">
-                    <div className="flex items-center gap-2">
-                      <Phone size={16} />
+                  <label className="block text-textSecondary text-xs md:text-sm font-medium mb-1.5 md:mb-2">
+                    <div className="flex items-center gap-1.5 md:gap-2">
+                      <Phone size={14} className="md:w-4 md:h-4" />
                       Teléfono
                     </div>
                   </label>
@@ -247,12 +251,13 @@ export default function CompletarPerfil() {
                     value={formData.telefono}
                     onChange={(e) => setFormData({ ...formData, telefono: e.target.value })}
                     placeholder="+54 9 11 1234-5678"
+                    className="text-sm md:text-base"
                   />
                 </div>
                 <div>
-                  <label className="block text-textSecondary text-sm font-medium mb-2">
-                    <div className="flex items-center gap-2">
-                      <MapPin size={16} />
+                  <label className="block text-textSecondary text-xs md:text-sm font-medium mb-1.5 md:mb-2">
+                    <div className="flex items-center gap-1.5 md:gap-2">
+                      <MapPin size={14} className="md:w-4 md:h-4" />
                       Ciudad
                     </div>
                   </label>
@@ -260,18 +265,19 @@ export default function CompletarPerfil() {
                     value={formData.ciudad}
                     onChange={(e) => setFormData({ ...formData, ciudad: e.target.value })}
                     placeholder="Buenos Aires"
+                    className="text-sm md:text-base"
                   />
                 </div>
               </div>
             </div>
 
             {/* Botones */}
-            <div className="flex gap-3 pt-4">
+            <div className="flex flex-col md:flex-row gap-2 md:gap-3 pt-2 md:pt-4">
               <Button
                 type="button"
                 variant="ghost"
                 onClick={() => navigate('/')}
-                className="flex-1"
+                className="flex-1 text-sm md:text-base py-2.5 md:py-3"
                 disabled={loading}
               >
                 Cancelar
@@ -279,7 +285,7 @@ export default function CompletarPerfil() {
               <Button
                 type="submit"
                 variant="accent"
-                className="flex-1"
+                className="flex-1 text-sm md:text-base py-2.5 md:py-3"
                 disabled={loading}
               >
                 {loading ? 'Guardando...' : 'Completar Registro'}

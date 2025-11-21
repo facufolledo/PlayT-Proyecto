@@ -56,16 +56,16 @@ export default function RatingProgressBar({
   };
 
   const textSizes = {
-    sm: 'text-xs',
-    md: 'text-sm',
-    lg: 'text-base'
+    sm: 'text-[10px] md:text-xs',
+    md: 'text-xs md:text-sm',
+    lg: 'text-sm md:text-base'
   };
 
   return (
     <div className="w-full">
       {showLabel && (
-        <div className="flex items-center justify-between mb-2">
-          <div className="flex items-center gap-2">
+        <div className="flex items-center justify-between mb-1 md:mb-2">
+          <div className="flex items-center gap-1 md:gap-2">
             <span className={`${textSizes[size]} font-bold text-textPrimary`}>
               {currentRating}
             </span>

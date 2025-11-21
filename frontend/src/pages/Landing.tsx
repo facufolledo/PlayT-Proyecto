@@ -10,22 +10,22 @@ export default function Landing() {
 
   const features = [
     {
-      icon: <Trophy size={36} />,
+      icon: <Trophy className="w-7 h-7 md:w-9 md:h-9" />,
       title: "Torneos",
       description: "Organizá y gestioná torneos profesionales"
     },
     {
-      icon: <Users2 size={36} />,
+      icon: <Users2 className="w-7 h-7 md:w-9 md:h-9" />,
       title: "Jugadores",
       description: "Seguí el rendimiento de cada jugador"
     },
     {
-      icon: <TrendingUp size={36} />,
+      icon: <TrendingUp className="w-7 h-7 md:w-9 md:h-9" />,
       title: "Estadísticas",
       description: "Análisis detallado en tiempo real"
     },
     {
-      icon: <Gamepad2 size={36} />,
+      icon: <Gamepad2 className="w-7 h-7 md:w-9 md:h-9" />,
       title: "Partidos",
       description: "Control completo de cada encuentro"
     }
@@ -51,13 +51,13 @@ export default function Landing() {
       {/* Navbar simple */}
       <nav className="relative z-20 backdrop-blur-md bg-[#0E0F11]/80 border-b border-white/10">
         <div className="max-w-7xl mx-auto px-6 py-4 flex items-center justify-between">
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2 md:gap-3">
             <img 
-              src="/logo playR.png" 
+              src={`${import.meta.env.BASE_URL}logo-playr.png`}
               alt="PlayR Logo" 
-              className="w-10 h-10"
+              className="w-8 h-8 md:w-10 md:h-10"
             />
-            <h1 className="text-2xl font-black text-white">
+            <h1 className="text-xl md:text-2xl font-black text-white">
               Play<span className="text-primary">R</span>
             </h1>
           </div>
@@ -104,7 +104,7 @@ export default function Landing() {
             transition={{ duration: 0.6, delay: 0.2 }}
             className="mb-8"
           >
-            <h1 className="text-7xl md:text-8xl font-bold mb-6 leading-tight text-white">
+            <h1 className="text-4xl sm:text-5xl md:text-7xl lg:text-8xl font-bold mb-4 md:mb-6 leading-tight text-white">
               Bienvenido a{" "}
               <span className="text-white">Play</span><span className="text-primary">R</span>
             </h1>
@@ -114,7 +114,7 @@ export default function Landing() {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             transition={{ duration: 0.8, delay: 0.4 }}
-            className="text-2xl md:text-3xl text-[#9DA3AF] mb-14 leading-relaxed"
+            className="text-base sm:text-lg md:text-2xl lg:text-3xl text-[#9DA3AF] mb-8 md:mb-14 leading-relaxed"
           >
             Gestioná partidos, torneos y evaluá tus rendimientos
             <br />
@@ -135,7 +135,7 @@ export default function Landing() {
               }}
               whileTap={{ scale: 0.98, y: 0 }}
               onClick={() => navigate("/login")}
-              className="bg-gradient-to-r from-primary to-blue-600 text-white font-bold text-lg px-10 py-4 rounded-xl flex items-center gap-3 transition-all shadow-lg shadow-primary/30"
+              className="bg-gradient-to-r from-primary to-blue-600 text-white font-bold text-sm md:text-base lg:text-lg px-6 md:px-10 py-3 md:py-4 rounded-xl flex items-center gap-2 md:gap-3 transition-all shadow-lg shadow-primary/30"
             >
               Comenzar <ArrowRight size={24} />
             </motion.button>
@@ -171,7 +171,7 @@ export default function Landing() {
                 >
                   {feature.icon}
                 </motion.div>
-                <h3 className="text-[#E8E9EB] font-semibold text-lg mb-2 group-hover:text-white transition-colors">
+                <h3 className="text-[#E8E9EB] font-semibold text-base md:text-lg mb-2 group-hover:text-white transition-colors">
                   {feature.title}
                 </h3>
                 <p className="text-[#9DA3AF] text-base group-hover:text-[#B5BBC7] transition-colors">

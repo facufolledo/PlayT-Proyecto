@@ -11,15 +11,17 @@ import { TorneosProvider } from './context/TorneosContext';
 import Landing from './pages/Landing';
 import Login from './pages/Login';
 import Register from './pages/Register';
+import ForgotPassword from './pages/ForgotPassword';
 
 // Lazy loading para páginas secundarias
 const Dashboard = lazy(() => import('./pages/Dashboard'));
 const Salas = lazy(() => import('./pages/Salas'));
 const Torneos = lazy(() => import('./pages/Torneos'));
 const TorneoDetalle = lazy(() => import('./pages/TorneoDetalle'));
+const MisTorneos = lazy(() => import('./pages/MisTorneos'));
 const Estadisticas = lazy(() => import('./pages/Estadisticas'));
 const Rankings = lazy(() => import('./pages/Rankings'));
-// const RankingsCategorias = lazy(() => import('./pages/RankingsCategorias'));
+const RankingsCategorias = lazy(() => import('./pages/RankingsCategorias'));
 const Confirmaciones = lazy(() => import('./pages/Confirmaciones'));
 const MiPerfil = lazy(() => import('./pages/MiPerfil'));
 const MiRanking = lazy(() => import('./pages/MiRanking'));
@@ -40,9 +42,11 @@ const PageLoader = () => (
 // El usuario decide cuándo entrar a la app
 
 function App() {
+  const basename = import.meta.env.PROD ? '/PlayR' : '/';
+  
   return (
     <ErrorBoundary>
-      <Router>
+      <Router basename={basename}>
         <AuthProvider>
           <SalasProvider>
             <TorneosProvider>
@@ -132,7 +136,7 @@ function App() {
                 element={
                   <PrivateRoute>
                     <Layout>
-                      <div className="text-textPrimary">Rankings por Categoría - Próximamente</div>
+                      <RankingsCategorias />
                     </Layout>
                   </PrivateRoute>
                 }
@@ -172,7 +176,7 @@ function App() {
                 element={
                   <PrivateRoute>
                     <Layout>
-                      <div className="text-textPrimary">Mis Torneos - Próximamente</div>
+                      <MisTorneos />
                     </Layout>
                   </PrivateRoute>
                 }

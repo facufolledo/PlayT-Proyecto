@@ -84,31 +84,31 @@ export default function Login() {
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.5 }}
-        className="w-full max-w-md relative z-10"
+        className="w-full max-w-md relative z-10 px-4"
       >
         {/* Logo y título */}
-        <div className="text-center mb-8">
+        <div className="text-center mb-6 md:mb-8">
           <motion.div
             initial={{ scale: 0 }}
             animate={{ scale: 1 }}
             transition={{ type: "spring", stiffness: 200 }}
-            className="inline-flex flex-col items-center justify-center mb-4"
+            className="inline-flex flex-col items-center justify-center mb-3 md:mb-4"
           >
             <img 
-              src="/logo playR.png" 
+              src={`${import.meta.env.BASE_URL}logo-playr.png`}
               alt="PlayR Logo" 
-              className="w-32 h-32 mb-4"
+              className="w-20 h-20 md:w-28 md:h-28 mb-2 md:mb-3"
             />
-            <h1 className="text-4xl font-black text-textPrimary">
+            <h1 className="text-2xl md:text-3xl font-black text-textPrimary">
               Play<span className="text-primary">R</span>
             </h1>
           </motion.div>
-          <p className="text-textSecondary text-center">Gestión de torneos de pádel</p>
+          <p className="text-textSecondary text-center text-sm md:text-base">Gestión de torneos de pádel</p>
         </div>
 
         {/* Formulario */}
-        <div className="bg-cardBg rounded-2xl p-8 border border-cardBorder shadow-2xl">
-          <h2 className="text-2xl font-bold text-textPrimary mb-6">Iniciar Sesión</h2>
+        <div className="bg-cardBg rounded-xl md:rounded-2xl p-5 md:p-8 border border-cardBorder shadow-2xl">
+          <h2 className="text-xl md:text-2xl font-bold text-textPrimary mb-4 md:mb-6">Iniciar Sesión</h2>
 
           {error && (
             <motion.div
@@ -127,7 +127,7 @@ export default function Login() {
             disabled={isLoading}
             whileHover={{ scale: 1.02 }}
             whileTap={{ scale: 0.98 }}
-            className="w-full mb-4 bg-white hover:bg-gray-50 text-gray-900 font-bold py-3 px-4 rounded-lg border-2 border-gray-300 transition-all flex items-center justify-center gap-3 disabled:opacity-50 disabled:cursor-not-allowed"
+            className="w-full mb-3 md:mb-4 bg-white hover:bg-gray-50 text-gray-900 font-semibold md:font-bold py-2.5 md:py-3 px-3 md:px-4 rounded-lg border-2 border-gray-300 transition-all flex items-center justify-center gap-2 md:gap-3 text-sm md:text-base disabled:opacity-50 disabled:cursor-not-allowed"
           >
             <svg className="w-5 h-5" viewBox="0 0 24 24">
               <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
@@ -147,42 +147,42 @@ export default function Login() {
             </div>
           </div>
 
-          <form onSubmit={handleSubmit} className="space-y-4">
+          <form onSubmit={handleSubmit} className="space-y-3 md:space-y-4">
             <div>
-              <label className="block text-textSecondary text-sm font-medium mb-2">
+              <label className="block text-textSecondary text-xs md:text-sm font-medium mb-1.5 md:mb-2">
                 Email
               </label>
               <div className="relative">
-                <Mail className="absolute left-3 top-1/2 -translate-y-1/2 text-textSecondary" size={20} />
+                <Mail className="absolute left-3 top-1/2 -translate-y-1/2 text-textSecondary" size={18} />
                 <Input
                   type="email"
                   value={formData.email}
                   onChange={(e) => setFormData({ ...formData, email: e.target.value })}
                   placeholder="tu@email.com"
-                  className="pl-10"
+                  className="pl-10 text-sm md:text-base"
                 />
               </div>
             </div>
 
             <div>
-              <label className="block text-textSecondary text-sm font-medium mb-2">
+              <label className="block text-textSecondary text-xs md:text-sm font-medium mb-1.5 md:mb-2">
                 Contraseña
               </label>
               <div className="relative">
-                <Lock className="absolute left-3 top-1/2 -translate-y-1/2 text-textSecondary" size={20} />
+                <Lock className="absolute left-3 top-1/2 -translate-y-1/2 text-textSecondary" size={18} />
                 <Input
                   type={showPassword ? 'text' : 'password'}
                   value={formData.password}
                   onChange={(e) => setFormData({ ...formData, password: e.target.value })}
                   placeholder="••••••••"
-                  className="pl-10 pr-10"
+                  className="pl-10 pr-10 text-sm md:text-base"
                 />
                 <button
                   type="button"
                   onClick={() => setShowPassword(!showPassword)}
                   className="absolute right-3 top-1/2 -translate-y-1/2 text-textSecondary hover:text-textPrimary transition-colors"
                 >
-                  {showPassword ? <EyeOff size={20} /> : <Eye size={20} />}
+                  {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
                 </button>
               </div>
             </div>
@@ -190,7 +190,7 @@ export default function Login() {
             <Button
               type="submit"
               variant="primary"
-              className="w-full"
+              className="w-full text-sm md:text-base py-2.5 md:py-3"
               disabled={isLoading}
             >
               {isLoading ? 'Iniciando sesión...' : 'Iniciar Sesión'}

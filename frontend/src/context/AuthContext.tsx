@@ -1,5 +1,6 @@
 import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
-import { User as FirebaseUser } from 'firebase/auth';
+import { User as FirebaseUser, onAuthStateChanged } from 'firebase/auth';
+import { auth } from '../config/firebase';
 import { authService } from '../services/auth.service';
 import { apiService, UsuarioResponse } from '../services/api';
 import { logger } from '../utils/logger';
@@ -26,31 +27,41 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [isLoading, setIsLoading] = useState(true);
   const [needsProfileCompletion, setNeedsProfileCompletion] = useState(false);
 
-  // Cargar usuario desde localStorage al iniciar
+  // Escuchar cambios de estado de autenticación de Firebase
   useEffect(() => {
-    const loadUser = async () => {
-      try {
-        // Verificar si hay token de acceso
-        const token = localStorage.getItem('access_token');
-        if (token) {
-          // Intentar obtener información del usuario
-          const usuarioBackend = await apiService.getMe();
+    const unsubscribe = onAuthStateChanged(auth, async (user: FirebaseUser | null) => {
+      console.log('🔄 Firebase auth state changed:', user?.email || 'No user');
+      setFirebaseUser(user);
+      
+      if (user) {
+        try {
+          // Usuario autenticado en Firebase, intentar obtener del backend
+          const firebaseToken = await user.getIdToken();
+          const usuarioBackend = await apiService.firebaseAuth(firebaseToken);
           setUsuario(usuarioBackend);
+          setNeedsProfileCompletion(false);
+          localStorage.removeItem('needsProfileCompletion');
+          console.log('✅ Sesión restaurada:', usuarioBackend.email);
+        } catch (error: any) {
+          console.log('⚠️ Usuario en Firebase pero no en backend');
+          if (error.response?.status === 404) {
+            setNeedsProfileCompletion(true);
+            localStorage.setItem('needsProfileCompletion', 'true');
+          }
         }
-
-        // Verificar si hay usuario de Firebase
-        const currentFirebaseUser = authService.getCurrentFirebaseUser();
-        setFirebaseUser(currentFirebaseUser);
-      } catch (error) {
-        logger.error('Error al cargar usuario:', error);
+      } else {
+        // No hay usuario autenticado
+        setUsuario(null);
+        setNeedsProfileCompletion(false);
         localStorage.removeItem('access_token');
         localStorage.removeItem('usuario');
-      } finally {
-        setIsLoading(false);
+        localStorage.removeItem('needsProfileCompletion');
       }
-    };
+      
+      setIsLoading(false);
+    });
 
-    loadUser();
+    return () => unsubscribe();
   }, []);
 
   // Guardar usuario en localStorage cuando cambie
@@ -208,7 +219,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   };
 
-  const isAuthenticated = !!usuario || !!firebaseUser || !!localStorage.getItem('access_token');
+  // Usuario está autenticado si tiene firebaseUser O usuario del backend
+  const isAuthenticated = !!firebaseUser || !!usuario;
 
   return (
     <AuthContext.Provider

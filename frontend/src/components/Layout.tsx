@@ -34,10 +34,10 @@ export default function Layout({ children }: LayoutProps) {
 
       <Navbar onMenuClick={() => setSidebarOpen(true)} />
 
-      <div className="flex pt-16 relative z-10">
+      <div className="flex pt-16 relative z-10 min-h-screen">
         <Sidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />
 
-        <main className="flex-1 p-4 lg:p-8 lg:ml-64">
+        <main className="flex-1 p-3 md:p-4 lg:p-8 lg:ml-64 w-full overflow-x-hidden">
           <AnimatePresence mode="wait">
             <motion.div
               key={location.pathname}
@@ -49,6 +49,7 @@ export default function Layout({ children }: LayoutProps) {
                 ease: 'anticipate',
                 duration: 0.3
               }}
+              className="w-full"
             >
               {children}
             </motion.div>

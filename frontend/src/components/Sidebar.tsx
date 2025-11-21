@@ -1,6 +1,6 @@
 import { Link, useLocation } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Home, Trophy, BarChart3, X, Gamepad2, Target, Award, User, Calendar, Bell, Settings } from 'lucide-react';
+import { Home, Trophy, BarChart3, X, Gamepad2, Target, Award, User, Calendar, Bell } from 'lucide-react';
 
 interface SidebarProps {
   isOpen: boolean;
@@ -41,7 +41,7 @@ const menuSections = [
     title: 'Cuenta',
     items: [
       { icon: User, label: 'Mi Perfil', path: '/perfil' },
-      { icon: Settings, label: 'Configuración', path: '/configuracion' },
+      // { icon: Settings, label: 'Configuración', path: '/configuracion' },
     ]
   }
 ];
@@ -125,10 +125,10 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
 
       {/* Sidebar móvil */}
       <motion.aside
-        initial={{ x: -280 }}
+        initial={false}
         animate={{ x: isOpen ? 0 : -280 }}
-        transition={{ type: 'spring', stiffness: 200, damping: 25 }}
-        className="fixed top-16 left-0 bottom-0 w-64 bg-cardBg/95 backdrop-blur-xl border-r border-cardBorder shadow-2xl z-40 lg:hidden"
+        transition={{ type: 'tween', duration: 0.2, ease: 'easeOut' }}
+        className="fixed top-16 left-0 bottom-0 w-64 bg-cardBg/95 backdrop-blur-xl border-r border-cardBorder shadow-2xl z-40 lg:hidden overflow-y-auto"
       >
         <div className="flex items-center justify-between p-4 relative z-10">
           <h2 className="text-lg font-bold text-textPrimary">Menú</h2>
@@ -178,15 +178,7 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
                         }`}
                       >
                         {isActive && (
-                          <>
-                            <motion.div
-                              layoutId="activeTabMobile"
-                              className="absolute inset-0 bg-gradient-to-r from-primary to-blue-600"
-                              transition={{ type: "spring", stiffness: 300, damping: 30 }}
-                            />
-                            {/* Glow effect */}
-                            <div className="absolute -inset-[1px] bg-gradient-to-r from-primary to-blue-600 blur-sm opacity-50 -z-10" />
-                          </>
+                          <div className="absolute inset-0 bg-gradient-to-r from-primary to-blue-600" />
                         )}
                         <div className="relative z-10 flex items-center gap-3">
                           <Icon size={20} strokeWidth={2.5} />

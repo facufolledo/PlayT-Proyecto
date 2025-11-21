@@ -69,83 +69,84 @@ export default function MiRanking() {
       <motion.div
         initial={{ opacity: 0, y: -30 }}
         animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.4 }}
         className="relative"
       >
-        <div className="flex items-center gap-3 mb-2">
-          <div className="h-1 w-12 bg-gradient-to-r from-primary to-secondary rounded-full" />
-          <h1 className="text-5xl font-black text-textPrimary tracking-tight">
+        <div className="flex items-center gap-2 md:gap-3 mb-1 md:mb-2">
+          <div className="h-0.5 md:h-1 w-8 md:w-12 bg-gradient-to-r from-primary to-secondary rounded-full" />
+          <h1 className="text-2xl md:text-5xl font-black text-textPrimary tracking-tight">
             Mi Ranking
           </h1>
         </div>
-        <p className="text-textSecondary text-base ml-15">
+        <p className="text-textSecondary text-xs md:text-base ml-10 md:ml-15">
           Tu posición y progreso en el ranking
         </p>
       </motion.div>
 
       {/* Estadísticas Principales */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-2 md:gap-6">
         <Card gradient>
           <div className="text-center">
-            <Trophy className="text-accent mx-auto mb-3" size={40} />
-            <p className="text-4xl font-black text-textPrimary mb-1">
+            <Trophy className="text-accent mx-auto mb-1 md:mb-3" size={24} />
+            <p className="text-2xl md:text-4xl font-black text-textPrimary mb-0.5 md:mb-1">
               {miPosicion ? `#${miPosicion}` : '-'}
             </p>
-            <p className="text-textSecondary text-sm">Posición General</p>
+            <p className="text-textSecondary text-[10px] md:text-sm">Posición</p>
           </div>
         </Card>
 
         <Card gradient>
           <div className="text-center">
-            <Target className="text-primary mx-auto mb-3" size={40} />
-            <p className="text-4xl font-black text-primary mb-1">{usuario.rating}</p>
-            <p className="text-textSecondary text-sm">Rating Actual</p>
+            <Target className="text-primary mx-auto mb-1 md:mb-3" size={24} />
+            <p className="text-2xl md:text-4xl font-black text-primary mb-0.5 md:mb-1">{usuario.rating}</p>
+            <p className="text-textSecondary text-[10px] md:text-sm">Rating</p>
           </div>
         </Card>
 
         <Card gradient>
           <div className="text-center">
-            <Award className="text-secondary mx-auto mb-3" size={40} />
-            <p className="text-4xl font-black text-textPrimary mb-1">
+            <Award className="text-secondary mx-auto mb-1 md:mb-3" size={24} />
+            <p className="text-2xl md:text-4xl font-black text-textPrimary mb-0.5 md:mb-1">
               {usuario.partidos_jugados}
             </p>
-            <p className="text-textSecondary text-sm">Partidos Jugados</p>
+            <p className="text-textSecondary text-[10px] md:text-sm">Partidos</p>
           </div>
         </Card>
 
         <Card gradient>
           <div className="text-center">
-            <Medal className="text-purple-400 mx-auto mb-3" size={40} />
-            <p className={`text-4xl font-black mb-1 bg-gradient-to-r ${categoriaInfo.color} bg-clip-text text-transparent`}>
+            <Medal className="text-purple-400 mx-auto mb-1 md:mb-3" size={24} />
+            <p className={`text-2xl md:text-4xl font-black mb-0.5 md:mb-1 bg-gradient-to-r ${categoriaInfo.color} bg-clip-text text-transparent`}>
               {categoriaInfo.nombre}
             </p>
-            <p className="text-textSecondary text-sm">Categoría</p>
+            <p className="text-textSecondary text-[10px] md:text-sm">Categoría</p>
           </div>
         </Card>
       </div>
 
       {/* Información de Categoría */}
       <Card>
-        <h2 className="text-2xl font-bold text-textPrimary mb-4">Tu Categoría</h2>
-        <div className={`bg-gradient-to-r ${categoriaInfo.color} rounded-xl p-6 text-white mb-4`}>
-          <div className="flex items-center justify-between">
-            <div>
-              <h3 className="text-3xl font-black mb-2">{categoriaInfo.nombre}</h3>
-              <p className="text-white/90">{categoriaInfo.descripcion}</p>
-              <p className="text-white/80 text-sm mt-2">
+        <h2 className="text-lg md:text-2xl font-bold text-textPrimary mb-3 md:mb-4">Tu Categoría</h2>
+        <div className={`bg-gradient-to-r ${categoriaInfo.color} rounded-lg md:rounded-xl p-3 md:p-6 text-white mb-3 md:mb-4`}>
+          <div className="flex items-center justify-between gap-2">
+            <div className="flex-1 min-w-0">
+              <h3 className="text-xl md:text-3xl font-black mb-1 md:mb-2">{categoriaInfo.nombre}</h3>
+              <p className="text-white/90 text-xs md:text-base">{categoriaInfo.descripcion}</p>
+              <p className="text-white/80 text-[10px] md:text-sm mt-1 md:mt-2">
                 Rango: {categoriaInfo.ratingMin} - {categoriaInfo.ratingMax === 9999 ? '∞' : categoriaInfo.ratingMax}
               </p>
             </div>
-            <Trophy size={64} className="text-white/30" />
+            <Trophy size={40} className="text-white/30 md:w-16 md:h-16 flex-shrink-0" />
           </div>
         </div>
 
         {proximaCategoria && (
-          <div className="bg-background rounded-xl p-4">
-            <div className="flex items-center justify-between mb-2">
-              <p className="text-textSecondary text-sm">Próxima categoría: <span className="text-textPrimary font-bold">{proximaCategoria.nombre}</span></p>
-              <p className="text-primary font-bold">{puntosParaProxima} puntos</p>
+          <div className="bg-background rounded-lg md:rounded-xl p-3 md:p-4">
+            <div className="flex items-center justify-between mb-2 gap-2">
+              <p className="text-textSecondary text-xs md:text-sm">Próxima: <span className="text-textPrimary font-bold">{proximaCategoria.nombre}</span></p>
+              <p className="text-primary font-bold text-sm md:text-base">{puntosParaProxima} pts</p>
             </div>
-            <div className="w-full bg-cardBorder rounded-full h-3 overflow-hidden">
+            <div className="w-full bg-cardBorder rounded-full h-2 md:h-3 overflow-hidden">
               <div
                 className={`h-full bg-gradient-to-r ${proximaCategoria.color} transition-all duration-500`}
                 style={{
@@ -159,13 +160,13 @@ export default function MiRanking() {
 
       {/* Jugadores Cercanos */}
       <Card>
-        <h2 className="text-2xl font-bold text-textPrimary mb-6 flex items-center gap-2">
-          <TrendingUp className="text-primary" size={28} />
-          Jugadores Cercanos en el Ranking
+        <h2 className="text-lg md:text-2xl font-bold text-textPrimary mb-4 md:mb-6 flex items-center gap-2">
+          <TrendingUp className="text-primary" size={20} className="md:w-7 md:h-7" />
+          Jugadores Cercanos
         </h2>
 
         {isLoading ? (
-          <p className="text-center text-textSecondary py-8">Cargando...</p>
+          <p className="text-center text-textSecondary py-8 text-sm">Cargando...</p>
         ) : (
           <div className="space-y-2">
             {ranking
@@ -180,15 +181,15 @@ export default function MiRanking() {
                     key={jugador.id_usuario}
                     initial={{ opacity: 0, x: -20 }}
                     animate={{ opacity: 1, x: 0 }}
-                    transition={{ delay: index * 0.1 }}
-                    className={`flex items-center justify-between p-4 rounded-xl ${
+                    transition={{ delay: index * 0.05 }}
+                    className={`flex items-center justify-between p-2 md:p-4 rounded-lg md:rounded-xl ${
                       esUsuarioActual
                         ? 'bg-primary/10 border-2 border-primary'
                         : 'bg-background'
                     }`}
                   >
-                    <div className="flex items-center gap-4">
-                      <div className={`w-12 h-12 rounded-full flex items-center justify-center font-black ${
+                    <div className="flex items-center gap-2 md:gap-4 flex-1 min-w-0">
+                      <div className={`w-10 h-10 md:w-12 md:h-12 rounded-full flex items-center justify-center font-black text-sm md:text-base flex-shrink-0 ${
                         posicion === 1 ? 'bg-gradient-to-br from-yellow-400 to-yellow-600 text-white' :
                         posicion === 2 ? 'bg-gradient-to-br from-gray-300 to-gray-500 text-white' :
                         posicion === 3 ? 'bg-gradient-to-br from-orange-400 to-orange-600 text-white' :
@@ -196,16 +197,16 @@ export default function MiRanking() {
                       }`}>
                         #{posicion}
                       </div>
-                      <div>
-                        <p className={`font-bold ${esUsuarioActual ? 'text-primary' : 'text-textPrimary'}`}>
+                      <div className="min-w-0 flex-1">
+                        <p className={`font-bold text-sm md:text-base truncate ${esUsuarioActual ? 'text-primary' : 'text-textPrimary'}`}>
                           {nombreCompleto} {esUsuarioActual && '(Tú)'}
                         </p>
-                        <p className="text-textSecondary text-sm">@{jugador.nombre_usuario}</p>
+                        <p className="text-textSecondary text-[10px] md:text-sm truncate">@{jugador.nombre_usuario}</p>
                       </div>
                     </div>
-                    <div className="text-right">
-                      <p className="text-2xl font-black text-primary">{jugador.rating}</p>
-                      <p className="text-textSecondary text-xs">{jugador.partidos_jugados} partidos</p>
+                    <div className="text-right flex-shrink-0">
+                      <p className="text-xl md:text-2xl font-black text-primary">{jugador.rating}</p>
+                      <p className="text-textSecondary text-[10px] md:text-xs">{jugador.partidos_jugados} partidos</p>
                     </div>
                   </motion.div>
                 );

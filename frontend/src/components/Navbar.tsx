@@ -44,7 +44,7 @@ export default function Navbar({ onMenuClick }: NavbarProps) {
             whileHover={{ scale: 1.02 }}
           >
             <img 
-              src="/logo playR.png" 
+              src={`${import.meta.env.BASE_URL}logo-playr.png`}
               alt="PlayR Logo" 
               className="w-8 h-8"
             />
