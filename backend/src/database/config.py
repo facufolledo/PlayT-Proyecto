@@ -19,7 +19,7 @@ engine = create_engine(
     max_overflow=20,
     pool_pre_ping=True,
     pool_recycle=3600,
-    echo=os.getenv("DEBUG", "False").lower() == "true"
+    echo=False  # Desactivar logs SQL para mejor rendimiento
 )
 
 # Crear sesión local

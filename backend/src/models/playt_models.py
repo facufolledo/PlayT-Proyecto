@@ -88,13 +88,24 @@ class Partido(Base):
     id_creador = Column(BigInteger, ForeignKey("usuarios.id_usuario"), nullable=False)
     creado_en = Column(DateTime(timezone=True), server_default=func.now())
     
+    # Nuevos campos para sistema de marcador
+    tipo = Column(String(20), default="amistoso", nullable=False)  # amistoso, torneo, ranking
+    id_torneo = Column(BigInteger, nullable=True)  # ForeignKey a torneos cuando exista
+    id_sala = Column(BigInteger, ForeignKey("salas.id_sala"), nullable=True)
+    resultado_padel = Column(JSON, nullable=True)  # Resultado completo en formato JSON
+    estado_confirmacion = Column(String(30), default="sin_resultado", nullable=False)
+    ganador_equipo = Column(SmallInteger, nullable=True)  # 1 o 2
+    elo_aplicado = Column(Boolean, default=False, nullable=False)
+    creado_por = Column(BigInteger, ForeignKey("usuarios.id_usuario"), nullable=True)
+    
     # Relaciones
     club = relationship("Club", back_populates="partidos")
-    creador = relationship("Usuario", back_populates="partidos_creados")
+    creador = relationship("Usuario", back_populates="partidos_creados", foreign_keys=[id_creador])
     jugadores = relationship("PartidoJugador", back_populates="partido")
     resultado = relationship("ResultadoPartido", back_populates="partido", uselist=False)
     historial_rating = relationship("HistorialRating", back_populates="partido")
     eventos = relationship("EventoPartido", back_populates="partido")
+    confirmaciones = relationship("Confirmacion", back_populates="partido")
 
 class PartidoJugador(Base):
     """Modelo de Jugador por Partido basado en tu tabla 'partido_jugadores'"""
@@ -103,6 +114,11 @@ class PartidoJugador(Base):
     id_partido = Column(BigInteger, ForeignKey("partidos.id_partido"), primary_key=True)
     id_usuario = Column(BigInteger, ForeignKey("usuarios.id_usuario"), primary_key=True)
     equipo = Column(SmallInteger, nullable=False)  # 1 o 2
+    
+    # Nuevos campos para tracking de Elo
+    rating_antes = Column(Integer, nullable=True)
+    rating_despues = Column(Integer, nullable=True)
+    cambio_elo = Column(Integer, nullable=True)
     
     # Relaciones
     partido = relationship("Partido", back_populates="jugadores")
@@ -183,5 +199,5 @@ class CategoriaCheckpoint(Base):
     partidos_inmunidad_restantes = Column(SmallInteger, default=0)
     
     # Relaciones
-    usuario = relationship("Usuario")
+    usuario = relationship("Usuario", overlaps="checkpoints_categoria")
     partido_ascenso = relationship("Partido")

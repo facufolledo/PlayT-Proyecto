@@ -1,326 +1,205 @@
 import { useState } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
-import { X, Users, ArrowRight, ArrowLeft, Save, AlertCircle } from 'lucide-react';
-import Modal from './Modal';
+import { Shuffle, Crown } from 'lucide-react';
 import Button from './Button';
-import { Sala } from '../utils/types';
+import { Jugador } from '../utils/types';
 
 interface AsignarEquiposProps {
-  isOpen: boolean;
-  onClose: () => void;
-  sala: Sala;
-  onGuardar: (equipo1: string[], equipo2: string[]) => void;
+  jugadores: Jugador[];
+  onAsignar: (equipos: { [key: string]: number }) => void;
+  onCancelar: () => void;
+  loading: boolean;
+  creadorId?: number;
 }
 
-interface Jugador {
-  id: string;
-  nombre: string;
-  rating?: number;
-}
-
-export default function AsignarEquipos({ isOpen, onClose, sala, onGuardar }: AsignarEquiposProps) {
-  const jugadores: Jugador[] = sala.jugadores || [];
-  
-  const [equipo1, setEquipo1] = useState<Jugador[]>([]);
-  const [equipo2, setEquipo2] = useState<Jugador[]>([]);
+export default function AsignarEquipos({ jugadores, onAsignar, onCancelar, loading, creadorId }: AsignarEquiposProps) {
+  const [equipoA, setEquipoA] = useState<Jugador[]>([]);
+  const [equipoB, setEquipoB] = useState<Jugador[]>([]);
   const [sinAsignar, setSinAsignar] = useState<Jugador[]>(jugadores);
-  const [jugadorSeleccionado, setJugadorSeleccionado] = useState<string | null>(null);
 
-  const moverAEquipo1 = (jugador: Jugador) => {
-    if (equipo1.length >= 2) return;
-    
+  const moverAEquipo = (jugador: Jugador, equipo: 'A' | 'B') => {
+    if (equipo === 'A' && equipoA.length >= 2) return;
+    if (equipo === 'B' && equipoB.length >= 2) return;
+
     setSinAsignar(prev => prev.filter(j => j.id !== jugador.id));
-    setEquipo2(prev => prev.filter(j => j.id !== jugador.id));
-    setEquipo1(prev => [...prev, jugador]);
-    setJugadorSeleccionado(null);
+    
+    if (equipo === 'A') {
+      setEquipoA(prev => [...prev, jugador]);
+    } else {
+      setEquipoB(prev => [...prev, jugador]);
+    }
   };
 
-  const moverAEquipo2 = (jugador: Jugador) => {
-    if (equipo2.length >= 2) return;
-    
-    setSinAsignar(prev => prev.filter(j => j.id !== jugador.id));
-    setEquipo1(prev => prev.filter(j => j.id !== jugador.id));
-    setEquipo2(prev => [...prev, jugador]);
-    setJugadorSeleccionado(null);
-  };
-
-  const moverASinAsignar = (jugador: Jugador) => {
-    setEquipo1(prev => prev.filter(j => j.id !== jugador.id));
-    setEquipo2(prev => prev.filter(j => j.id !== jugador.id));
+  const quitarDeEquipo = (jugador: Jugador, equipo: 'A' | 'B') => {
+    if (equipo === 'A') {
+      setEquipoA(prev => prev.filter(j => j.id !== jugador.id));
+    } else {
+      setEquipoB(prev => prev.filter(j => j.id !== jugador.id));
+    }
     setSinAsignar(prev => [...prev, jugador]);
-    setJugadorSeleccionado(null);
   };
 
-  const calcularPromedioRating = (equipo: Jugador[]) => {
-    if (equipo.length === 0) return 0;
-    const suma = equipo.reduce((acc, j) => acc + (j.rating || 1000), 0);
-    return Math.round(suma / equipo.length);
-  };
-
-  const diferencia = Math.abs(
-    calcularPromedioRating(equipo1) - calcularPromedioRating(equipo2)
-  );
-
-  const equiposBalanceados = diferencia <= 100;
-  const puedeGuardar = equipo1.length === 2 && equipo2.length === 2;
-
-  const handleGuardar = () => {
-    if (!puedeGuardar) return;
+  const asignarAutomatico = () => {
+    const todosJugadores = [...sinAsignar, ...equipoA, ...equipoB];
+    const ordenados = [...todosJugadores].sort((a, b) => (b.rating || 0) - (a.rating || 0));
     
-    onGuardar(
-      equipo1.map(j => j.id),
-      equipo2.map(j => j.id)
-    );
-    onClose();
-  };
-
-  const asignacionAutomatica = () => {
-    const jugadoresOrdenados = [...jugadores].sort((a, b) => 
-      (b.rating || 1000) - (a.rating || 1000)
-    );
-
-    setEquipo1([jugadoresOrdenados[0], jugadoresOrdenados[3]]);
-    setEquipo2([jugadoresOrdenados[1], jugadoresOrdenados[2]]);
+    setEquipoA([ordenados[0], ordenados[3]]);
+    setEquipoB([ordenados[1], ordenados[2]]);
     setSinAsignar([]);
   };
 
+  const handleConfirmar = () => {
+    if (equipoA.length !== 2 || equipoB.length !== 2) {
+      alert('Debes asignar 2 jugadores a cada equipo');
+      return;
+    }
+
+    const equipos: { [key: string]: number } = {};
+    equipoA.forEach(j => equipos[j.id] = 1);
+    equipoB.forEach(j => equipos[j.id] = 2);
+    
+    onAsignar(equipos);
+  };
+
   return (
-    <Modal isOpen={isOpen} onClose={onClose}>
-      <div className="bg-cardBg rounded-2xl p-8 w-full max-w-5xl max-h-[90vh] overflow-y-auto border border-cardBorder">
-        <div className="flex items-center justify-between mb-6">
-          <h2 className="text-2xl font-bold text-textPrimary flex items-center gap-2">
-            <Users size={28} />
-            Asignar Equipos
-          </h2>
-          <button
-            onClick={onClose}
-            className="text-textSecondary hover:text-textPrimary transition-colors"
-          >
-            <X size={24} />
-          </button>
-        </div>
+    <div className="space-y-4">
+      <div className="flex items-center justify-between">
+        <h3 className="text-textPrimary font-bold text-lg">Asignar Equipos</h3>
+        <Button
+          variant="ghost"
+          onClick={asignarAutomatico}
+          className="text-xs flex items-center gap-1"
+        >
+          <Shuffle size={14} />
+          Auto
+        </Button>
+      </div>
 
-        {/* Botón de asignación automática */}
-        <div className="mb-6">
-          <Button
-            variant="ghost"
-            onClick={asignacionAutomatica}
-            className="w-full flex items-center justify-center gap-2"
-          >
-            <Users size={18} />
-            Asignación Automática (Balanceada)
-          </Button>
-        </div>
-
-        {/* Jugadores sin asignar */}
-        {sinAsignar.length > 0 && (
-          <div className="mb-6">
-            <h3 className="text-sm font-semibold text-textSecondary mb-3">
-              Jugadores sin asignar
-            </h3>
-            <div className="flex flex-wrap gap-2">
-              {sinAsignar.map(jugador => (
-                <motion.div
-                  key={jugador.id}
-                  layoutId={jugador.id}
-                  className={`bg-background rounded-xl p-3 border-2 cursor-pointer transition-all ${
-                    jugadorSeleccionado === jugador.id
-                      ? 'border-primary scale-105'
-                      : 'border-cardBorder hover:border-primary/50'
-                  }`}
-                  onClick={() => setJugadorSeleccionado(
-                    jugadorSeleccionado === jugador.id ? null : jugador.id
-                  )}
-                >
-                  <p className="text-textPrimary font-semibold text-sm">{jugador.nombre}</p>
-                  <p className="text-textSecondary text-xs">Rating: {jugador.rating || 1000}</p>
-                </motion.div>
-              ))}
-            </div>
+      {/* Jugadores sin asignar */}
+      {sinAsignar.length > 0 && (
+        <div className="bg-background rounded-lg p-3">
+          <p className="text-textSecondary text-xs mb-2">Sin asignar:</p>
+          <div className="space-y-2">
+            {sinAsignar.map(jugador => (
+              <div key={jugador.id} className="flex items-center gap-2 bg-cardBg rounded-md p-2">
+                <div className="w-8 h-8 rounded-full bg-gradient-to-br from-primary to-secondary flex items-center justify-center text-white text-xs font-bold">
+                  {jugador.nombre.charAt(0).toUpperCase()}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-textPrimary text-sm font-semibold truncate">{jugador.nombre}</p>
+                  <p className="text-textSecondary text-xs">Rating: {jugador.rating || 1500}</p>
+                </div>
+                <div className="flex gap-1">
+                  <button
+                    onClick={() => moverAEquipo(jugador, 'A')}
+                    disabled={equipoA.length >= 2}
+                    className="bg-primary/20 hover:bg-primary/30 disabled:opacity-30 text-primary px-2 py-1 rounded text-xs font-bold"
+                  >
+                    A
+                  </button>
+                  <button
+                    onClick={() => moverAEquipo(jugador, 'B')}
+                    disabled={equipoB.length >= 2}
+                    className="bg-secondary/20 hover:bg-secondary/30 disabled:opacity-30 text-secondary px-2 py-1 rounded text-xs font-bold"
+                  >
+                    B
+                  </button>
+                </div>
+              </div>
+            ))}
           </div>
-        )}
+        </div>
+      )}
 
-        {/* Equipos */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
-          {/* Equipo 1 */}
-          <motion.div
-            initial={{ x: -20, opacity: 0 }}
-            animate={{ x: 0, opacity: 1 }}
-            className="bg-gradient-to-br from-primary/20 to-primary/5 rounded-2xl p-6 border-2 border-primary/30"
-          >
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="text-xl font-black text-primary">EQUIPO 1</h3>
-              <div className="bg-primary/20 px-3 py-1 rounded-full">
-                <span className="text-primary font-bold text-sm">{equipo1.length}/2</span>
-              </div>
-            </div>
-
-            <div className="space-y-3 min-h-[200px]">
-              <AnimatePresence>
-                {equipo1.map((jugador, index) => (
-                  <motion.div
-                    key={jugador.id}
-                    layoutId={jugador.id}
-                    initial={{ opacity: 0, y: -10 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0, y: 10 }}
-                    className="bg-background rounded-xl p-4 border border-primary/30 cursor-pointer hover:bg-background/80 transition-colors"
-                    onClick={() => moverASinAsignar(jugador)}
-                  >
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <p className="text-textPrimary font-semibold">{jugador.nombre}</p>
-                        <p className="text-textSecondary text-sm">Rating: {jugador.rating || 1000}</p>
-                      </div>
-                      <span className="text-primary font-bold text-2xl">{index + 1}</span>
+      {/* Equipos */}
+      <div className="grid grid-cols-2 gap-3">
+        {/* Equipo A */}
+        <div className="bg-primary/10 rounded-lg p-3 border border-primary/30">
+          <p className="text-primary font-bold text-sm mb-2">EQUIPO A ({equipoA.length}/2)</p>
+          <div className="space-y-2">
+            {equipoA.map(jugador => {
+              const esCreador = creadorId && jugador.id === creadorId.toString();
+              return (
+                <div key={jugador.id} className="bg-background rounded-md p-2">
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="flex items-center gap-1 flex-1 min-w-0">
+                      <p className="text-textPrimary text-xs font-semibold truncate">{jugador.nombre}</p>
+                      {esCreador && (
+                        <Crown size={12} className="text-accent flex-shrink-0" />
+                      )}
                     </div>
-                  </motion.div>
-                ))}
-              </AnimatePresence>
-
-              {equipo1.length < 2 && jugadorSeleccionado && (
-                <motion.button
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  onClick={() => {
-                    const jugador = sinAsignar.find(j => j.id === jugadorSeleccionado) ||
-                                   equipo2.find(j => j.id === jugadorSeleccionado);
-                    if (jugador) moverAEquipo1(jugador);
-                  }}
-                  className="w-full border-2 border-dashed border-primary/50 rounded-xl p-4 text-primary hover:bg-primary/10 transition-colors flex items-center justify-center gap-2"
-                >
-                  <ArrowLeft size={20} />
-                  Agregar aquí
-                </motion.button>
-              )}
-            </div>
-
-            <div className="mt-4 pt-4 border-t border-primary/20">
-              <p className="text-textSecondary text-sm">Rating Promedio</p>
-              <p className="text-primary font-bold text-2xl">
-                {calcularPromedioRating(equipo1)}
-              </p>
-            </div>
-          </motion.div>
-
-          {/* Equipo 2 */}
-          <motion.div
-            initial={{ x: 20, opacity: 0 }}
-            animate={{ x: 0, opacity: 1 }}
-            className="bg-gradient-to-br from-secondary/20 to-secondary/5 rounded-2xl p-6 border-2 border-secondary/30"
-          >
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="text-xl font-black text-secondary">EQUIPO 2</h3>
-              <div className="bg-secondary/20 px-3 py-1 rounded-full">
-                <span className="text-secondary font-bold text-sm">{equipo2.length}/2</span>
+                    <button
+                      onClick={() => quitarDeEquipo(jugador, 'A')}
+                      className="text-red-500 text-xs flex-shrink-0"
+                    >
+                      ✕
+                    </button>
+                  </div>
+                  <p className="text-textSecondary text-[10px]">Rating: {jugador.rating || 1500}</p>
+                </div>
+              );
+            })}
+            {equipoA.length < 2 && (
+              <div className="bg-background/50 rounded-md p-2 border-2 border-dashed border-primary/30 text-center">
+                <p className="text-textSecondary text-xs">Vacío</p>
               </div>
-            </div>
-
-            <div className="space-y-3 min-h-[200px]">
-              <AnimatePresence>
-                {equipo2.map((jugador, index) => (
-                  <motion.div
-                    key={jugador.id}
-                    layoutId={jugador.id}
-                    initial={{ opacity: 0, y: -10 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0, y: 10 }}
-                    className="bg-background rounded-xl p-4 border border-secondary/30 cursor-pointer hover:bg-background/80 transition-colors"
-                    onClick={() => moverASinAsignar(jugador)}
-                  >
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <p className="text-textPrimary font-semibold">{jugador.nombre}</p>
-                        <p className="text-textSecondary text-sm">Rating: {jugador.rating || 1000}</p>
-                      </div>
-                      <span className="text-secondary font-bold text-2xl">{index + 1}</span>
-                    </div>
-                  </motion.div>
-                ))}
-              </AnimatePresence>
-
-              {equipo2.length < 2 && jugadorSeleccionado && (
-                <motion.button
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  onClick={() => {
-                    const jugador = sinAsignar.find(j => j.id === jugadorSeleccionado) ||
-                                   equipo1.find(j => j.id === jugadorSeleccionado);
-                    if (jugador) moverAEquipo2(jugador);
-                  }}
-                  className="w-full border-2 border-dashed border-secondary/50 rounded-xl p-4 text-secondary hover:bg-secondary/10 transition-colors flex items-center justify-center gap-2"
-                >
-                  Agregar aquí
-                  <ArrowRight size={20} />
-                </motion.button>
-              )}
-            </div>
-
-            <div className="mt-4 pt-4 border-t border-secondary/20">
-              <p className="text-textSecondary text-sm">Rating Promedio</p>
-              <p className="text-secondary font-bold text-2xl">
-                {calcularPromedioRating(equipo2)}
-              </p>
-            </div>
-          </motion.div>
+            )}
+          </div>
         </div>
 
-        {/* Indicador de balance */}
-        {puedeGuardar && (
-          <motion.div
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            className={`rounded-xl p-4 mb-6 flex items-start gap-3 ${
-              equiposBalanceados
-                ? 'bg-secondary/10 border border-secondary/30'
-                : 'bg-accent/10 border border-accent/30'
-            }`}
-          >
-            <AlertCircle 
-              size={20} 
-              className={`flex-shrink-0 mt-0.5 ${
-                equiposBalanceados ? 'text-secondary' : 'text-accent'
-              }`} 
-            />
-            <div>
-              <p className={`font-semibold ${
-                equiposBalanceados ? 'text-secondary' : 'text-accent'
-              }`}>
-                {equiposBalanceados ? '✓ Equipos Balanceados' : '⚠️ Equipos Desbalanceados'}
-              </p>
-              <p className="text-textSecondary text-sm">
-                Diferencia de rating: {diferencia} puntos
-                {!equiposBalanceados && ' (Recomendado: ≤100 puntos)'}
-              </p>
-            </div>
-          </motion.div>
-        )}
-
-        {/* Acciones */}
-        <div className="flex gap-3">
-          <Button
-            variant="secondary"
-            onClick={onClose}
-            className="flex-1"
-          >
-            Cancelar
-          </Button>
-          <Button
-            variant="primary"
-            onClick={handleGuardar}
-            disabled={!puedeGuardar}
-            className="flex-1 flex items-center justify-center gap-2"
-          >
-            <Save size={18} />
-            Guardar Equipos
-          </Button>
-        </div>
-
-        {/* Instrucciones */}
-        <div className="mt-4 text-center text-textSecondary text-xs">
-          💡 Haz clic en un jugador para seleccionarlo, luego haz clic en "Agregar aquí" en el equipo deseado
+        {/* Equipo B */}
+        <div className="bg-secondary/10 rounded-lg p-3 border border-secondary/30">
+          <p className="text-secondary font-bold text-sm mb-2">EQUIPO B ({equipoB.length}/2)</p>
+          <div className="space-y-2">
+            {equipoB.map(jugador => {
+              const esCreador = creadorId && jugador.id === creadorId.toString();
+              return (
+                <div key={jugador.id} className="bg-background rounded-md p-2">
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="flex items-center gap-1 flex-1 min-w-0">
+                      <p className="text-textPrimary text-xs font-semibold truncate">{jugador.nombre}</p>
+                      {esCreador && (
+                        <Crown size={12} className="text-accent flex-shrink-0" />
+                      )}
+                    </div>
+                    <button
+                      onClick={() => quitarDeEquipo(jugador, 'B')}
+                      className="text-red-500 text-xs flex-shrink-0"
+                    >
+                      ✕
+                    </button>
+                  </div>
+                  <p className="text-textSecondary text-[10px]">Rating: {jugador.rating || 1500}</p>
+                </div>
+              );
+            })}
+            {equipoB.length < 2 && (
+              <div className="bg-background/50 rounded-md p-2 border-2 border-dashed border-secondary/30 text-center">
+                <p className="text-textSecondary text-xs">Vacío</p>
+              </div>
+            )}
+          </div>
         </div>
       </div>
-    </Modal>
+
+      {/* Botones */}
+      <div className="flex gap-2">
+        <Button
+          variant="ghost"
+          onClick={onCancelar}
+          disabled={loading}
+          className="flex-1"
+        >
+          Cancelar
+        </Button>
+        <Button
+          variant="primary"
+          onClick={handleConfirmar}
+          disabled={loading || equipoA.length !== 2 || equipoB.length !== 2}
+          className="flex-1"
+        >
+          {loading ? 'Asignando...' : 'Confirmar Equipos'}
+        </Button>
+      </div>
+    </div>
   );
 }

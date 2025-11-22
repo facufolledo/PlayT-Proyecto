@@ -20,6 +20,7 @@ export default function ModalCrearSala({ isOpen, onClose, onSalaCreada }: ModalC
     nombre: '',
     fecha: '',
     hora: '',
+    formato: 'best_of_3' as 'best_of_3' | 'best_of_3_supertiebreak',
   });
   const [salaCreada, setSalaCreada] = useState<{ id: string; codigo: string } | null>(null);
   const [copiado, setCopiado] = useState(false);
@@ -49,8 +50,8 @@ export default function ModalCrearSala({ isOpen, onClose, onSalaCreada }: ModalC
         nombre: formData.nombre,
         fecha: fechaHora,
         estado: 'esperando',
-        creadoPor: usuario.id,
-        estadoConfirmacion: 'pendiente',
+        creadoPor: usuario.id_usuario?.toString() || '',
+        estadoConfirmacion: 'sin_resultado',
         resultadoFinal: false,
         equipoA: {
           jugador1: { id: '', nombre: '' },
@@ -66,10 +67,11 @@ export default function ModalCrearSala({ isOpen, onClose, onSalaCreada }: ModalC
         }
       });
 
-      setSalaCreada({ id: crypto.randomUUID(), codigo });
+      const salaId = crypto.randomUUID(); // Temporal, el backend devuelve el ID real
+      setSalaCreada({ id: salaId, codigo });
       
       if (onSalaCreada) {
-        onSalaCreada(crypto.randomUUID(), codigo);
+        onSalaCreada(salaId, codigo);
       }
     } catch (error: any) {
       alert(error.message || 'Error al crear la sala');
@@ -83,6 +85,7 @@ export default function ModalCrearSala({ isOpen, onClose, onSalaCreada }: ModalC
       nombre: '',
       fecha: '',
       hora: '',
+      formato: 'best_of_3',
     });
     setSalaCreada(null);
     setCopiado(false);
@@ -99,16 +102,19 @@ export default function ModalCrearSala({ isOpen, onClose, onSalaCreada }: ModalC
 
   const compartirWhatsApp = () => {
     if (salaCreada) {
-      const mensaje = `¡Únete a mi partido de pádel!\n\n📍 ${formData.nombre}\n📅 ${new Date(formData.fecha).toLocaleDateString()}\n⏰ ${formData.hora}\n\n🔑 Código: ${salaCreada.codigo}\n\nEntra a PlayR y usa este código para unirte.`;
+      const appUrl = `${window.location.origin}/salas?codigo=${salaCreada.codigo}`;
+      const mensaje = `¡Únete a mi partido de pádel!\n\nPartido: ${formData.nombre}\nFecha: ${new Date(formData.fecha).toLocaleDateString('es-ES')}\nHora: ${formData.hora}\n\nCódigo: ${salaCreada.codigo}\n\nEntra aquí: ${appUrl}`;
       window.open(`https://wa.me/?text=${encodeURIComponent(mensaje)}`, '_blank');
     }
   };
 
   const copiarLink = () => {
-    if (salaCreada) {
-      const link = `${window.location.origin}/salas/unirse/${salaCreada.codigo}`;
+    if (salaCreada && salaCreada.codigo) {
+      const link = `${window.location.origin}/salas?codigo=${salaCreada.codigo}`;
       navigator.clipboard.writeText(link);
       alert('¡Link copiado!');
+    } else {
+      alert('Error: No hay código disponible');
     }
   };
 
@@ -162,6 +168,38 @@ export default function ModalCrearSala({ isOpen, onClose, onSalaCreada }: ModalC
                   value={formData.hora}
                   onChange={(e) => setFormData({ ...formData, hora: e.target.value })}
                 />
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-textSecondary text-sm font-medium mb-2">
+                Formato del Partido
+              </label>
+              <div className="grid grid-cols-1 gap-2">
+                <button
+                  type="button"
+                  onClick={() => setFormData({ ...formData, formato: 'best_of_3' })}
+                  className={`p-3 rounded-lg border-2 transition-all text-left ${
+                    formData.formato === 'best_of_3'
+                      ? 'border-primary bg-primary/10 text-textPrimary'
+                      : 'border-cardBorder bg-background text-textSecondary hover:border-primary/50'
+                  }`}
+                >
+                  <div className="font-bold text-sm">Best of 3 (Clásico)</div>
+                  <div className="text-xs mt-1">Sets a 6 games • Tercer set normal si es necesario</div>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setFormData({ ...formData, formato: 'best_of_3_supertiebreak' })}
+                  className={`p-3 rounded-lg border-2 transition-all text-left ${
+                    formData.formato === 'best_of_3_supertiebreak'
+                      ? 'border-secondary bg-secondary/10 text-textPrimary'
+                      : 'border-cardBorder bg-background text-textSecondary hover:border-secondary/50'
+                  }`}
+                >
+                  <div className="font-bold text-sm">Best of 3 con SuperTiebreak</div>
+                  <div className="text-xs mt-1">Sets a 6 games • SuperTiebreak a 10 en el tercero</div>
+                </button>
               </div>
             </div>
 

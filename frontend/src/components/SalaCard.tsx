@@ -1,17 +1,24 @@
+import { forwardRef } from 'react';
 import { motion, useReducedMotion } from 'framer-motion';
 import { Calendar, Trophy, Trash2, Play } from 'lucide-react';
 import Button from './Button';
 import { Sala } from '../utils/types';
 import { useSalas } from '../context/SalasContext';
+import { useAuth } from '../context/AuthContext';
 
 interface SalaCardProps {
   sala: Sala;
   onOpenMarcador: (sala: Sala) => void;
 }
 
-export default function SalaCard({ sala, onOpenMarcador }: SalaCardProps) {
-  const { deleteSala } = useSalas();
-  const shouldReduceMotion = useReducedMotion();
+const SalaCard = forwardRef<HTMLDivElement, SalaCardProps>(
+  ({ sala, onOpenMarcador }, ref) => {
+    const { deleteSala } = useSalas();
+    const { usuario } = useAuth();
+    const shouldReduceMotion = useReducedMotion();
+    
+    // Verificar si el usuario es participante
+    const esParticipante = sala.jugadores?.some(j => j.id === usuario?.id_usuario?.toString());
 
   const getEstadoConfig = (estado: string) => {
     switch (estado) {
@@ -22,6 +29,7 @@ export default function SalaCard({ sala, onOpenMarcador }: SalaCardProps) {
           glow: 'from-purple-500 to-pink-500'
         };
       case 'activa':
+      case 'en_juego':
         return {
           color: 'text-secondary',
           bg: 'bg-gradient-to-r from-secondary to-pink-600',
@@ -52,6 +60,7 @@ export default function SalaCard({ sala, onOpenMarcador }: SalaCardProps) {
     switch (estado) {
       case 'esperando': return 'Esperando';
       case 'activa': return 'En Juego';
+      case 'en_juego': return 'En Juego';
       case 'finalizada': return 'Finalizada';
       case 'programada': return 'Programada';
       default: return estado;
@@ -117,12 +126,6 @@ export default function SalaCard({ sala, onOpenMarcador }: SalaCardProps) {
                     </div>
                   ))}
                 </div>
-                {sala.codigoInvitacion && (
-                  <div className="mt-2 md:mt-3 text-center">
-                    <p className="text-textSecondary text-[10px] md:text-xs mb-1">Código:</p>
-                    <p className="text-primary font-bold text-base md:text-lg tracking-wider">{sala.codigoInvitacion}</p>
-                  </div>
-                )}
               </div>
             ) : (
               <div className="relative bg-background/50 rounded-md md:rounded-lg p-2 md:p-3 backdrop-blur-sm">
@@ -145,7 +148,13 @@ export default function SalaCard({ sala, onOpenMarcador }: SalaCardProps) {
                       animate={{ scale: 1, opacity: 1 }}
                       transition={{ type: "spring", stiffness: 300, damping: 20 }}
                     >
-                      {sala.equipoA.puntos}
+                      {(() => {
+                        // Si hay resultado, calcular sets ganados
+                        if (sala.resultado?.sets) {
+                          return sala.resultado.sets.filter((s: any) => s.ganador === 'equipoA').length;
+                        }
+                        return sala.equipoA.puntos;
+                      })()}
                     </motion.p>
                   </motion.div>
 
@@ -178,7 +187,13 @@ export default function SalaCard({ sala, onOpenMarcador }: SalaCardProps) {
                       animate={{ scale: 1, opacity: 1 }}
                       transition={{ type: "spring", stiffness: 300, damping: 20 }}
                     >
-                      {sala.equipoB.puntos}
+                      {(() => {
+                        // Si hay resultado, calcular sets ganados
+                        if (sala.resultado?.sets) {
+                          return sala.resultado.sets.filter((s: any) => s.ganador === 'equipoB').length;
+                        }
+                        return sala.equipoB.puntos;
+                      })()}
                     </motion.p>
                   </motion.div>
                 </div>
@@ -194,8 +209,34 @@ export default function SalaCard({ sala, onOpenMarcador }: SalaCardProps) {
               </div>
             )}
 
+            {/* Cambios de Elo (solo en finalizadas) */}
+            {sala.estado === 'finalizada' && sala.eloAplicado && sala.cambiosElo && sala.cambiosElo.length > 0 && (
+              <div className="bg-background/50 rounded-md p-2 mt-2">
+                <p className="text-textSecondary text-[10px] md:text-xs font-bold mb-2">Cambios de Rating:</p>
+                <div className="space-y-1">
+                  {sala.cambiosElo.map((cambio) => {
+                    const jugador = sala.jugadores?.find(j => j.id === cambio.id_usuario.toString());
+                    const esPositivo = cambio.cambio_elo > 0;
+                    return (
+                      <div key={cambio.id_usuario} className="flex items-center justify-between text-[10px] md:text-xs">
+                        <span className="text-textPrimary font-medium truncate flex-1">
+                          {jugador?.nombre || 'Jugador'}
+                        </span>
+                        <span className={`font-bold ${esPositivo ? 'text-green-500' : 'text-red-500'}`}>
+                          {esPositivo ? '+' : ''}{cambio.cambio_elo}
+                        </span>
+                        <span className="text-textSecondary ml-2">
+                          ({cambio.rating_antes} → {cambio.rating_despues})
+                        </span>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
             <div className="flex gap-2 pt-2">
-              {sala.estado === 'esperando' && (
+              {sala.estado === 'esperando' && esParticipante && (
                 <Button
                   variant="primary"
                   onClick={() => onOpenMarcador(sala)}
@@ -206,7 +247,12 @@ export default function SalaCard({ sala, onOpenMarcador }: SalaCardProps) {
                   <span className="sm:hidden">Ver Sala</span>
                 </Button>
               )}
-              {sala.estado !== 'finalizada' && sala.estado !== 'esperando' && (
+              {sala.estado === 'esperando' && !esParticipante && (
+                <div className="flex-1 bg-cardBorder/50 rounded-lg p-2 text-center">
+                  <p className="text-textSecondary text-xs">🔒 Sala privada</p>
+                </div>
+              )}
+              {sala.estado !== 'finalizada' && sala.estado !== 'esperando' && esParticipante && (
                 <Button
                   variant="primary"
                   onClick={() => onOpenMarcador(sala)}
@@ -218,9 +264,13 @@ export default function SalaCard({ sala, onOpenMarcador }: SalaCardProps) {
               )}
               <Button
                 variant="ghost"
-                onClick={() => {
-                  if (confirm('¿Estás seguro de eliminar esta sala?')) {
-                    deleteSala(sala.id);
+                onClick={async () => {
+                  if (confirm('¿Estás seguro de eliminar esta sala? Esta acción no se puede deshacer.')) {
+                    try {
+                      await deleteSala(sala.id);
+                    } catch (error: any) {
+                      alert(error.message || 'Error al eliminar sala');
+                    }
                   }
                 }}
                 className="flex items-center justify-center gap-1.5 px-3 py-2 md:py-2.5"
@@ -230,7 +280,12 @@ export default function SalaCard({ sala, onOpenMarcador }: SalaCardProps) {
             </div>
           </div>
         </div>
-      </div>
-    </motion.div>
-  );
-}
+        </div>
+      </motion.div>
+    );
+  }
+);
+
+SalaCard.displayName = 'SalaCard';
+
+export default SalaCard;

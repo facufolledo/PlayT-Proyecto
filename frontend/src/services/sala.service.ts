@@ -41,6 +41,15 @@ export interface JugadorSala {
 
 export interface SalaCompleta extends SalaResponse {
   jugadores: JugadorSala[];
+  estado_confirmacion?: string;
+  resultado?: any;
+  cambios_elo?: Array<{
+    id_usuario: number;
+    rating_antes: number;
+    rating_despues: number;
+    cambio_elo: number;
+  }>;
+  elo_aplicado?: boolean;
 }
 
 class SalaService {
@@ -134,11 +143,10 @@ class SalaService {
   async listarSalas(): Promise<SalaCompleta[]> {
     try {
       const headers = await this.getHeaders();
-      logger.log('Consultando salas en:', `${API_URL}/salas/`);
       
-      // Agregar timeout de 10 segundos
+      // Timeout de 30 segundos
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 10000);
+      const timeoutId = setTimeout(() => controller.abort(), 30000);
       
       const response = await fetch(`${API_URL}/salas/`, {
         method: 'GET',
@@ -147,12 +155,20 @@ class SalaService {
       });
 
       clearTimeout(timeoutId);
-      logger.log('Response status:', response.status);
+
+      if (response.status === 403) {
+        // Solo recargar si hay un token (token expirado)
+        // Si no hay token, simplemente lanzar error sin recargar
+        const token = await authService.getToken();
+        if (token) {
+          logger.warn('Token expirado, recargando...');
+          setTimeout(() => window.location.reload(), 1000);
+        }
+        throw new Error('No autorizado');
+      }
 
       if (!response.ok) {
         const errorText = await response.text();
-        logger.error('Error response:', errorText);
-        
         let errorMessage = `Error ${response.status}: ${response.statusText}`;
         try {
           const errorJson = JSON.parse(errorText);
@@ -160,20 +176,16 @@ class SalaService {
         } catch (e) {
           // Si no es JSON, usar el texto tal cual
         }
-        
         throw new Error(errorMessage);
       }
 
       const data = await response.json();
-      logger.log('Salas obtenidas:', data.length);
       return data;
     } catch (error: any) {
       if (error.name === 'AbortError') {
-        logger.error('Timeout al listar salas');
         throw new Error('El servidor no responde. Verifica que el backend esté corriendo.');
       }
-      logger.error('Error al listar salas:', error);
-      throw new Error(error.message || 'Error al listar salas');
+      throw error;
     }
   }
 
@@ -209,8 +221,15 @@ class SalaService {
       });
 
       if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.detail || 'Error al iniciar partido');
+        const errorData = await response.json();
+        console.error('Error del servidor:', errorData);
+        
+        // Si el error tiene estructura compleja (anti-trampa)
+        if (typeof errorData.detail === 'object') {
+          throw new Error(errorData.detail.mensaje || JSON.stringify(errorData.detail));
+        }
+        
+        throw new Error(errorData.detail || 'Error al iniciar partido');
       }
 
       const data = await response.json();
@@ -218,7 +237,122 @@ class SalaService {
       return data;
     } catch (error: any) {
       logger.error('Error al iniciar partido:', error);
-      throw new Error(error.message || 'Error al iniciar partido');
+      throw error;
+    }
+  }
+
+  // Eliminar sala
+  async eliminarSala(salaId: number): Promise<void> {
+    try {
+      const headers = await this.getHeaders();
+      const response = await fetch(`${API_URL}/salas/${salaId}`, {
+        method: 'DELETE',
+        headers,
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.detail || 'Error al eliminar sala');
+      }
+
+      logger.log('Sala eliminada correctamente');
+    } catch (error: any) {
+      logger.error('Error al eliminar sala:', error);
+      throw new Error(error.message || 'Error al eliminar sala');
+    }
+  }
+
+  // Cargar resultado del partido
+  async cargarResultado(salaId: number, resultado: any): Promise<any> {
+    try {
+      const headers = await this.getHeaders();
+      const response = await fetch(`${API_URL}/salas/${salaId}/resultado`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify(resultado),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        console.error('Error del servidor:', errorData);
+        throw new Error(errorData.detail || 'Error al cargar resultado');
+      }
+
+      const data = await response.json();
+      logger.log('Resultado cargado:', data);
+      return data;
+    } catch (error: any) {
+      logger.error('Error al cargar resultado:', error);
+      throw error;
+    }
+  }
+
+  // Obtener resultado del partido
+  async obtenerResultado(salaId: number): Promise<any> {
+    try {
+      const headers = await this.getHeaders();
+      const response = await fetch(`${API_URL}/salas/${salaId}/resultado`, {
+        method: 'GET',
+        headers,
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.detail || 'Error al obtener resultado');
+      }
+
+      const data = await response.json();
+      return data;
+    } catch (error: any) {
+      logger.error('Error al obtener resultado:', error);
+      throw error;
+    }
+  }
+
+  // Confirmar resultado
+  async confirmarResultado(salaId: number): Promise<any> {
+    try {
+      const headers = await this.getHeaders();
+      const response = await fetch(`${API_URL}/salas/${salaId}/confirmar`, {
+        method: 'POST',
+        headers,
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.detail || 'Error al confirmar resultado');
+      }
+
+      const data = await response.json();
+      logger.log('Resultado confirmado:', data);
+      return data;
+    } catch (error: any) {
+      logger.error('Error al confirmar resultado:', error);
+      throw error;
+    }
+  }
+
+  // Reportar resultado
+  async reportarResultado(salaId: number, motivo: string): Promise<any> {
+    try {
+      const headers = await this.getHeaders();
+      const response = await fetch(`${API_URL}/salas/${salaId}/reportar`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({ motivo }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.detail || 'Error al reportar resultado');
+      }
+
+      const data = await response.json();
+      logger.log('Resultado reportado:', data);
+      return data;
+    } catch (error: any) {
+      logger.error('Error al reportar resultado:', error);
+      throw error;
     }
   }
 }

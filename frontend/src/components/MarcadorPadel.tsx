@@ -1,11 +1,14 @@
 import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { X, Plus, Minus, Trophy, AlertCircle, CheckCircle, Flag } from 'lucide-react';
+import { X, Plus, Minus, Trophy, AlertCircle, CheckCircle, Flag, Crown } from 'lucide-react';
 import Modal from './Modal';
 import Button from './Button';
+import ModalExito from './ModalExito';
+import ModalConfirmacionExitosa from './ModalConfirmacionExitosa';
 import { Sala } from '../utils/types';
 import { useSalas } from '../context/SalasContext';
 import { useAuth } from '../context/AuthContext';
+import { salaService } from '../services/sala.service';
 import { 
   Set, 
   SuperTiebreak, 
@@ -34,10 +37,14 @@ interface MarcadorPadelProps {
 }
 
 export default function MarcadorPadel({ isOpen, onClose, sala }: MarcadorPadelProps) {
-  const { updateSala } = useSalas();
+  const { updateSala, cargarSalas } = useSalas();
   const { usuario } = useAuth();
   
-  const [formato, setFormato] = useState<FormatoPartido>('best_of_3');
+  // Usar el formato de la sala o best_of_3 por defecto
+  const formatoSala = sala?.formato === 'best_of_3_supertiebreak' ? 'best_of_3' : 'best_of_3';
+  const usarSupertiebreak = sala?.formato === 'best_of_3_supertiebreak';
+  
+  const [formato, setFormato] = useState<FormatoPartido>(formatoSala);
   const [sets, setSets] = useState<Set[]>([
     { gamesEquipoA: 0, gamesEquipoB: 0, completado: false },
     { gamesEquipoA: 0, gamesEquipoB: 0, completado: false },
@@ -50,25 +57,83 @@ export default function MarcadorPadel({ isOpen, onClose, sala }: MarcadorPadelPr
   });
   const [error, setError] = useState('');
   const [mostrarSupertiebreak, setMostrarSupertiebreak] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [resultadoCargado, setResultadoCargado] = useState(false);
+  const [mostrarModalExito, setMostrarModalExito] = useState(false);
+  const [mostrarModalConfirmacion, setMostrarModalConfirmacion] = useState(false);
+  const [datosConfirmacion, setDatosConfirmacion] = useState<any>(null);
 
+  // Cargar resultado desde el backend cuando se abre el modal
   useEffect(() => {
-    if (sala?.resultado) {
-      // Cargar resultado existente
-      const resultado = sala.resultado as ResultadoPartido;
-      setFormato(resultado.formato);
-      setSets(resultado.sets);
-      if (resultado.supertiebreak) {
-        setSupertiebreak(resultado.supertiebreak);
-        setMostrarSupertiebreak(true);
+    const cargarResultado = async () => {
+      if (!sala || !isOpen) return;
+      
+      console.log('=== CARGANDO RESULTADO ===');
+      console.log('Sala ID:', sala.id);
+      console.log('Estado:', sala.estado);
+      console.log('Estado confirmación:', sala.estadoConfirmacion);
+      console.log('Resultado en sala:', sala.resultado);
+      console.log('Es creador:', esCreador);
+      
+      // Si la sala tiene resultado, cargarlo
+      if (sala.resultado) {
+        const resultado = sala.resultado;
+        console.log('Cargando resultado desde sala.resultado:', resultado);
+        setFormato(resultado.formato || 'best_of_3');
+        setSets(resultado.sets || [
+          { gamesEquipoA: 0, gamesEquipoB: 0, completado: false },
+          { gamesEquipoA: 0, gamesEquipoB: 0, completado: false },
+          { gamesEquipoA: 0, gamesEquipoB: 0, completado: false }
+        ]);
+        
+        if (resultado.supertiebreak) {
+          setSupertiebreak(resultado.supertiebreak);
+          setMostrarSupertiebreak(true);
+        }
+        
+        setResultadoCargado(true);
+        return;
       }
+      
+      // Si no hay resultado en sala pero hay estado de confirmación, intentar cargar desde backend
+      if (sala.estadoConfirmacion && sala.estadoConfirmacion !== 'sin_resultado') {
+        try {
+          console.log('Intentando cargar resultado desde backend...');
+          const data = await salaService.obtenerResultado(parseInt(sala.id));
+          console.log('Resultado del backend:', data);
+          
+          if (data.resultado) {
+            const resultado = data.resultado;
+            setFormato(resultado.formato || 'best_of_3');
+            setSets(resultado.sets || []);
+            
+            if (resultado.supertiebreak) {
+              setSupertiebreak(resultado.supertiebreak);
+              setMostrarSupertiebreak(true);
+            }
+            
+            setResultadoCargado(true);
+          }
+        } catch (error) {
+          console.log('Error al cargar resultado:', error);
+        }
+      }
+    };
+    
+    // Resetear cuando se abre el modal
+    if (isOpen) {
+      setResultadoCargado(false);
+      cargarResultado();
     }
-  }, [sala]);
+  }, [sala, isOpen]);
 
   if (!sala) return null;
 
   const esCreador = usuario?.id_usuario?.toString() === sala.creador_id?.toString();
   const yaConfirmado = sala.estadoConfirmacion === 'confirmado';
   const pendienteConfirmacion = sala.estadoConfirmacion === 'pendiente_confirmacion';
+  const hayResultado = pendienteConfirmacion || yaConfirmado;
+  const puedeEditar = esCreador && !hayResultado;
 
   // Actualizar games de un set
   const handleUpdateGames = (setIndex: number, equipo: 'equipoA' | 'equipoB', delta: number) => {
@@ -105,8 +170,8 @@ export default function MarcadorPadel({ isOpen, onClose, sala }: MarcadorPadelPr
       currentSet.completado = true;
       currentSet.ganador = ganadorSet(newGamesA, newGamesB) || undefined;
       
-      // Verificar si se debe jugar supertiebreak
-      if (setIndex === 1 && requiereSuperTiebreak(newSets)) {
+      // Verificar si se debe jugar supertiebreak (solo si el formato lo permite)
+      if (setIndex === 1 && requiereSuperTiebreak(newSets) && usarSupertiebreak) {
         setMostrarSupertiebreak(true);
       }
     } else {
@@ -156,8 +221,9 @@ export default function MarcadorPadel({ isOpen, onClose, sala }: MarcadorPadelPr
   };
 
   // Guardar resultado (solo creador)
-  const handleGuardarResultado = () => {
+  const handleGuardarResultado = async () => {
     setError('');
+    setLoading(true);
 
     // Validar que todos los sets necesarios estén completos
     const setsGanados = contarSetsGanados(sets);
@@ -166,6 +232,7 @@ export default function MarcadorPadel({ isOpen, onClose, sala }: MarcadorPadelPr
 
     if (!partidoCompleto) {
       setError('Debes completar el partido antes de guardar el resultado');
+      setLoading(false);
       return;
     }
 
@@ -177,44 +244,74 @@ export default function MarcadorPadel({ isOpen, onClose, sala }: MarcadorPadelPr
       ganador = setsGanados.equipoA > setsGanados.equipoB ? 'equipoA' : 'equipoB';
     }
 
-    const resultado: ResultadoPartido = {
-      formato,
-      sets: sets.filter(s => s.completado),
-      supertiebreak: mostrarSupertiebreak ? supertiebreak : undefined,
-      ganador,
-      completado: true,
-      creadoPor: usuario?.id_usuario?.toString(),
-      confirmadoPor: [usuario?.id_usuario?.toString() || '']
-    };
+    try {
+      // Preparar datos en el formato correcto para el backend
+      const resultadoBackend = {
+        formato: formato,
+        sets: sets.filter(s => s.completado).map(s => ({
+          gamesEquipoA: s.gamesEquipoA,
+          gamesEquipoB: s.gamesEquipoB,
+          ganador: s.ganador,
+          completado: s.completado
+        })),
+        supertiebreak: mostrarSupertiebreak ? {
+          puntosEquipoA: supertiebreak.puntosEquipoA,
+          puntosEquipoB: supertiebreak.puntosEquipoB,
+          ganador: supertiebreak.ganador,
+          completado: supertiebreak.completado
+        } : undefined,
+        ganador: ganador,
+        completado: true
+      };
 
-    // Actualizar sala con resultado
-    updateSala(sala.id, {
-      resultado,
-      estadoConfirmacion: 'pendiente_confirmacion',
-      ganador
-    });
+      console.log('Guardando resultado:', resultadoBackend);
 
-    onClose();
+      // Guardar en el backend usando el endpoint de salas
+      const response = await salaService.cargarResultado(parseInt(sala.id), resultadoBackend);
+      console.log('Respuesta del servidor:', response);
+      
+      if (!response || !response.success) {
+        throw new Error('El servidor no confirmó el guardado del resultado');
+      }
+      
+      // Recargar salas desde el backend para obtener el estado actualizado
+      await cargarSalas();
+      
+      // Esperar un momento para que se actualice el estado
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      
+      // Mostrar modal de éxito
+      setMostrarModalExito(true);
+    } catch (error: any) {
+      setError(error.message || 'Error al guardar resultado');
+    } finally {
+      setLoading(false);
+    }
   };
 
   // Confirmar resultado (rival)
-  const handleConfirmarResultado = () => {
-    if (!sala.resultado) return;
+  const handleConfirmarResultado = async () => {
+    if (!usuario) return;
 
-    const resultado = sala.resultado as ResultadoPartido;
-    resultado.confirmadoPor = [
-      ...(resultado.confirmadoPor || []),
-      usuario?.id_usuario?.toString() || ''
-    ];
+    setLoading(true);
+    setError('');
 
-    updateSala(sala.id, {
-      resultado,
-      estadoConfirmacion: 'confirmado'
-    });
+    try {
+      // Confirmar en el backend
+      const response = await salaService.confirmarResultado(parseInt(sala.id));
+      console.log('Respuesta de confirmación:', response);
 
-    // TODO: Enviar al backend para calcular Elo
-
-    onClose();
+      // Recargar salas para actualizar el estado
+      await cargarSalas();
+      
+      // Mostrar modal con información de la confirmación
+      setDatosConfirmacion(response);
+      setMostrarModalConfirmacion(true);
+    } catch (error: any) {
+      setError(error.message || 'Error al confirmar resultado');
+    } finally {
+      setLoading(false);
+    }
   };
 
   // Reportar resultado (rival)
@@ -238,6 +335,7 @@ export default function MarcadorPadel({ isOpen, onClose, sala }: MarcadorPadelPr
   const setsGanados = contarSetsGanados(sets);
 
   return (
+    <>
     <Modal isOpen={isOpen} onClose={onClose}>
       <div className="bg-cardBg rounded-2xl md:rounded-3xl p-4 md:p-6 w-full max-w-4xl border border-cardBorder shadow-2xl max-h-[90vh] overflow-y-auto">
         {/* Header */}
@@ -284,10 +382,26 @@ export default function MarcadorPadel({ isOpen, onClose, sala }: MarcadorPadelPr
         )}
 
         {pendienteConfirmacion && !esCreador && (
-          <div className="bg-accent/10 border border-accent/50 rounded-lg p-3 mb-4 flex items-center gap-2">
-            <Flag size={18} className="text-accent flex-shrink-0" />
-            <p className="text-accent text-sm font-bold">
-              Resultado cargado por el creador. Por favor, confirma o reporta.
+          <div className="bg-accent/10 border border-accent/50 rounded-lg p-4 mb-4">
+            <div className="flex items-start gap-2 mb-2">
+              <Flag size={20} className="text-accent flex-shrink-0 mt-0.5" />
+              <div>
+                <p className="text-accent text-base font-bold mb-1">
+                  ⚠️ Resultado pendiente de confirmación
+                </p>
+                <p className="text-textSecondary text-sm">
+                  El creador ha cargado el resultado del partido. Por favor, revisa los sets y confirma si es correcto o repórtalo si hay algún error.
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {pendienteConfirmacion && esCreador && (
+          <div className="bg-primary/10 border border-primary/50 rounded-lg p-3 mb-4 flex items-center gap-2">
+            <CheckCircle size={18} className="text-primary flex-shrink-0" />
+            <p className="text-primary text-sm font-bold">
+              Esperando confirmación de los rivales...
             </p>
           </div>
         )}
@@ -296,21 +410,35 @@ export default function MarcadorPadel({ isOpen, onClose, sala }: MarcadorPadelPr
         <div className="grid grid-cols-2 gap-2 md:gap-4 mb-4 md:mb-6">
           <div className="bg-primary/10 rounded-lg p-2 md:p-3 border border-primary/30">
             <h3 className="text-primary font-black text-xs md:text-base mb-1 md:mb-2">EQUIPO A</h3>
-            <p className="text-textPrimary font-semibold text-[10px] md:text-sm truncate leading-tight">
-              {sala.equipoA.jugador1.nombre}
-            </p>
-            <p className="text-textPrimary font-semibold text-[10px] md:text-sm truncate leading-tight">
-              {sala.equipoA.jugador2.nombre}
-            </p>
+            {[sala.equipoA.jugador1, sala.equipoA.jugador2].map((jugador) => {
+              const esCreador = jugador.id === sala.creador_id?.toString();
+              return (
+                <div key={jugador.id} className="flex items-center gap-1 mb-0.5">
+                  <p className="text-textPrimary font-semibold text-[10px] md:text-sm truncate leading-tight flex-1">
+                    {jugador.nombre}
+                  </p>
+                  {esCreador && (
+                    <Crown size={12} className="text-accent flex-shrink-0 md:w-[14px] md:h-[14px]" />
+                  )}
+                </div>
+              );
+            })}
           </div>
           <div className="bg-secondary/10 rounded-lg p-2 md:p-3 border border-secondary/30">
             <h3 className="text-secondary font-black text-xs md:text-base mb-1 md:mb-2">EQUIPO B</h3>
-            <p className="text-textPrimary font-semibold text-[10px] md:text-sm truncate leading-tight">
-              {sala.equipoB.jugador1.nombre}
-            </p>
-            <p className="text-textPrimary font-semibold text-[10px] md:text-sm truncate leading-tight">
-              {sala.equipoB.jugador2.nombre}
-            </p>
+            {[sala.equipoB.jugador1, sala.equipoB.jugador2].map((jugador) => {
+              const esCreador = jugador.id === sala.creador_id?.toString();
+              return (
+                <div key={jugador.id} className="flex items-center gap-1 mb-0.5">
+                  <p className="text-textPrimary font-semibold text-[10px] md:text-sm truncate leading-tight flex-1">
+                    {jugador.nombre}
+                  </p>
+                  {esCreador && (
+                    <Crown size={12} className="text-accent flex-shrink-0 md:w-[14px] md:h-[14px]" />
+                  )}
+                </div>
+              );
+            })}
           </div>
         </div>
 
@@ -322,7 +450,7 @@ export default function MarcadorPadel({ isOpen, onClose, sala }: MarcadorPadelPr
               setNumber={index + 1}
               set={set}
               onUpdateGames={(equipo, delta) => handleUpdateGames(index, equipo, delta)}
-              disabled={yaConfirmado || (pendienteConfirmacion && !esCreador)}
+              disabled={!puedeEditar}
               esCreador={esCreador}
             />
           ))}
@@ -332,7 +460,7 @@ export default function MarcadorPadel({ isOpen, onClose, sala }: MarcadorPadelPr
             <SuperTiebreakDisplay
               supertiebreak={supertiebreak}
               onUpdatePuntos={handleUpdatePuntos}
-              disabled={yaConfirmado || (pendienteConfirmacion && !esCreador)}
+              disabled={!puedeEditar}
               esCreador={esCreador}
             />
           )}
@@ -360,10 +488,11 @@ export default function MarcadorPadel({ isOpen, onClose, sala }: MarcadorPadelPr
               <Button
                 variant="primary"
                 onClick={handleGuardarResultado}
+                disabled={loading}
                 className="flex-1 flex items-center justify-center gap-2 text-sm md:text-base py-2.5 md:py-3"
               >
                 <Trophy size={16} className="md:w-[18px] md:h-[18px]" />
-                Guardar Resultado
+                {loading ? 'Guardando...' : 'Guardar Resultado'}
               </Button>
             )}
 
@@ -372,14 +501,16 @@ export default function MarcadorPadel({ isOpen, onClose, sala }: MarcadorPadelPr
                 <Button
                   variant="primary"
                   onClick={handleConfirmarResultado}
+                  disabled={loading}
                   className="flex-1 flex items-center justify-center gap-2 text-sm md:text-base py-2.5 md:py-3"
                 >
                   <CheckCircle size={16} className="md:w-[18px] md:h-[18px]" />
-                  Confirmar Resultado
+                  {loading ? 'Confirmando...' : 'Confirmar Resultado'}
                 </Button>
                 <Button
                   variant="ghost"
                   onClick={handleReportarResultado}
+                  disabled={loading}
                   className="flex-1 flex items-center justify-center gap-2 text-sm md:text-base py-2.5 md:py-3 bg-red-500/20 hover:bg-red-500/30 border-red-500/50"
                 >
                   <Flag size={16} className="md:w-[18px] md:h-[18px]" />
@@ -391,6 +522,35 @@ export default function MarcadorPadel({ isOpen, onClose, sala }: MarcadorPadelPr
         )}
       </div>
     </Modal>
+
+    {/* Modal de éxito */}
+    <ModalExito
+      isOpen={mostrarModalExito}
+      onClose={() => {
+        setMostrarModalExito(false);
+        onClose(); // Cerrar el marcador también
+      }}
+      titulo="¡Resultado Guardado!"
+      mensaje="Los rivales ahora pueden ver el resultado y deben confirmarlo para que el Elo se aplique."
+      icono={<Trophy size={48} className="text-white" />}
+    />
+
+    {/* Modal de confirmación exitosa */}
+    {datosConfirmacion && (
+      <ModalConfirmacionExitosa
+        isOpen={mostrarModalConfirmacion}
+        onClose={() => {
+          setMostrarModalConfirmacion(false);
+          onClose(); // Cerrar el marcador también
+        }}
+        confirmacionesTotales={datosConfirmacion.confirmaciones_totales || 0}
+        faltanConfirmar={3 - (datosConfirmacion.confirmaciones_totales || 0)}
+        eloAplicado={datosConfirmacion.elo_aplicado || false}
+        cambioEloEstimado={datosConfirmacion.elo_changes?.cambio_usuario || 0}
+        jugadoresFaltantes={datosConfirmacion.jugadores_faltantes || []}
+      />
+    )}
+  </>
   );
 }
 
@@ -404,19 +564,31 @@ interface SetDisplayProps {
 }
 
 function SetDisplay({ setNumber, set, onUpdateGames, disabled, esCreador }: SetDisplayProps) {
+  const [editando, setEditando] = useState(false);
   const puedeModificar = esCreador && !disabled;
+  const puedeEditar = puedeModificar && set.completado && !editando;
 
   return (
     <div className={`bg-background rounded-lg p-2 md:p-4 border ${set.completado ? 'border-accent/50' : 'border-cardBorder'}`}>
       <div className="flex items-center justify-between mb-2 md:mb-3">
         <h4 className="text-textPrimary font-bold text-xs md:text-base">SET {setNumber}</h4>
-        {set.completado && (
-          <span className="text-accent text-[10px] md:text-xs font-bold flex items-center gap-1">
-            <CheckCircle size={12} className="md:w-[14px] md:h-[14px]" />
-            <span className="hidden sm:inline">Completado</span>
-            <span className="sm:hidden">✓</span>
-          </span>
-        )}
+        <div className="flex items-center gap-2">
+          {set.completado && !editando && (
+            <span className="text-accent text-[10px] md:text-xs font-bold flex items-center gap-1">
+              <CheckCircle size={12} className="md:w-[14px] md:h-[14px]" />
+              <span className="hidden sm:inline">Completado</span>
+              <span className="sm:hidden">✓</span>
+            </span>
+          )}
+          {puedeEditar && (
+            <button
+              onClick={() => setEditando(true)}
+              className="text-textSecondary hover:text-primary text-[10px] md:text-xs font-bold transition-colors"
+            >
+              ✏️ Editar
+            </button>
+          )}
+        </div>
       </div>
 
       <div className="grid grid-cols-2 gap-2 md:gap-4">
@@ -425,7 +597,7 @@ function SetDisplay({ setNumber, set, onUpdateGames, disabled, esCreador }: SetD
           <div className={`text-2xl md:text-4xl font-black mb-1.5 md:mb-2 ${set.ganador === 'equipoA' ? 'text-primary' : 'text-textPrimary'}`}>
             {set.gamesEquipoA}
           </div>
-          {puedeModificar && !set.completado && (
+          {puedeModificar && (!set.completado || editando) && (
             <div className="flex gap-1">
               <button
                 onClick={() => onUpdateGames('equipoA', -1)}
@@ -442,6 +614,14 @@ function SetDisplay({ setNumber, set, onUpdateGames, disabled, esCreador }: SetD
               </button>
             </div>
           )}
+          {editando && (
+            <button
+              onClick={() => setEditando(false)}
+              className="text-[10px] md:text-xs text-accent font-bold mt-1"
+            >
+              ✓ Listo
+            </button>
+          )}
         </div>
 
         {/* Equipo B */}
@@ -449,7 +629,7 @@ function SetDisplay({ setNumber, set, onUpdateGames, disabled, esCreador }: SetD
           <div className={`text-2xl md:text-4xl font-black mb-1.5 md:mb-2 ${set.ganador === 'equipoB' ? 'text-secondary' : 'text-textPrimary'}`}>
             {set.gamesEquipoB}
           </div>
-          {puedeModificar && !set.completado && (
+          {puedeModificar && (!set.completado || editando) && (
             <div className="flex gap-1">
               <button
                 onClick={() => onUpdateGames('equipoB', -1)}

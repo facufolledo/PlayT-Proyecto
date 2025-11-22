@@ -8,8 +8,12 @@ from .playt_models import (
     ResultadoPartido,
     HistorialRating,
     EventoPartido,
-    FlagSospechoso
+    FlagSospechoso,
+    CategoriaCheckpoint
 )
+from .sala import Sala, SalaJugador
+from .confirmacion import Confirmacion
+from .historial_enfrentamiento import HistorialEnfrentamiento
 
 # Exportar todos los modelos
 __all__ = [
@@ -22,5 +26,10 @@ __all__ = [
     "ResultadoPartido",
     "HistorialRating",
     "EventoPartido",
-    "FlagSospechoso"
+    "FlagSospechoso",
+    "CategoriaCheckpoint",
+    "Sala",
+    "SalaJugador",
+    "Confirmacion",
+    "HistorialEnfrentamiento"
 ]

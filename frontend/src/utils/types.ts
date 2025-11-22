@@ -18,13 +18,13 @@ export interface Sala {
   id: string;
   nombre: string;
   fecha: string;
-  estado: 'esperando' | 'activa' | 'finalizada' | 'programada';
+  estado: 'esperando' | 'activa' | 'en_juego' | 'finalizada' | 'programada';
   codigoInvitacion?: string;
   jugadores?: Jugador[];
   equiposAsignados?: boolean;
   equipoA: Equipo;
   equipoB: Equipo;
-  sets?: Set[];
+  sets?: any[]; // Set[] from padelTypes
   ganador?: 'equipoA' | 'equipoB';
   torneoId?: string;
   creadoPor: string;
@@ -33,6 +33,14 @@ export interface Sala {
   resultado?: any; // ResultadoPartido from padelTypes
   resultadoFinal?: boolean;
   motivoDisputa?: string;
+  formato?: 'best_of_3' | 'best_of_3_supertiebreak';
+  cambiosElo?: Array<{
+    id_usuario: number;
+    rating_antes: number;
+    rating_despues: number;
+    cambio_elo: number;
+  }>;
+  eloAplicado?: boolean;
   createdAt: string;
 }
 

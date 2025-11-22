@@ -20,6 +20,7 @@ from src.controllers.partido_controller import router as partido_router
 from src.controllers.ranking_controller import router as ranking_router
 from src.controllers.estadisticas_controller import router as estadisticas_router
 from src.controllers.sala_controller import router as sala_router
+from src.controllers.resultado_controller import router as resultado_router
 
 
 # ---- Lifespan (startup/shutdown) ----
@@ -73,6 +74,7 @@ app.include_router(auth_router)
 app.include_router(usuario_router)
 app.include_router(categoria_router)
 app.include_router(sala_router)
+app.include_router(resultado_router)
 app.include_router(partido_router)
 app.include_router(ranking_router)
 app.include_router(estadisticas_router)

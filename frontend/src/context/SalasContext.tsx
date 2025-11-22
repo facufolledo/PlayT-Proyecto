@@ -1,31 +1,124 @@
 import { createContext, useContext, useState, ReactNode } from 'react';
 import { Sala } from '../utils/types';
+import { salaService, SalaCompleta } from '../services/sala.service';
+import { logger } from '../utils/logger';
 
 interface SalasContextType {
   salas: Sala[];
-  addSala: (sala: Omit<Sala, 'id' | 'createdAt'>) => void;
+  addSala: (sala: Omit<Sala, 'id' | 'createdAt'>) => Promise<string>;
   updateSala: (id: string, sala: Partial<Sala>) => void;
-  deleteSala: (id: string) => void;
+  deleteSala: (id: string) => Promise<void>;
   getSalaById: (id: string) => Sala | undefined;
   updateMarcador: (id: string, equipo: 'equipoA' | 'equipoB', puntos: number) => void;
   finalizarPartido: (id: string) => void;
   confirmarResultado: (id: string, equipo: 'equipoA' | 'equipoB', jugadorId: string) => void;
   disputarResultado: (id: string, motivo: string) => void;
   getSalasPendientesConfirmacion: (jugadorId: string) => Sala[];
+  cargarSalas: () => Promise<void>;
+  loading: boolean;
 }
 
 const SalasContext = createContext<SalasContextType | undefined>(undefined);
 
+// Función para convertir SalaCompleta del backend a Sala del frontend
+function convertirSalaBackendAFrontend(salaBackend: SalaCompleta): Sala {
+  const jugadores = salaBackend.jugadores || [];
+  
+  // Separar jugadores por equipo (solo si tienen equipo asignado)
+  const equipoA = jugadores.filter(j => j.equipo === 1);
+  const equipoB = jugadores.filter(j => j.equipo === 2);
+  const hayEquiposAsignados = equipoA.length > 0 && equipoB.length > 0;
+  
+  return {
+    id: salaBackend.id_sala,
+    nombre: salaBackend.nombre,
+    fecha: salaBackend.fecha,
+    estado: salaBackend.estado as any,
+    codigoInvitacion: salaBackend.codigo_invitacion, // Convertir a camelCase
+    jugadores: jugadores.map(j => ({
+      id: j.id_usuario.toString(),
+      nombre: j.nombre_usuario || `${j.nombre} ${j.apellido}`.trim() || 'Usuario',
+      rating: j.rating,
+      esCreador: j.id_usuario === salaBackend.id_creador
+    })),
+    equiposAsignados: hayEquiposAsignados,
+    equipoA: {
+      jugador1: equipoA[0] ? {
+        id: equipoA[0].id_usuario.toString(),
+        nombre: equipoA[0].nombre_usuario || `${equipoA[0].nombre} ${equipoA[0].apellido}`,
+        rating: equipoA[0].rating
+      } : { id: '', nombre: '' },
+      jugador2: equipoA[1] ? {
+        id: equipoA[1].id_usuario.toString(),
+        nombre: equipoA[1].nombre_usuario || `${equipoA[1].nombre} ${equipoA[1].apellido}`,
+        rating: equipoA[1].rating
+      } : { id: '', nombre: '' },
+      puntos: 0,
+      confirmado: false
+    },
+    equipoB: {
+      jugador1: equipoB[0] ? {
+        id: equipoB[0].id_usuario.toString(),
+        nombre: equipoB[0].nombre_usuario || `${equipoB[0].nombre} ${equipoB[0].apellido}`,
+        rating: equipoB[0].rating
+      } : { id: '', nombre: '' },
+      jugador2: equipoB[1] ? {
+        id: equipoB[1].id_usuario.toString(),
+        nombre: equipoB[1].nombre_usuario || `${equipoB[1].nombre} ${equipoB[1].apellido}`,
+        rating: equipoB[1].rating
+      } : { id: '', nombre: '' },
+      puntos: 0,
+      confirmado: false
+    },
+    creadoPor: salaBackend.id_creador.toString(),
+    creador_id: salaBackend.id_creador,
+    estadoConfirmacion: (salaBackend.estado_confirmacion as any) || 'sin_resultado',
+    resultado: salaBackend.resultado,
+    cambiosElo: salaBackend.cambios_elo,
+    eloAplicado: salaBackend.elo_aplicado,
+    formato: 'best_of_3', // Por defecto, TODO: agregar al backend
+    createdAt: salaBackend.creado_en
+  };
+}
+
 export function SalasProvider({ children }: { children: ReactNode }) {
   const [salas, setSalas] = useState<Sala[]>([]);
+  const [loading, setLoading] = useState(false);
 
-  const addSala = (salaData: Omit<Sala, 'id' | 'createdAt'>) => {
-    const newSala: Sala = {
-      ...salaData,
-      id: crypto.randomUUID(),
-      createdAt: new Date().toISOString(),
-    };
-    setSalas(prev => [newSala, ...prev]);
+  // Cargar salas del backend
+  const cargarSalas = async () => {
+    try {
+      setLoading(true);
+      const salasBackend = await salaService.listarSalas();
+      const salasConvertidas = salasBackend.map(convertirSalaBackendAFrontend);
+      setSalas(salasConvertidas);
+    } catch (error: any) {
+      logger.error('Error al cargar salas:', error);
+      // No hacer nada más, simplemente fallar silenciosamente
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // NO cargar salas automáticamente al montar
+  // Las páginas que necesiten salas deben llamar a cargarSalas() explícitamente
+
+  const addSala = async (salaData: Omit<Sala, 'id' | 'createdAt'>): Promise<string> => {
+    try {
+      const salaCreada = await salaService.crearSala({
+        nombre: salaData.nombre,
+        fecha: salaData.fecha,
+        max_jugadores: 4
+      });
+      
+      // Recargar salas para obtener la sala completa con jugadores
+      await cargarSalas();
+      
+      return salaCreada.codigo_invitacion;
+    } catch (error: any) {
+      logger.error('Error al crear sala:', error);
+      throw error;
+    }
   };
 
   const updateSala = (id: string, salaData: Partial<Sala>) => {
@@ -34,8 +127,14 @@ export function SalasProvider({ children }: { children: ReactNode }) {
     ));
   };
 
-  const deleteSala = (id: string) => {
-    setSalas(prev => prev.filter(sala => sala.id !== id));
+  const deleteSala = async (id: string) => {
+    try {
+      await salaService.eliminarSala(parseInt(id));
+      setSalas(prev => prev.filter(sala => sala.id !== id));
+    } catch (error: any) {
+      logger.error('Error al eliminar sala:', error);
+      throw error;
+    }
   };
 
   const getSalaById = (id: string) => {
@@ -65,7 +164,7 @@ export function SalasProvider({ children }: { children: ReactNode }) {
           ...sala,
           estado: 'finalizada' as const,
           ganador,
-          estadoConfirmacion: 'pendiente' as const,
+          estadoConfirmacion: 'pendiente_confirmacion' as const,
           resultadoFinal: false
         };
       }
@@ -89,7 +188,7 @@ export function SalasProvider({ children }: { children: ReactNode }) {
         return {
           ...sala,
           [equipo]: equipoActualizado,
-          estadoConfirmacion: ambosConfirmados ? 'confirmado' as const : 'parcial' as const,
+          estadoConfirmacion: ambosConfirmados ? 'confirmado' as const : 'pendiente_confirmacion' as const,
           resultadoFinal: ambosConfirmados
         };
       }
@@ -112,22 +211,19 @@ export function SalasProvider({ children }: { children: ReactNode }) {
 
   const getSalasPendientesConfirmacion = (jugadorId: string) => {
     return salas.filter(sala => {
-      if (sala.estado !== 'finalizada' || sala.resultadoFinal) return false;
+      // Solo salas con resultado pendiente de confirmación
+      if (sala.estadoConfirmacion !== 'pendiente_confirmacion') return false;
       
-      // Verificar si el jugador está en alguno de los equipos
-      const estaEnEquipoA = 
-        sala.equipoA.jugador1.id === jugadorId || 
-        sala.equipoA.jugador2.id === jugadorId;
-      const estaEnEquipoB = 
-        sala.equipoB.jugador1.id === jugadorId || 
-        sala.equipoB.jugador2.id === jugadorId;
-
-      // Si está en equipo A y no ha confirmado
-      if (estaEnEquipoA && !sala.equipoA.confirmado) return true;
-      // Si está en equipo B y no ha confirmado
-      if (estaEnEquipoB && !sala.equipoB.confirmado) return true;
-
-      return false;
+      // Verificar si el jugador está en la sala
+      const estaEnSala = sala.jugadores?.some(j => j.id === jugadorId);
+      if (!estaEnSala) return false;
+      
+      // Verificar que no sea el creador (el creador no confirma su propio resultado)
+      if (sala.creador_id?.toString() === jugadorId) return false;
+      
+      // TODO: Verificar si ya confirmó consultando al backend
+      // Por ahora, si cumple las condiciones anteriores, se considera pendiente
+      return true;
     });
   };
 
@@ -142,7 +238,9 @@ export function SalasProvider({ children }: { children: ReactNode }) {
       finalizarPartido,
       confirmarResultado,
       disputarResultado,
-      getSalasPendientesConfirmacion
+      getSalasPendientesConfirmacion,
+      cargarSalas,
+      loading
     }}>
       {children}
     </SalasContext.Provider>

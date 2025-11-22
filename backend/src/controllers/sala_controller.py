@@ -168,6 +168,17 @@ async def obtener_sala(
                 "orden": sj.orden
             })
     
+    # Obtener resultado del partido si existe
+    from ..models.playt_models import Partido
+    resultado = None
+    estado_confirmacion = None
+    
+    if sala.id_partido:
+        partido = db.query(Partido).filter(Partido.id_partido == sala.id_partido).first()
+        if partido and partido.resultado_padel:
+            resultado = partido.resultado_padel
+            estado_confirmacion = partido.estado_confirmacion
+    
     return SalaCompleta(
         id_sala=str(sala.id_sala),
         nombre=sala.nombre,
@@ -178,7 +189,9 @@ async def obtener_sala(
         jugadores_actuales=len(jugadores),
         max_jugadores=sala.max_jugadores,
         creado_en=sala.creado_en,
-        jugadores=jugadores
+        jugadores=jugadores,
+        resultado=resultado,
+        estado_confirmacion=estado_confirmacion
     )
 
 @router.get("/", response_model=List[SalaCompleta])
@@ -186,24 +199,105 @@ async def listar_salas(
     current_user: Usuario = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
-    """Listar salas del usuario"""
+    """Listar todas las salas activas y las últimas 10 finalizadas donde el usuario participó"""
     
-    # Obtener salas donde el usuario participa
-    salas_usuario = db.query(SalaJugador).filter(
-        SalaJugador.id_usuario == current_user.id_usuario
-    ).all()
-    
-    salas_ids = [sj.id_sala for sj in salas_usuario]
-    
-    salas = db.query(Sala).filter(Sala.id_sala.in_(salas_ids)).order_by(
+    # Obtener todas las salas que no están finalizadas
+    salas_activas = db.query(Sala).filter(
+        Sala.estado.in_(['esperando', 'activa', 'programada', 'en_juego'])
+    ).order_by(
         Sala.creado_en.desc()
     ).all()
     
+    # Obtener las últimas 10 salas finalizadas donde el usuario participó
+    salas_finalizadas = db.query(Sala).join(
+        SalaJugador, Sala.id_sala == SalaJugador.id_sala
+    ).filter(
+        Sala.estado == 'finalizada',
+        SalaJugador.id_usuario == current_user.id_usuario
+    ).order_by(
+        Sala.creado_en.desc()
+    ).limit(10).all()
+    
+    # Combinar ambas listas
+    salas = list(salas_activas) + list(salas_finalizadas)
+    
+    # Optimización: Obtener todos los jugadores de todas las salas en una sola query
+    from sqlalchemy.orm import joinedload
+    
+    salas_ids = [s.id_sala for s in salas]
+    
+    # Obtener todos los jugadores con sus usuarios y perfiles en una query
+    jugadores_query = db.query(SalaJugador, Usuario, PerfilUsuario).join(
+        Usuario, SalaJugador.id_usuario == Usuario.id_usuario
+    ).outerjoin(
+        PerfilUsuario, Usuario.id_usuario == PerfilUsuario.id_usuario
+    ).filter(
+        SalaJugador.id_sala.in_(salas_ids)
+    ).order_by(SalaJugador.id_sala, SalaJugador.orden).all()
+    
+    # Agrupar jugadores por sala
+    jugadores_por_sala = {}
+    for sj, usuario, perfil in jugadores_query:
+        if sj.id_sala not in jugadores_por_sala:
+            jugadores_por_sala[sj.id_sala] = []
+        
+        jugadores_por_sala[sj.id_sala].append({
+            "id_usuario": usuario.id_usuario,
+            "nombre_usuario": usuario.nombre_usuario,
+            "nombre": perfil.nombre if perfil else "",
+            "apellido": perfil.apellido if perfil else "",
+            "rating": usuario.rating,
+            "equipo": sj.equipo,
+            "orden": sj.orden
+        })
+    
+    # Obtener resultados de partidos y cambios de Elo
+    from ..models.playt_models import Partido, PartidoJugador
+    partidos_ids = [s.id_partido for s in salas if s.id_partido]
+    partidos_dict = {}
+    cambios_elo_dict = {}
+    
+    if partidos_ids:
+        partidos = db.query(Partido).filter(Partido.id_partido.in_(partidos_ids)).all()
+        for partido in partidos:
+            partidos_dict[partido.id_partido] = partido
+        
+        # Obtener cambios de Elo de los jugadores
+        cambios_elo = db.query(PartidoJugador).filter(
+            PartidoJugador.id_partido.in_(partidos_ids)
+        ).all()
+        
+        for cambio in cambios_elo:
+            if cambio.id_partido not in cambios_elo_dict:
+                cambios_elo_dict[cambio.id_partido] = []
+            cambios_elo_dict[cambio.id_partido].append({
+                "id_usuario": cambio.id_usuario,
+                "rating_antes": cambio.rating_antes,
+                "rating_despues": cambio.rating_despues,
+                "cambio_elo": cambio.cambio_elo
+            })
+    
+    # Construir resultado
     resultado = []
     for sala in salas:
-        jugadores_count = db.query(SalaJugador).filter(
-            SalaJugador.id_sala == sala.id_sala
-        ).count()
+        jugadores = jugadores_por_sala.get(sala.id_sala, [])
+        
+        # Obtener resultado del partido si existe
+        resultado_partido = None
+        estado_confirmacion = None
+        cambios_elo = None
+        elo_aplicado = False
+        
+        if sala.id_partido and sala.id_partido in partidos_dict:
+            partido = partidos_dict[sala.id_partido]
+            if partido.resultado_padel:
+                resultado_partido = partido.resultado_padel
+                estado_confirmacion = partido.estado_confirmacion
+                elo_aplicado = partido.elo_aplicado
+                
+                # Agregar cambios de Elo si existen
+                if sala.id_partido in cambios_elo_dict:
+                    cambios_elo = cambios_elo_dict[sala.id_partido]
         
         resultado.append(SalaCompleta(
             id_sala=str(sala.id_sala),
@@ -212,10 +306,14 @@ async def listar_salas(
             estado=sala.estado,
             codigo_invitacion=sala.codigo_invitacion,
             id_creador=sala.id_creador,
-            jugadores_actuales=jugadores_count,
+            jugadores_actuales=len(jugadores),
             max_jugadores=sala.max_jugadores,
             creado_en=sala.creado_en,
-            jugadores=[]
+            jugadores=jugadores,
+            resultado=resultado_partido,
+            estado_confirmacion=estado_confirmacion,
+            cambios_elo=cambios_elo,
+            elo_aplicado=elo_aplicado
         ))
     
     return resultado
@@ -303,14 +401,39 @@ async def iniciar_partido(
             detail="Todos los jugadores deben tener un equipo asignado"
         )
     
+    # VERIFICAR ANTI-TRAMPA
+    from ..services.anti_trampa_service import AntiTrampaService
+    
+    jugadores_ids = [j.id_usuario for j in jugadores]
+    verificacion = AntiTrampaService.verificar_limite_partidos(jugadores_ids, db)
+    
+    if not verificacion["puede_jugar"]:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail={
+                "error": "limite_partidos_excedido",
+                "mensaje": verificacion["mensaje"],
+                "detalles": {
+                    "jugadores_bloqueados": verificacion["jugadores_bloqueados"],
+                    "partidos_jugados": verificacion["partidos_jugados"],
+                    "limite": verificacion["limite"],
+                    "proxima_disponibilidad": verificacion["proxima_disponibilidad"].isoformat() if verificacion["proxima_disponibilidad"] else None
+                }
+            }
+        )
+    
     try:
         # Crear el partido en la tabla de partidos
         from ..models.playt_models import Partido, PartidoJugador
         
         db_partido = Partido(
-            fecha=sala.fecha,
-            estado="activo",
-            id_creador=sala.id_creador
+            fecha=sala.fecha if sala.fecha else datetime.now(),
+            estado="pendiente",
+            id_creador=current_user.id_usuario,
+            tipo="amistoso",
+            id_sala=sala_id,
+            creado_por=current_user.id_usuario,
+            estado_confirmacion="sin_resultado"
         )
         db.add(db_partido)
         db.flush()
@@ -323,6 +446,14 @@ async def iniciar_partido(
                 equipo=jugador.equipo
             )
             db.add(db_partido_jugador)
+        
+        # Registrar en historial de enfrentamientos
+        AntiTrampaService.registrar_enfrentamiento(
+            id_partido=db_partido.id_partido,
+            jugadores_ids=jugadores_ids,
+            tipo_partido="amistoso",
+            db=db
+        )
         
         # Actualizar sala
         sala.estado = "en_juego"
@@ -340,4 +471,357 @@ async def iniciar_partido(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Error al iniciar partido: {str(e)}"
+        )
+
+
+# ============================================
+# ENDPOINTS DE RESULTADOS Y CONFIRMACIONES
+# ============================================
+
+@router.post("/{sala_id}/resultado")
+async def cargar_resultado(
+    sala_id: int,
+    resultado_data: dict,
+    current_user: Usuario = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Cargar resultado del partido (solo creador)"""
+    from ..schemas.resultado_padel import ResultadoPadelSchema
+    from ..models.playt_models import Partido
+    
+    sala = db.query(Sala).filter(Sala.id_sala == sala_id).first()
+    
+    if not sala:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Sala no encontrada"
+        )
+    
+    if sala.id_creador != current_user.id_usuario:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Solo el creador puede cargar el resultado"
+        )
+    
+    if not sala.id_partido:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="El partido no ha sido iniciado"
+        )
+    
+    # Validar resultado con Pydantic
+    try:
+        print(f"Datos recibidos: {resultado_data}")  # Debug
+        resultado = ResultadoPadelSchema(**resultado_data)
+        print(f"Resultado validado: {resultado.model_dump()}")  # Debug
+    except Exception as e:
+        print(f"Error de validación: {str(e)}")  # Debug
+        print(f"Datos que causaron el error: {resultado_data}")  # Debug
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Resultado inválido: {str(e)}"
+        )
+    
+    try:
+        # Obtener partido
+        partido = db.query(Partido).filter(Partido.id_partido == sala.id_partido).first()
+        
+        if not partido:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Partido no encontrado"
+            )
+        
+        # Guardar resultado
+        partido.resultado_padel = resultado.model_dump()
+        partido.ganador_equipo = 1 if resultado.ganador == "equipoA" else 2
+        partido.estado_confirmacion = "pendiente_confirmacion"
+        partido.estado = "pendiente"
+        
+        # Mantener sala en juego hasta que se confirme el resultado
+        # No cambiar el estado de la sala aquí
+        
+        db.commit()
+        db.refresh(partido)
+        
+        return {
+            "success": True,
+            "mensaje": "Resultado guardado. Esperando confirmación de rivales.",
+            "partido": {
+                "id_partido": partido.id_partido,
+                "resultado": partido.resultado_padel,
+                "estado_confirmacion": partido.estado_confirmacion
+            }
+        }
+        
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error al guardar resultado: {str(e)}"
+        )
+
+
+@router.get("/{sala_id}/resultado")
+async def obtener_resultado(
+    sala_id: int,
+    current_user: Usuario = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Obtener resultado del partido"""
+    from ..models.playt_models import Partido
+    from ..services.confirmacion_service import ConfirmacionService
+    
+    sala = db.query(Sala).filter(Sala.id_sala == sala_id).first()
+    
+    if not sala:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Sala no encontrada"
+        )
+    
+    if not sala.id_partido:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="El partido no ha sido iniciado"
+        )
+    
+    partido = db.query(Partido).filter(Partido.id_partido == sala.id_partido).first()
+    
+    if not partido or not partido.resultado_padel:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="No hay resultado cargado"
+        )
+    
+    # Obtener estado de confirmaciones
+    estado_confirmaciones = ConfirmacionService.obtener_estado_confirmaciones(
+        partido.id_partido,
+        current_user.id_usuario,
+        db
+    )
+    
+    return {
+        "id_partido": partido.id_partido,
+        "resultado": partido.resultado_padel,
+        "ganador_equipo": partido.ganador_equipo,
+        "estado_confirmacion": partido.estado_confirmacion,
+        "elo_aplicado": partido.elo_aplicado,
+        "estado_confirmaciones": estado_confirmaciones
+    }
+
+
+@router.post("/{sala_id}/confirmar")
+async def confirmar_resultado(
+    sala_id: int,
+    current_user: Usuario = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Confirmar resultado del partido (rivales)"""
+    from ..services.confirmacion_service import ConfirmacionService
+    
+    sala = db.query(Sala).filter(Sala.id_sala == sala_id).first()
+    
+    if not sala:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Sala no encontrada"
+        )
+    
+    if not sala.id_partido:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="El partido no ha sido iniciado"
+        )
+    
+    try:
+        resultado = ConfirmacionService.confirmar_resultado(
+            sala.id_partido,
+            current_user.id_usuario,
+            db
+        )
+        
+        # Si el Elo fue aplicado (todos confirmaron), finalizar la sala
+        if resultado.get('elo_aplicado'):
+            sala.estado = 'finalizada'
+            db.commit()
+        
+        return resultado
+        
+    except ValueError as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(e)
+        )
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error al confirmar resultado: {str(e)}"
+        )
+
+
+@router.post("/{sala_id}/reportar")
+async def reportar_resultado(
+    sala_id: int,
+    reporte_data: dict,
+    current_user: Usuario = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Reportar resultado como incorrecto"""
+    from ..services.confirmacion_service import ConfirmacionService
+    
+    sala = db.query(Sala).filter(Sala.id_sala == sala_id).first()
+    
+    if not sala:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Sala no encontrada"
+        )
+    
+    if not sala.id_partido:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="El partido no ha sido iniciado"
+        )
+    
+    motivo = reporte_data.get("motivo")
+    if not motivo or len(motivo) < 10:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="El motivo debe tener al menos 10 caracteres"
+        )
+    
+    try:
+        resultado = ConfirmacionService.reportar_resultado(
+            sala.id_partido,
+            current_user.id_usuario,
+            motivo,
+            db
+        )
+        
+        return resultado
+        
+    except ValueError as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(e)
+        )
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error al reportar resultado: {str(e)}"
+        )
+
+
+@router.get("/confirmaciones-pendientes")
+async def obtener_confirmaciones_pendientes(
+    current_user: Usuario = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Obtener salas con confirmaciones pendientes del usuario"""
+    from ..models.playt_models import Partido, PartidoJugador
+    from sqlalchemy import and_
+    
+    # Buscar partidos donde el usuario participa y están pendientes de confirmación
+    partidos_usuario = db.query(PartidoJugador).filter(
+        PartidoJugador.id_usuario == current_user.id_usuario
+    ).all()
+    
+    partidos_ids = [p.id_partido for p in partidos_usuario]
+    
+    # Filtrar solo los que están pendientes de confirmación
+    partidos_pendientes = db.query(Partido).filter(
+        and_(
+            Partido.id_partido.in_(partidos_ids),
+            Partido.estado_confirmacion == "pendiente_confirmacion",
+            Partido.creado_por != current_user.id_usuario  # No incluir los que creó el usuario
+        )
+    ).all()
+    
+    # Obtener salas asociadas
+    resultado = []
+    for partido in partidos_pendientes:
+        sala = db.query(Sala).filter(Sala.id_partido == partido.id_partido).first()
+        
+        if sala:
+            # Verificar si ya confirmó
+            from ..models.confirmacion import Confirmacion
+            ya_confirmo = db.query(Confirmacion).filter(
+                and_(
+                    Confirmacion.id_partido == partido.id_partido,
+                    Confirmacion.id_usuario == current_user.id_usuario
+                )
+            ).first() is not None
+            
+            if not ya_confirmo:  # Solo mostrar si no ha confirmado
+                resultado.append({
+                    "id_sala": sala.id_sala,
+                    "nombre": sala.nombre,
+                    "fecha": sala.fecha,
+                    "id_partido": partido.id_partido,
+                    "resultado": partido.resultado_padel,
+                    "ganador_equipo": partido.ganador_equipo
+                })
+    
+    return {
+        "pendientes": resultado,
+        "total": len(resultado)
+    }
+
+
+@router.delete("/{id_sala}")
+async def eliminar_sala(
+    id_sala: int,
+    current_user: Usuario = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """
+    Eliminar una sala
+    Solo el creador puede eliminar la sala
+    Si la sala tiene un partido asociado, también se elimina del historial anti-trampa
+    """
+    try:
+        # Buscar la sala
+        sala = db.query(Sala).filter(Sala.id_sala == id_sala).first()
+        
+        if not sala:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Sala no encontrada"
+            )
+        
+        # Verificar que el usuario sea el creador
+        if sala.id_creador != current_user.id_usuario:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Solo el creador puede eliminar la sala"
+            )
+        
+        # Eliminar registros del historial anti-trampa si existen
+        from ..models.historial_enfrentamiento import HistorialEnfrentamiento
+        db.query(HistorialEnfrentamiento).filter(
+            HistorialEnfrentamiento.id_sala == str(id_sala)
+        ).delete()
+        
+        # Eliminar jugadores de la sala
+        db.query(SalaJugador).filter(
+            SalaJugador.id_sala == id_sala
+        ).delete()
+        
+        # Eliminar la sala
+        db.delete(sala)
+        db.commit()
+        
+        return {
+            "message": "Sala eliminada exitosamente",
+            "id_sala": id_sala
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error al eliminar sala: {str(e)}"
         )

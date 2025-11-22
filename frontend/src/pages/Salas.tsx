@@ -1,8 +1,10 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import Card from '../components/Card';
 import Button from '../components/Button';
 import ModalCrearSala from '../components/ModalCrearSala';
+import ModalUnirseSala from '../components/ModalUnirseSala';
+import SalaEspera from '../components/SalaEspera';
 import MarcadorPadel from '../components/MarcadorPadel';
 import ModalConfirmarResultado from '../components/ModalConfirmarResultado';
 import SalaCard from '../components/SalaCard';
@@ -12,9 +14,31 @@ import { useAuth } from '../context/AuthContext';
 import { Sala } from '../utils/types';
 
 export default function Salas() {
-  const { salas, getSalasPendientesConfirmacion } = useSalas();
+  const { salas, getSalasPendientesConfirmacion, cargarSalas } = useSalas();
   const { usuario } = useAuth();
+  const [codigoUrl, setCodigoUrl] = useState<string | null>(null);
+
+  // Cargar salas cuando se monta la página y hay usuario
+  useEffect(() => {
+    if (usuario) {
+      cargarSalas();
+    }
+    
+    // Verificar si hay un código en la URL
+    const params = new URLSearchParams(window.location.search);
+    const codigo = params.get('codigo');
+    if (codigo) {
+      // Guardar código y abrir modal
+      setCodigoUrl(codigo);
+      setModalUnirseOpen(true);
+      // Limpiar la URL
+      window.history.replaceState({}, '', '/salas');
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [usuario]);
   const [modalCrearOpen, setModalCrearOpen] = useState(false);
+  const [modalUnirseOpen, setModalUnirseOpen] = useState(false);
+  const [modalEsperaOpen, setModalEsperaOpen] = useState(false);
   const [modalMarcadorOpen, setModalMarcadorOpen] = useState(false);
   const [modalConfirmarOpen, setModalConfirmarOpen] = useState(false);
   const [salaSeleccionada, setSalaSeleccionada] = useState<Sala | null>(null);
@@ -24,18 +48,36 @@ export default function Salas() {
 
   const salasPendientes = usuario ? getSalasPendientesConfirmacion(usuario.id_usuario?.toString() || '') : [];
 
-  const salasActivas = salas.filter(s => s.estado === 'activa');
+  const salasActivas = salas.filter(s => s.estado === 'activa' || s.estado === 'en_juego');
   const salasProgramadas = salas.filter(s => s.estado === 'programada');
   const salasFinalizadas = salas.filter(s => s.estado === 'finalizada');
 
   const salasFiltradas = filtro === 'todas'
     ? salas
-    : salas.filter(s => s.estado === filtro);
+    : filtro === 'activa' 
+      ? salas.filter(s => s.estado === 'activa' || s.estado === 'en_juego')
+      : salas.filter(s => s.estado === filtro);
 
   const salasMostradas = mostrarTodas ? salasFiltradas : salasFiltradas.slice(0, ITEMS_POR_PAGINA);
 
   const handleOpenMarcador = (sala: Sala) => {
     setSalaSeleccionada(sala);
+    
+    // Si la sala está en espera, abrir sala de espera
+    if (sala.estado === 'esperando') {
+      setModalEsperaOpen(true);
+    } else if (sala.estado === 'en_juego' || sala.estado === 'activa') {
+      // Si está en juego o activa, abrir marcador
+      setModalMarcadorOpen(true);
+    } else {
+      // Para otros estados (programada, etc), abrir sala de espera
+      setModalEsperaOpen(true);
+    }
+  };
+
+  const handleIniciarPartido = () => {
+    // Cerrar sala de espera y abrir marcador
+    setModalEsperaOpen(false);
     setModalMarcadorOpen(true);
   };
 
@@ -57,18 +99,31 @@ export default function Salas() {
           </div>
           <p className="text-textSecondary text-xs md:text-base ml-10 md:ml-15">Gestiona tus partidos de pádel</p>
         </div>
-        <motion.div
-          whileHover={{ scale: 1.05 }}
-          whileTap={{ scale: 0.95 }}
-        >
-          <Button variant="primary" onClick={() => setModalCrearOpen(true)} className="text-xs md:text-sm px-3 md:px-4 py-2 md:py-2.5">
-            <div className="flex items-center gap-1 md:gap-2">
-              <Plus size={16} className="md:w-[18px] md:h-[18px]" />
-              <span className="hidden sm:inline">Nueva Sala</span>
-              <span className="sm:hidden">Nueva</span>
-            </div>
-          </Button>
-        </motion.div>
+        <div className="flex gap-2">
+          <motion.div
+            whileHover={{ scale: 1.05 }}
+            whileTap={{ scale: 0.95 }}
+          >
+            <Button variant="secondary" onClick={() => setModalUnirseOpen(true)} className="text-xs md:text-sm px-3 md:px-4 py-2 md:py-2.5">
+              <div className="flex items-center gap-1 md:gap-2">
+                <span className="text-lg">🔗</span>
+                <span className="hidden sm:inline">Unirse</span>
+              </div>
+            </Button>
+          </motion.div>
+          <motion.div
+            whileHover={{ scale: 1.05 }}
+            whileTap={{ scale: 0.95 }}
+          >
+            <Button variant="primary" onClick={() => setModalCrearOpen(true)} className="text-xs md:text-sm px-3 md:px-4 py-2 md:py-2.5">
+              <div className="flex items-center gap-1 md:gap-2">
+                <Plus size={16} className="md:w-[18px] md:h-[18px]" />
+                <span className="hidden sm:inline">Nueva Sala</span>
+                <span className="sm:hidden">Nueva</span>
+              </div>
+            </Button>
+          </motion.div>
+        </div>
       </motion.div>
 
       {/* Alerta de confirmaciones pendientes */}
@@ -213,6 +268,23 @@ export default function Salas() {
 
       {/* Modales */}
       <ModalCrearSala isOpen={modalCrearOpen} onClose={() => setModalCrearOpen(false)} />
+      <ModalUnirseSala 
+        isOpen={modalUnirseOpen} 
+        onClose={() => {
+          setModalUnirseOpen(false);
+          setCodigoUrl(null);
+        }} 
+        codigoInicial={codigoUrl || undefined}
+      />
+      <SalaEspera
+        isOpen={modalEsperaOpen}
+        onClose={() => {
+          setModalEsperaOpen(false);
+          setSalaSeleccionada(null);
+        }}
+        sala={salaSeleccionada}
+        onIniciarPartido={handleIniciarPartido}
+      />
       <MarcadorPadel
         isOpen={modalMarcadorOpen}
         onClose={() => {

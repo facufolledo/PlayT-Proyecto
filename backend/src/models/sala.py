@@ -21,7 +21,7 @@ class Sala(Base):
     # Relaciones
     creador = relationship("Usuario", foreign_keys=[id_creador])
     jugadores = relationship("SalaJugador", back_populates="sala")
-    partido = relationship("Partido")
+    partido = relationship("Partido", foreign_keys=[id_partido])
     
     @staticmethod
     def generar_codigo():

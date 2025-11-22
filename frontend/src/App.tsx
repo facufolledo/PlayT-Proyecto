@@ -26,7 +26,6 @@ const Confirmaciones = lazy(() => import('./pages/Confirmaciones'));
 const MiPerfil = lazy(() => import('./pages/MiPerfil'));
 const MiRanking = lazy(() => import('./pages/MiRanking'));
 const CompletarPerfil = lazy(() => import('./pages/CompletarPerfil'));
-const ForgotPassword = lazy(() => import('./pages/ForgotPassword'));
 
 // Loading component
 const PageLoader = () => (

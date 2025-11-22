@@ -32,3 +32,6 @@ class SalaCompleta(SalaResponse):
     jugadores: List[dict] = []
     equipos: Optional[dict] = None
     resultado: Optional[dict] = None
+    estado_confirmacion: Optional[str] = None
+    cambios_elo: Optional[List[dict]] = None
+    elo_aplicado: Optional[bool] = False

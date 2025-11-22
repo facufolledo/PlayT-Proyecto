@@ -136,14 +136,10 @@ export function puedeIncrementarGame(gamesA: number, gamesB: number): { equipoA:
     return { equipoA: false, equipoB: false };
   }
   
-  // Si están 6-6, no se puede incrementar (debe ir a tiebreak)
-  if (requiereTiebreak(gamesA, gamesB)) {
-    return { equipoA: false, equipoB: false };
-  }
-  
-  // Verificar si incrementar resultaría en un set válido o en progreso
-  const puedeA = gamesA < 7 && (gamesA + 1 <= 7);
-  const puedeB = gamesB < 7 && (gamesB + 1 <= 7);
+  // Permitir incrementar hasta 7 para ambos equipos
+  // Esto permite poner 7-6, 7-5, 6-7, etc. sin restricciones
+  const puedeA = gamesA < 7;
+  const puedeB = gamesB < 7;
   
   return { equipoA: puedeA, equipoB: puedeB };
 }

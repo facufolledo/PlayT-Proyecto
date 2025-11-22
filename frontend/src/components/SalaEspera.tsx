@@ -1,29 +1,58 @@
 import { useState, useEffect } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
-import { 
-  Copy, Share2, MessageCircle, Users, Calendar, Clock, 
-  Crown, LogOut, Play, UserPlus, AlertCircle 
-} from 'lucide-react';
+import { motion } from 'framer-motion';
+import { X, Copy, Users, Play, Crown } from 'lucide-react';
+import Modal from './Modal';
 import Button from './Button';
+import AsignarEquipos from './AsignarEquipos';
+import ModalAntiTrampa from './ModalAntiTrampa';
 import { Sala } from '../utils/types';
 import { useAuth } from '../context/AuthContext';
+import { salaService } from '../services/sala.service';
+import { useSalas } from '../context/SalasContext';
 
 interface SalaEsperaProps {
-  sala: Sala;
-  onAsignarEquipos: () => void;
+  isOpen: boolean;
+  onClose: () => void;
+  sala: Sala | null;
   onIniciarPartido: () => void;
-  onSalir: () => void;
 }
 
-export default function SalaEspera({ sala, onAsignarEquipos, onIniciarPartido, onSalir }: SalaEsperaProps) {
+export default function SalaEspera({ isOpen, onClose, sala, onIniciarPartido }: SalaEsperaProps) {
   const { usuario } = useAuth();
+  const { cargarSalas } = useSalas();
   const [copiado, setCopiado] = useState(false);
+  const [asignando, setAsignando] = useState(false);
+  const [mostrarAsignacion, setMostrarAsignacion] = useState(false);
+  const [errorAntiTrampa, setErrorAntiTrampa] = useState<{
+    mensaje: string;
+    jugadores: string[];
+    partidos: number;
+    limite: number;
+  } | null>(null);
+
+  // Recargar salas cada vez que se abre el modal y cada 15 segundos
+  useEffect(() => {
+    if (isOpen) {
+      cargarSalas();
+      
+      // Polling cada 15 segundos para actualizar jugadores
+      const interval = setInterval(() => {
+        cargarSalas();
+      }, 15000);
+      
+      return () => clearInterval(interval);
+    }
+  }, [isOpen, cargarSalas]);
+
+  if (!sala) return null;
+
+  const esCreador = usuario?.id_usuario === sala.creador_id;
+  const jugadores = sala.jugadores || [];
+  const hayEquiposAsignados = sala.equiposAsignados;
+  const puedeIniciar = jugadores.length === 4 && hayEquiposAsignados;
   
-  const esCreador = sala.jugadores?.some(j => j.id === usuario?.id && j.esCreador);
-  const jugadoresActuales = sala.jugadores?.length || 0;
-  const salaLlena = jugadoresActuales === 4;
-  const puedeAsignarEquipos = esCreador && salaLlena && !sala.equiposAsignados;
-  const puedeIniciar = esCreador && sala.equiposAsignados;
+  // Verificar si el usuario es participante de la sala
+  const esParticipante = jugadores.some(j => j.id === usuario?.id_usuario?.toString());
 
   const copiarCodigo = () => {
     if (sala.codigoInvitacion) {
@@ -33,214 +62,220 @@ export default function SalaEspera({ sala, onAsignarEquipos, onIniciarPartido, o
     }
   };
 
-  const compartirWhatsApp = () => {
-    if (sala.codigoInvitacion) {
-      const mensaje = `¡Únete a mi partido de pádel!\n\n📍 ${sala.nombre}\n📅 ${new Date(sala.fecha).toLocaleDateString()}\n⏰ ${new Date(sala.fecha).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' })}\n\n🔑 Código: ${sala.codigoInvitacion}\n\nEntra a PlayR y usa este código para unirte.`;
-      window.open(`https://wa.me/?text=${encodeURIComponent(mensaje)}`, '_blank');
+  const handleAsignarEquipos = async (equipos: { [key: string]: number }) => {
+    if (!esCreador) return;
+
+    try {
+      setAsignando(true);
+      await salaService.asignarEquipos(parseInt(sala.id), equipos);
+      console.log('Equipos asignados, recargando salas...');
+      await cargarSalas();
+      setMostrarAsignacion(false);
+      
+      // Forzar una recarga adicional después de un momento
+      setTimeout(() => {
+        cargarSalas();
+      }, 500);
+    } catch (error: any) {
+      console.error('Error al asignar equipos:', error);
+      alert(error.message || 'Error al asignar equipos');
+    } finally {
+      setAsignando(false);
     }
   };
 
-  const compartirLink = () => {
-    if (sala.codigoInvitacion) {
-      const link = `${window.location.origin}/salas/unirse/${sala.codigoInvitacion}`;
-      navigator.clipboard.writeText(link);
-      alert('¡Link copiado!');
+  const iniciarPartido = async () => {
+    if (!esCreador || !puedeIniciar) return;
+
+    try {
+      const resultado = await salaService.iniciarPartido(parseInt(sala.id));
+      console.log('Partido iniciado:', resultado);
+      await cargarSalas();
+      onIniciarPartido();
+    } catch (error: any) {
+      console.error('Error completo al iniciar partido:', error);
+      
+      // Mostrar modal para error de anti-trampa
+      if (error.message && error.message.includes('ya jugó')) {
+        // Extraer información del mensaje
+        const partes = error.message.split('Límite:');
+        const mensaje = partes[0].trim();
+        
+        // Intentar extraer nombres de jugadores del mensaje
+        const matchJugadores = mensaje.match(/\((.*?)\)/);
+        const jugadores = matchJugadores 
+          ? matchJugadores[1].split(',').map((j: string) => j.trim())
+          : [];
+        
+        // Extraer números de partidos
+        const matchPartidos = mensaje.match(/(\d+)\s+partidos/);
+        const partidos = matchPartidos ? parseInt(matchPartidos[1]) : 2;
+        
+        setErrorAntiTrampa({
+          mensaje: mensaje,
+          jugadores: jugadores,
+          partidos: partidos,
+          limite: 2
+        });
+      } else {
+        alert(error.message || 'Error al iniciar partido');
+      }
     }
   };
-
-  // Simular actualización en tiempo real (en producción usar WebSockets)
-  useEffect(() => {
-    const interval = setInterval(() => {
-      // Aquí iría la lógica de polling o WebSocket
-    }, 3000);
-    return () => clearInterval(interval);
-  }, []);
 
   return (
-    <div className="max-w-4xl mx-auto space-y-6">
-      {/* Header con código */}
-      <motion.div
-        initial={{ opacity: 0, y: -20 }}
-        animate={{ opacity: 1, y: 0 }}
-        className="bg-gradient-to-br from-primary/20 to-secondary/20 rounded-2xl p-6 border border-primary/30"
-      >
-        <div className="flex flex-col md:flex-row items-center justify-between gap-4">
-          <div className="text-center md:text-left">
-            <h1 className="text-3xl font-black text-textPrimary mb-2">{sala.nombre}</h1>
-            <div className="flex flex-wrap items-center gap-4 text-textSecondary text-sm">
-              <span className="flex items-center gap-1">
-                <Calendar size={16} />
-                {new Date(sala.fecha).toLocaleDateString('es-ES', { 
-                  weekday: 'long', 
-                  day: 'numeric', 
-                  month: 'long' 
-                })}
-              </span>
-              <span className="flex items-center gap-1">
-                <Clock size={16} />
-                {new Date(sala.fecha).toLocaleTimeString('es-ES', { 
-                  hour: '2-digit', 
-                  minute: '2-digit' 
-                })}
-              </span>
+    <>
+    <Modal isOpen={isOpen} onClose={onClose}>
+      <div className="bg-cardBg rounded-2xl md:rounded-3xl p-4 md:p-6 w-full max-w-2xl border border-cardBorder shadow-2xl">
+        {/* Header */}
+        <div className="flex items-center justify-between mb-4 md:mb-6">
+          <div className="flex-1 min-w-0">
+            <h2 className="text-lg md:text-2xl font-bold text-textPrimary mb-1 truncate">
+              {sala.nombre}
+            </h2>
+            <p className="text-textSecondary text-xs md:text-sm">
+              Sala de Espera • {jugadores.length}/4 jugadores
+            </p>
+          </div>
+          <motion.button
+            onClick={onClose}
+            whileHover={{ scale: 1.1, rotate: 90 }}
+            whileTap={{ scale: 0.9 }}
+            className="text-textSecondary hover:text-textPrimary transition-colors bg-cardBorder rounded-full p-2 flex-shrink-0 ml-2"
+          >
+            <X size={20} className="md:w-6 md:h-6" />
+          </motion.button>
+        </div>
+
+        {/* Código de invitación - Solo visible para participantes */}
+        {esParticipante ? (
+          <div className="bg-background rounded-xl p-4 mb-4 md:mb-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-textSecondary text-xs md:text-sm mb-1">Código de Invitación</p>
+                <p className="text-primary text-2xl md:text-3xl font-black tracking-widest">
+                  {sala.codigoInvitacion || 'N/A'}
+                </p>
+              </div>
+              <Button
+                variant="ghost"
+                onClick={copiarCodigo}
+                className="flex flex-col items-center gap-1 px-3 md:px-4"
+              >
+                <Copy size={20} />
+                <span className="text-xs">{copiado ? '✓ Copiado' : 'Copiar'}</span>
+              </Button>
             </div>
           </div>
-
-          <div className="text-center">
-            <p className="text-textSecondary text-xs mb-2">Código de Invitación</p>
-            <motion.div
-              whileHover={{ scale: 1.05 }}
-              className="text-4xl font-black text-primary tracking-widest cursor-pointer"
-              onClick={copiarCodigo}
-            >
-              {sala.codigoInvitacion}
-            </motion.div>
-            {copiado && (
-              <motion.p
-                initial={{ opacity: 0, y: -5 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0 }}
-                className="text-secondary text-xs mt-1"
-              >
-                ✓ Copiado
-              </motion.p>
-            )}
-          </div>
-        </div>
-
-        {/* Botones de compartir */}
-        <div className="flex flex-wrap gap-2 mt-4">
-          <Button
-            variant="ghost"
-            onClick={copiarCodigo}
-            className="flex-1 min-w-[140px] flex items-center justify-center gap-2"
-          >
-            <Copy size={16} />
-            Copiar Código
-          </Button>
-          <Button
-            variant="ghost"
-            onClick={compartirWhatsApp}
-            className="flex-1 min-w-[140px] flex items-center justify-center gap-2 bg-[#25D366]/20 hover:bg-[#25D366]/30 text-[#25D366]"
-          >
-            <MessageCircle size={16} />
-            WhatsApp
-          </Button>
-          <Button
-            variant="ghost"
-            onClick={compartirLink}
-            className="flex-1 min-w-[140px] flex items-center justify-center gap-2"
-          >
-            <Share2 size={16} />
-            Copiar Link
-          </Button>
-        </div>
-      </motion.div>
-
-      {/* Lista de jugadores */}
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.1 }}
-        className="bg-cardBg rounded-2xl p-6 border border-cardBorder"
-      >
-        <div className="flex items-center justify-between mb-6">
-          <h2 className="text-xl font-bold text-textPrimary flex items-center gap-2">
-            <Users size={24} />
-            Jugadores
-          </h2>
-          <div className="bg-primary/20 px-4 py-2 rounded-full">
-            <span className="text-primary font-bold">{jugadoresActuales}/4</span>
-          </div>
-        </div>
-
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <AnimatePresence>
-            {sala.jugadores?.map((jugador, index) => (
-              <motion.div
-                key={jugador.id}
-                initial={{ opacity: 0, scale: 0.9 }}
-                animate={{ opacity: 1, scale: 1 }}
-                exit={{ opacity: 0, scale: 0.9 }}
-                transition={{ delay: index * 0.1 }}
-                className="bg-background rounded-xl p-4 border border-cardBorder flex items-center gap-3"
-              >
-                <div className="w-12 h-12 rounded-full bg-gradient-to-br from-primary to-secondary flex items-center justify-center text-white font-bold text-lg">
-                  {jugador.nombre.charAt(0).toUpperCase()}
-                </div>
-                <div className="flex-1">
-                  <p className="text-textPrimary font-semibold flex items-center gap-2">
-                    {jugador.nombre}
-                    {jugador.esCreador && (
-                      <Crown size={16} className="text-accent" />
-                    )}
-                  </p>
-                  <p className="text-textSecondary text-sm">
-                    Rating: {jugador.rating || 1000}
-                  </p>
-                </div>
-              </motion.div>
-            ))}
-          </AnimatePresence>
-
-          {/* Slots vacíos */}
-          {Array.from({ length: 4 - jugadoresActuales }).map((_, index) => (
-            <motion.div
-              key={`empty-${index}`}
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              transition={{ delay: (jugadoresActuales + index) * 0.1 }}
-              className="bg-background/50 rounded-xl p-4 border border-dashed border-cardBorder flex items-center gap-3"
-            >
-              <div className="w-12 h-12 rounded-full bg-cardBorder flex items-center justify-center">
-                <UserPlus size={24} className="text-textSecondary" />
-              </div>
-              <div>
-                <p className="text-textSecondary font-semibold">Esperando...</p>
-                <p className="text-textSecondary text-sm">Slot disponible</p>
-              </div>
-            </motion.div>
-          ))}
-        </div>
-
-        {!salaLlena && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            className="mt-4 bg-primary/10 border border-primary/30 rounded-xl p-4 flex items-start gap-3"
-          >
-            <AlertCircle size={20} className="text-primary flex-shrink-0 mt-0.5" />
-            <p className="text-textSecondary text-sm">
-              Esperando {4 - jugadoresActuales} jugador{4 - jugadoresActuales !== 1 ? 'es' : ''} más. 
-              Comparte el código para que se unan.
+        ) : (
+          <div className="bg-red-500/10 border border-red-500/30 rounded-xl p-4 mb-4 md:mb-6 text-center">
+            <p className="text-red-500 font-bold text-sm mb-1">🔒 Acceso Restringido</p>
+            <p className="text-textSecondary text-xs">
+              Debes ser invitado para ver esta sala
             </p>
-          </motion.div>
+          </div>
         )}
-      </motion.div>
 
-      {/* Acciones */}
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.2 }}
-        className="flex flex-col sm:flex-row gap-3"
-      >
-        <Button
-          variant="ghost"
-          onClick={onSalir}
-          className="flex items-center justify-center gap-2"
-        >
-          <LogOut size={18} />
-          Salir de la Sala
-        </Button>
+        {/* Lista de jugadores */}
+        <div className="mb-4 md:mb-6">
+          <div className="flex items-center gap-2 mb-3">
+            <Users size={18} className="text-primary" />
+            <h3 className="text-textPrimary font-bold text-sm md:text-base">
+              Jugadores ({jugadores.length}/4)
+            </h3>
+          </div>
 
+          <div className="space-y-2">
+            {jugadores.map((jugador) => {
+              const esCreador = jugador.id === sala.creador_id?.toString();
+              return (
+                <motion.div
+                  key={jugador.id}
+                  initial={{ opacity: 0, x: -20 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  className="bg-background rounded-lg p-3 flex items-center gap-3"
+                >
+                  <div className={`w-10 h-10 rounded-full ${esCreador ? 'bg-accent/20' : 'bg-gradient-to-br from-primary to-secondary'} flex items-center justify-center text-white font-bold flex-shrink-0 relative`}>
+                    <span className={esCreador ? 'text-accent' : ''}>
+                      {jugador.nombre.charAt(0).toUpperCase()}
+                    </span>
+                    {esCreador && (
+                      <Crown size={14} className="absolute -top-1 -right-1 text-accent" />
+                    )}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2">
+                      <p className="text-textPrimary font-semibold text-sm md:text-base truncate">
+                        {jugador.nombre}
+                      </p>
+                      {esCreador && (
+                        <span className="text-accent text-xs font-bold">Anfitrión</span>
+                      )}
+                    </div>
+                    <p className="text-textSecondary text-xs">
+                      Rating: {jugador.rating || 1500}
+                    </p>
+                  </div>
+                </motion.div>
+              );
+            })}
+
+            {/* Espacios vacíos */}
+            {Array.from({ length: 4 - jugadores.length }).map((_, i) => (
+              <div
+                key={`empty-${i}`}
+                className="bg-background/50 rounded-lg p-3 border-2 border-dashed border-cardBorder flex items-center gap-3"
+              >
+                <div className="w-10 h-10 rounded-full bg-cardBorder flex items-center justify-center flex-shrink-0">
+                  <Users size={18} className="text-textSecondary" />
+                </div>
+                <p className="text-textSecondary text-sm">Esperando jugador...</p>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Equipos asignados */}
+        {hayEquiposAsignados && (
+          <div className="mb-4 md:mb-6 bg-accent/10 border border-accent/30 rounded-xl p-4">
+            <p className="text-accent font-bold text-sm mb-3">✓ Equipos Asignados</p>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="bg-primary/10 rounded-lg p-3">
+                <p className="text-primary font-bold text-xs mb-2">EQUIPO A</p>
+                <p className="text-textPrimary text-xs">{sala.equipoA.jugador1.nombre}</p>
+                <p className="text-textPrimary text-xs">{sala.equipoA.jugador2.nombre}</p>
+              </div>
+              <div className="bg-secondary/10 rounded-lg p-3">
+                <p className="text-secondary font-bold text-xs mb-2">EQUIPO B</p>
+                <p className="text-textPrimary text-xs">{sala.equipoB.jugador1.nombre}</p>
+                <p className="text-textPrimary text-xs">{sala.equipoB.jugador2.nombre}</p>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Asignación de equipos */}
+        {esCreador && jugadores.length === 4 && !hayEquiposAsignados && mostrarAsignacion && (
+          <div className="mb-4 bg-background rounded-xl p-4">
+            <AsignarEquipos
+              jugadores={jugadores}
+              onAsignar={handleAsignarEquipos}
+              onCancelar={() => setMostrarAsignacion(false)}
+              loading={asignando}
+              creadorId={typeof sala.creador_id === 'number' ? sala.creador_id : parseInt(sala.creador_id?.toString() || '0')}
+            />
+          </div>
+        )}
+
+        {/* Botones de acción */}
         {esCreador && (
-          <>
-            {puedeAsignarEquipos && (
+          <div className="space-y-2">
+            {jugadores.length === 4 && !hayEquiposAsignados && !mostrarAsignacion && (
               <Button
                 variant="secondary"
-                onClick={onAsignarEquipos}
-                className="flex-1 flex items-center justify-center gap-2"
+                onClick={() => setMostrarAsignacion(true)}
+                disabled={asignando}
+                className="w-full flex items-center justify-center gap-2"
               >
                 <Users size={18} />
                 Asignar Equipos
@@ -250,34 +285,45 @@ export default function SalaEspera({ sala, onAsignarEquipos, onIniciarPartido, o
             {puedeIniciar && (
               <Button
                 variant="primary"
-                onClick={onIniciarPartido}
-                className="flex-1 flex items-center justify-center gap-2"
+                onClick={iniciarPartido}
+                className="w-full flex items-center justify-center gap-2"
               >
                 <Play size={18} />
                 Iniciar Partido
               </Button>
             )}
 
-            {!salaLlena && (
-              <div className="flex-1 bg-cardBorder/50 rounded-xl p-4 text-center">
-                <p className="text-textSecondary text-sm">
-                  Esperando jugadores para continuar...
+            {jugadores.length < 4 && (
+              <div className="bg-primary/10 border border-primary/30 rounded-xl p-3 text-center">
+                <p className="text-textSecondary text-xs">
+                  Esperando {4 - jugadores.length} jugador{4 - jugadores.length > 1 ? 'es' : ''} más...
                 </p>
               </div>
             )}
-          </>
+          </div>
         )}
-      </motion.div>
 
-      {/* Indicador de actualización en tiempo real */}
-      <motion.div
-        animate={{ opacity: [0.5, 1, 0.5] }}
-        transition={{ duration: 2, repeat: Infinity }}
-        className="text-center text-textSecondary text-xs flex items-center justify-center gap-2"
-      >
-        <div className="w-2 h-2 bg-secondary rounded-full" />
-        Actualizando en tiempo real
-      </motion.div>
-    </div>
+        {!esCreador && esParticipante && (
+          <div className="bg-background rounded-xl p-4 text-center">
+            <p className="text-textSecondary text-sm">
+              Esperando que el creador inicie el partido...
+            </p>
+          </div>
+        )}
+      </div>
+    </Modal>
+
+    {/* Modal de error anti-trampa */}
+    {errorAntiTrampa && (
+      <ModalAntiTrampa
+        isOpen={true}
+        onClose={() => setErrorAntiTrampa(null)}
+        mensaje={errorAntiTrampa.mensaje}
+        jugadoresBloqueados={errorAntiTrampa.jugadores}
+        partidosJugados={errorAntiTrampa.partidos}
+        limite={errorAntiTrampa.limite}
+      />
+    )}
+  </>
   );
 }
