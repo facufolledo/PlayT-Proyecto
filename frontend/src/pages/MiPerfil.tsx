@@ -42,6 +42,7 @@ interface Partido {
   id_partido: number;
   fecha: string;
   estado: string;
+  tipo?: string;
   jugadores: JugadorPartido[];
   resultado?: ResultadoPartido;
   historial_rating?: HistorialRating;
@@ -152,7 +153,9 @@ export default function MiPerfil() {
       const misJuegos = miEquipo === 1 ? set.juegos_eq1 : set.juegos_eq2;
       const rivalJuegos = miEquipo === 1 ? set.juegos_eq2 : set.juegos_eq1;
       
-      if (set.tiebreak_eq1 !== undefined && set.tiebreak_eq2 !== undefined) {
+      // Solo mostrar tiebreak si existe y no es null
+      if (set.tiebreak_eq1 !== undefined && set.tiebreak_eq1 !== null && 
+          set.tiebreak_eq2 !== undefined && set.tiebreak_eq2 !== null) {
         const miTiebreak = miEquipo === 1 ? set.tiebreak_eq1 : set.tiebreak_eq2;
         return `${misJuegos}-${rivalJuegos}(${miTiebreak})`;
       }
@@ -173,10 +176,21 @@ export default function MiPerfil() {
     return fechaPartido.toLocaleDateString();
   };
 
-  const partidosFiltrados = partidos;
+  // Aplicar filtro según el tipo seleccionado
+  const partidosFiltrados = partidos.filter(partido => {
+    if (filtro === 'todos') return true;
+    if (filtro === 'torneos') return partido.tipo === 'torneo';
+    if (filtro === 'amistosos') return partido.tipo === 'amistoso';
+    return true;
+  });
+  
   const partidosMostrados = mostrarTodos ? partidosFiltrados : partidosFiltrados.slice(0, 10);
 
+  // Contar totales por tipo
   const totalPartidos = partidos.filter(p => p.resultado).length;
+  const partidosTorneos = partidos.filter(p => p.tipo === 'torneo').length;
+  const partidosAmistosos = partidos.filter(p => p.tipo === 'amistoso').length;
+  
   const victorias = partidos.filter(p => p.resultado && esVictoria(p)).length;
   const derrotas = totalPartidos - victorias;
   const winrate = totalPartidos > 0 ? Math.round((victorias / totalPartidos) * 100) : 0;
@@ -310,21 +324,21 @@ export default function MiPerfil() {
                     onClick={() => setFiltro('todos')}
                     className="text-[10px] md:text-sm px-2 md:px-4 py-1 md:py-2"
                   >
-                    TODOS ({partidos.length})
+                    TODOS ({totalPartidos})
                   </Button>
                   <Button
                     variant={filtro === 'torneos' ? 'primary' : 'ghost'}
                     onClick={() => setFiltro('torneos')}
                     className="text-[10px] md:text-sm px-2 md:px-4 py-1 md:py-2"
                   >
-                    TORNEOS ({partidos.length})
+                    TORNEOS ({partidosTorneos})
                   </Button>
                   <Button
                     variant={filtro === 'amistosos' ? 'primary' : 'ghost'}
                     onClick={() => setFiltro('amistosos')}
                     className="text-[10px] md:text-sm px-2 md:px-4 py-1 md:py-2"
                   >
-                    AMISTOSOS (0)
+                    AMISTOSOS ({partidosAmistosos})
                   </Button>
                 </div>
               </div>
@@ -367,8 +381,12 @@ export default function MiPerfil() {
                         {/* Tipo y Fecha */}
                         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 mb-3">
                           <div className="flex items-center gap-2 flex-wrap">
-                            <span className="px-2 md:px-3 py-0.5 md:py-1 rounded-full text-[10px] md:text-xs font-bold bg-accent/20 text-accent">
-                              TORNEO
+                            <span className={`px-2 md:px-3 py-0.5 md:py-1 rounded-full text-[10px] md:text-xs font-bold ${
+                              partido.tipo === 'torneo' 
+                                ? 'bg-accent/20 text-accent' 
+                                : 'bg-primary/20 text-primary'
+                            }`}>
+                              {partido.tipo === 'torneo' ? 'TORNEO' : 'AMISTOSO'}
                             </span>
                             <span className="text-textSecondary text-[10px] md:text-xs">
                               {formatearFecha(partido.fecha)}
@@ -444,7 +462,8 @@ export default function MiPerfil() {
                                           ganeSet ? 'text-green-400' : 'text-red-400'
                                         }`}>
                                           {misJuegos} - {rivalJuegos}
-                                          {set.tiebreak_eq1 !== undefined && set.tiebreak_eq2 !== undefined && (
+                                          {set.tiebreak_eq1 !== undefined && set.tiebreak_eq1 !== null && 
+                                           set.tiebreak_eq2 !== undefined && set.tiebreak_eq2 !== null && (
                                             <span className="text-[10px] md:text-xs ml-1">
                                               ({miEquipoNum === 1 ? set.tiebreak_eq1 : set.tiebreak_eq2})
                                             </span>

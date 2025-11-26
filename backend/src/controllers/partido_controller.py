@@ -614,13 +614,13 @@ async def calcular_elo_partido(
             detail=f"Error al calcular Elo: {str(e)}"
         )
 
-@router.get("/usuario/{usuario_id}", response_model=List[PartidoCompleto])
+@router.get("/usuario/{usuario_id}")
 async def partidos_usuario(
     usuario_id: int,
-    limit: int = Query(20, ge=1, le=100),
+    limit: int = Query(50, ge=1, le=100),
     db: Session = Depends(get_db)
 ):
-    """Obtener partidos de un usuario específico"""
+    """Obtener partidos de un usuario específico con historial completo (solo confirmados con resultado)"""
     
     # Verificar que el usuario existe
     usuario = db.query(Usuario).filter(Usuario.id_usuario == usuario_id).first()
@@ -638,10 +638,24 @@ async def partidos_usuario(
     
     partido_ids = [pj.id_partido for pj in partidos_jugador]
     
-    # Obtener los partidos
+    # Obtener solo partidos confirmados/finalizados con resultado
+    # Incluir tanto partidos con entrada en resultados_partidos como con resultado_padel (salas)
     partidos = db.query(Partido).filter(
-        Partido.id_partido.in_(partido_ids)
+        Partido.id_partido.in_(partido_ids),
+        Partido.estado.in_(["confirmado", "finalizado"])
     ).order_by(Partido.fecha.desc()).limit(limit).all()
+    
+    # Filtrar solo los que tienen resultado (en resultados_partidos O en resultado_padel)
+    partidos_con_resultado = []
+    for partido in partidos:
+        resultado = db.query(ResultadoPartido).filter(
+            ResultadoPartido.id_partido == partido.id_partido
+        ).first()
+        # Incluir si tiene resultado en tabla O si tiene resultado_padel (partidos de sala)
+        if resultado or (partido.resultado_padel and partido.elo_aplicado):
+            partidos_con_resultado.append(partido)
+    
+    partidos = partidos_con_resultado
     
     # Construir respuesta completa
     partidos_completos = []
@@ -671,10 +685,107 @@ async def partidos_usuario(
                     "rating": usuario_jugador.rating
                 })
         
-        # Obtener resultado si existe
+        # Obtener resultado si existe (de tabla resultados_partidos)
         resultado = db.query(ResultadoPartido).filter(
             ResultadoPartido.id_partido == partido.id_partido
         ).first()
+        
+        # Formatear resultado para incluir detalle_sets correctamente
+        resultado_dict = None
+        
+        # Opción 1: Resultado de tabla resultados_partidos (partidos antiguos)
+        if resultado:
+            # Normalizar detalle_sets a formato consistente
+            detalle_sets_normalizado = []
+            if resultado.detalle_sets and isinstance(resultado.detalle_sets, list):
+                for idx, set_data in enumerate(resultado.detalle_sets, 1):
+                    # Formato 1: {'games_eq1': 6, 'games_eq2': 4}
+                    if 'games_eq1' in set_data and 'games_eq2' in set_data:
+                        detalle_sets_normalizado.append({
+                            "set": idx,
+                            "juegos_eq1": set_data['games_eq1'],
+                            "juegos_eq2": set_data['games_eq2'],
+                            "tiebreak_eq1": set_data.get('tiebreak_eq1'),
+                            "tiebreak_eq2": set_data.get('tiebreak_eq2')
+                        })
+                    # Formato 2: {'puntos_eq1': 6, 'puntos_eq2': 4, 'set_numero': 1}
+                    elif 'puntos_eq1' in set_data and 'puntos_eq2' in set_data:
+                        detalle_sets_normalizado.append({
+                            "set": set_data.get('set_numero', idx),
+                            "juegos_eq1": set_data['puntos_eq1'],
+                            "juegos_eq2": set_data['puntos_eq2'],
+                            "tiebreak_eq1": set_data.get('tiebreak_eq1'),
+                            "tiebreak_eq2": set_data.get('tiebreak_eq2')
+                        })
+                    # Formato 3: {'set1': {'puntos_eq1': 6, 'puntos_eq2': 4}}
+                    elif f'set{idx}' in set_data:
+                        set_info = set_data[f'set{idx}']
+                        detalle_sets_normalizado.append({
+                            "set": idx,
+                            "juegos_eq1": set_info.get('puntos_eq1', 0),
+                            "juegos_eq2": set_info.get('puntos_eq2', 0),
+                            "tiebreak_eq1": set_info.get('tiebreak_eq1'),
+                            "tiebreak_eq2": set_info.get('tiebreak_eq2')
+                        })
+                    # Formato 4: Ya está en formato correcto
+                    elif 'juegos_eq1' in set_data and 'juegos_eq2' in set_data:
+                        detalle_sets_normalizado.append({
+                            "set": set_data.get('set', idx),
+                            "juegos_eq1": set_data['juegos_eq1'],
+                            "juegos_eq2": set_data['juegos_eq2'],
+                            "tiebreak_eq1": set_data.get('tiebreak_eq1'),
+                            "tiebreak_eq2": set_data.get('tiebreak_eq2')
+                        })
+            
+            resultado_dict = {
+                "id_partido": resultado.id_partido,
+                "id_reportador": resultado.id_reportador,
+                "sets_eq1": resultado.sets_eq1,
+                "sets_eq2": resultado.sets_eq2,
+                "detalle_sets": detalle_sets_normalizado,
+                "confirmado": resultado.confirmado,
+                "desenlace": resultado.desenlace,
+                "creado_en": resultado.creado_en
+            }
+        
+        # Opción 2: Resultado de campo resultado_padel (partidos de sala)
+        elif partido.resultado_padel and isinstance(partido.resultado_padel, dict):
+            resultado_padel = partido.resultado_padel
+            sets_data = resultado_padel.get('sets', [])
+            
+            # Contar sets ganados por cada equipo
+            sets_eq1 = 0
+            sets_eq2 = 0
+            detalle_sets_normalizado = []
+            
+            for idx, set_info in enumerate(sets_data, 1):
+                games_eq1 = set_info.get('gamesEquipoA', 0)
+                games_eq2 = set_info.get('gamesEquipoB', 0)
+                
+                # Contar sets ganados
+                if games_eq1 > games_eq2:
+                    sets_eq1 += 1
+                elif games_eq2 > games_eq1:
+                    sets_eq2 += 1
+                
+                detalle_sets_normalizado.append({
+                    "set": idx,
+                    "juegos_eq1": games_eq1,
+                    "juegos_eq2": games_eq2,
+                    "tiebreak_eq1": set_info.get('tiebreakEquipoA'),
+                    "tiebreak_eq2": set_info.get('tiebreakEquipoB')
+                })
+            
+            resultado_dict = {
+                "id_partido": partido.id_partido,
+                "id_reportador": partido.creado_por,
+                "sets_eq1": sets_eq1,
+                "sets_eq2": sets_eq2,
+                "detalle_sets": detalle_sets_normalizado,
+                "confirmado": partido.elo_aplicado,
+                "desenlace": "normal",
+                "creado_en": partido.creado_en
+            }
         
         # Obtener historial de rating para el usuario actual
         historial_rating = db.query(HistorialRating).filter(
@@ -682,29 +793,45 @@ async def partidos_usuario(
             HistorialRating.id_usuario == usuario_id
         ).first()
         
+        historial_rating_dict = None
+        if historial_rating:
+            historial_rating_dict = {
+                "rating_antes": historial_rating.rating_antes,
+                "delta": historial_rating.delta,
+                "rating_despues": historial_rating.rating_despues
+            }
+        
         # Obtener club si existe
         club = None
         if partido.id_club:
-            club = db.query(Club).filter(Club.id_club == partido.id_club).first()
+            club_obj = db.query(Club).filter(Club.id_club == partido.id_club).first()
+            if club_obj:
+                club = {
+                    "id_club": club_obj.id_club,
+                    "nombre": club_obj.nombre,
+                    "ciudad": club_obj.ciudad,
+                    "pais": club_obj.pais
+                }
         
         # Obtener creador
         creador = db.query(Usuario).filter(Usuario.id_usuario == partido.id_creador).first()
         
-        partidos_completos.append(PartidoCompleto(
-            id_partido=partido.id_partido,
-            fecha=partido.fecha,
-            estado=partido.estado,
-            id_creador=partido.id_creador,
-            creado_en=partido.creado_en,
-            id_club=partido.id_club,
-            jugadores=jugadores_info,
-            resultado=resultado,
-            club=club,
-            creador={
+        partidos_completos.append({
+            "id_partido": partido.id_partido,
+            "fecha": partido.fecha,
+            "estado": partido.estado,
+            "tipo": partido.tipo if hasattr(partido, 'tipo') else "amistoso",
+            "id_creador": partido.id_creador,
+            "creado_en": partido.creado_en,
+            "id_club": partido.id_club,
+            "jugadores": jugadores_info,
+            "resultado": resultado_dict,
+            "club": club,
+            "creador": {
                 "id_usuario": creador.id_usuario,
                 "nombre_usuario": creador.nombre_usuario
             } if creador else {},
-            historial_rating=historial_rating
-        ))
+            "historial_rating": historial_rating_dict
+        })
     
     return partidos_completos

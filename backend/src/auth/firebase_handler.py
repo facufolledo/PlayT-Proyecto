@@ -65,11 +65,6 @@ class FirebaseHandler:
             
             print("⚠️  Firebase Admin no inicializado. Configura FIREBASE_SERVICE_ACCOUNT, FIREBASE_CREDENTIALS_PATH o FIREBASE_CREDENTIALS_JSON")
             return False
-            except Exception:
-                pass
-            
-            print("⚠️  Firebase Admin no inicializado. Configura FIREBASE_CREDENTIALS_PATH o FIREBASE_CREDENTIALS_JSON")
-            return False
             
         except Exception as e:
             print(f"⚠️  Error al inicializar Firebase Admin: {e}")

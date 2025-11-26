@@ -125,6 +125,7 @@ class ConfirmacionService:
         if total_confirmaciones >= 3:
             elo_changes = ConfirmacionService._aplicar_elo(partido, db)
             partido.estado_confirmacion = 'confirmado'
+            partido.estado = 'confirmado'  # Actualizar también el estado principal
         
         # Obtener jugadores que faltan por confirmar
         jugadores_faltantes = []
