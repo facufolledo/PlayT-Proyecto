@@ -32,7 +32,18 @@ class FirebaseHandler:
             return True
         
         try:
-            # Opción 1: Usar archivo de credenciales JSON
+            # Opción 1: Usar FIREBASE_SERVICE_ACCOUNT (Railway)
+            service_account_json = os.getenv("FIREBASE_SERVICE_ACCOUNT")
+            if service_account_json:
+                import json
+                creds_dict = json.loads(service_account_json)
+                cred = credentials.Certificate(creds_dict)
+                firebase_admin.initialize_app(cred)
+                cls._initialized = True
+                print("🔥 Firebase Admin inicializado correctamente")
+                return True
+            
+            # Opción 2: Usar archivo de credenciales JSON
             cred_path = os.getenv("FIREBASE_CREDENTIALS_PATH")
             if cred_path and os.path.exists(cred_path):
                 cred = credentials.Certificate(cred_path)
@@ -41,7 +52,7 @@ class FirebaseHandler:
                 print("✅ Firebase Admin inicializado con archivo de credenciales")
                 return True
             
-            # Opción 2: Usar variable de entorno con JSON
+            # Opción 3: Usar FIREBASE_CREDENTIALS_JSON (legacy)
             cred_json = os.getenv("FIREBASE_CREDENTIALS_JSON")
             if cred_json:
                 import json
@@ -52,12 +63,8 @@ class FirebaseHandler:
                 print("✅ Firebase Admin inicializado con JSON de variable de entorno")
                 return True
             
-            # Opción 3: Usar credenciales por defecto (si está en GCP)
-            try:
-                firebase_admin.initialize_app()
-                cls._initialized = True
-                print("✅ Firebase Admin inicializado con credenciales por defecto")
-                return True
+            print("⚠️  Firebase Admin no inicializado. Configura FIREBASE_SERVICE_ACCOUNT, FIREBASE_CREDENTIALS_PATH o FIREBASE_CREDENTIALS_JSON")
+            return False
             except Exception:
                 pass
             
