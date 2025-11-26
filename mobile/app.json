@@ -1,0 +1,45 @@
+{
+  "expo": {
+    "name": "PlayR",
+    "slug": "playr-padel",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "dark",
+    "splash": {
+      "image": "./assets/splash.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#0E0F11"
+    },
+    "assetBundlePatterns": [
+      "**/*"
+    ],
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.playr.padel"
+    },
+    "android": {
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#0E0F11"
+      },
+      "package": "com.playr.padel",
+      "permissions": [
+        "INTERNET",
+        "ACCESS_NETWORK_STATE"
+      ]
+    },
+    "web": {
+      "favicon": "./assets/favicon.png"
+    },
+    "extra": {
+      "firebaseApiKey": "AIzaSyXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX",
+      "firebaseAuthDomain": "playr-padel.firebaseapp.com",
+      "firebaseProjectId": "playr-padel",
+      "firebaseStorageBucket": "playr-padel.appspot.com",
+      "firebaseMessagingSenderId": "123456789",
+      "firebaseAppId": "1:123456789:web:xxxxx",
+      "apiUrl": "http://localhost:8000/api"
+    }
+  }
+}

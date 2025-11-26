@@ -1,0 +1,502 @@
+import { useState, useEffect } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
+import { useAuth } from '../context/AuthContext';
+import { Trophy, Award, MapPin, Calendar, ChevronDown, ChevronUp } from 'lucide-react';
+import Button from '../components/Button';
+import axios from 'axios';
+
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+
+interface DetalleSet {
+  set: number;
+  juegos_eq1: number;
+  juegos_eq2: number;
+  tiebreak_eq1?: number;
+  tiebreak_eq2?: number;
+}
+
+interface ResultadoPartido {
+  sets_eq1: number;
+  sets_eq2: number;
+  detalle_sets: DetalleSet[];
+  confirmado: boolean;
+  desenlace: string;
+}
+
+interface JugadorPartido {
+  id_usuario: number;
+  nombre_usuario: string;
+  nombre: string;
+  apellido: string;
+  equipo: number;
+  rating: number;
+}
+
+interface HistorialRating {
+  rating_antes: number;
+  delta: number;
+  rating_despues: number;
+}
+
+interface Partido {
+  id_partido: number;
+  fecha: string;
+  estado: string;
+  jugadores: JugadorPartido[];
+  resultado?: ResultadoPartido;
+  historial_rating?: HistorialRating;
+}
+
+export default function MiPerfil() {
+  const { usuario } = useAuth();
+  const [filtro, setFiltro] = useState<'todos' | 'torneos' | 'amistosos'>('todos');
+  const [mostrarTodos, setMostrarTodos] = useState(false);
+  const [partidos, setPartidos] = useState<Partido[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [detallesAbiertos, setDetallesAbiertos] = useState<Set<number>>(new Set());
+
+  useEffect(() => {
+    if (usuario?.id_usuario) {
+      cargarPartidos();
+    }
+  }, [usuario]);
+
+  const cargarPartidos = async () => {
+    try {
+      setLoading(true);
+      const token = localStorage.getItem('token');
+      
+      const response = await axios.get(
+        `${API_URL}/partidos/usuario/${usuario?.id_usuario}`,
+        {
+          headers: { Authorization: `Bearer ${token}` },
+          params: { limit: 50 }
+        }
+      );
+      
+      // Eliminar duplicados por id_partido
+      const partidosUnicos = response.data.filter((partido: Partido, index: number, self: Partido[]) =>
+        index === self.findIndex((p) => p.id_partido === partido.id_partido)
+      );
+      
+      setPartidos(partidosUnicos);
+    } catch (error: any) {
+      if (error.response?.status === 404) {
+        console.log('No hay partidos disponibles');
+      }
+      setPartidos([]);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const toggleDetalles = (partidoId: number) => {
+    setDetallesAbiertos(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(partidoId)) {
+        newSet.delete(partidoId);
+      } else {
+        newSet.add(partidoId);
+      }
+      return newSet;
+    });
+  };
+
+  const obtenerEquipoUsuario = (partido: Partido): JugadorPartido[] => {
+    const miEquipo = partido.jugadores.find(j => j.id_usuario === usuario?.id_usuario)?.equipo;
+    return partido.jugadores.filter(j => j.equipo === miEquipo);
+  };
+
+  const obtenerEquipoRival = (partido: Partido): JugadorPartido[] => {
+    const miEquipo = partido.jugadores.find(j => j.id_usuario === usuario?.id_usuario)?.equipo;
+    return partido.jugadores.filter(j => j.equipo !== miEquipo);
+  };
+
+  const esVictoria = (partido: Partido): boolean => {
+    if (!partido.resultado) {
+      // Si no hay resultado, usar historial_rating para determinar victoria
+      if (partido.historial_rating) {
+        return partido.historial_rating.delta > 0;
+      }
+      return false;
+    }
+    const miEquipo = partido.jugadores.find(j => j.id_usuario === usuario?.id_usuario)?.equipo;
+    if (miEquipo === 1) {
+      return partido.resultado.sets_eq1 > partido.resultado.sets_eq2;
+    } else {
+      return partido.resultado.sets_eq2 > partido.resultado.sets_eq1;
+    }
+  };
+
+  const formatearSets = (partido: Partido): string => {
+    if (!partido.resultado) {
+      // Si no hay resultado pero hay historial_rating, mostrar W/L
+      if (partido.historial_rating) {
+        return partido.historial_rating.delta > 0 ? 'W' : 'L';
+      }
+      return '-';
+    }
+    const miEquipo = partido.jugadores.find(j => j.id_usuario === usuario?.id_usuario)?.equipo;
+    if (miEquipo === 1) {
+      return `${partido.resultado.sets_eq1}-${partido.resultado.sets_eq2}`;
+    } else {
+      return `${partido.resultado.sets_eq2}-${partido.resultado.sets_eq1}`;
+    }
+  };
+
+  const formatearDetalleSets = (partido: Partido): string => {
+    if (!partido.resultado?.detalle_sets) return '';
+    const miEquipo = partido.jugadores.find(j => j.id_usuario === usuario?.id_usuario)?.equipo;
+    
+    return partido.resultado.detalle_sets.map(set => {
+      const misJuegos = miEquipo === 1 ? set.juegos_eq1 : set.juegos_eq2;
+      const rivalJuegos = miEquipo === 1 ? set.juegos_eq2 : set.juegos_eq1;
+      
+      if (set.tiebreak_eq1 !== undefined && set.tiebreak_eq2 !== undefined) {
+        const miTiebreak = miEquipo === 1 ? set.tiebreak_eq1 : set.tiebreak_eq2;
+        return `${misJuegos}-${rivalJuegos}(${miTiebreak})`;
+      }
+      return `${misJuegos}-${rivalJuegos}`;
+    }).join(' / ');
+  };
+
+  const formatearFecha = (fecha: string): string => {
+    const fechaPartido = new Date(fecha);
+    const ahora = new Date();
+    const diffMs = ahora.getTime() - fechaPartido.getTime();
+    const diffHoras = Math.floor(diffMs / (1000 * 60 * 60));
+    const diffDias = Math.floor(diffHoras / 24);
+
+    if (diffHoras < 1) return 'hace menos de 1 hora';
+    if (diffHoras < 24) return `hace ${diffHoras} hora${diffHoras > 1 ? 's' : ''}`;
+    if (diffDias < 7) return `hace ${diffDias} día${diffDias > 1 ? 's' : ''}`;
+    return fechaPartido.toLocaleDateString();
+  };
+
+  const partidosFiltrados = partidos;
+  const partidosMostrados = mostrarTodos ? partidosFiltrados : partidosFiltrados.slice(0, 10);
+
+  const totalPartidos = partidos.filter(p => p.resultado).length;
+  const victorias = partidos.filter(p => p.resultado && esVictoria(p)).length;
+  const derrotas = totalPartidos - victorias;
+  const winrate = totalPartidos > 0 ? Math.round((victorias / totalPartidos) * 100) : 0;
+
+  return (
+    <div className="min-h-screen p-4 md:p-6">
+      <div className="max-w-7xl mx-auto">
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 md:gap-6">
+          
+          {/* Panel Izquierdo - Perfil */}
+          <div className="lg:col-span-4 space-y-4">
+            
+            {/* Card de Perfil */}
+            <motion.div
+              initial={{ opacity: 0, x: -20 }}
+              animate={{ opacity: 1, x: 0 }}
+              className="bg-cardBg rounded-xl p-4 md:p-6 border border-cardBorder"
+            >
+              <h2 className="text-lg md:text-xl font-bold text-textPrimary mb-4 md:mb-6 flex items-center gap-2">
+                <div className="h-0.5 md:h-1 w-6 md:w-8 bg-gradient-to-r from-primary to-secondary rounded-full" />
+                Mi Perfil
+              </h2>
+
+              {/* Avatar y Nombre */}
+              <div className="flex flex-col items-center mb-4">
+                <div className="w-24 h-24 md:w-32 md:h-32 rounded-full bg-gradient-to-br from-primary to-secondary flex items-center justify-center text-white text-3xl md:text-4xl font-black mb-3">
+                  {usuario?.nombre?.charAt(0)}{usuario?.apellido?.charAt(0)}
+                </div>
+                <h3 className="text-xl md:text-2xl font-black text-textPrimary text-center">
+                  {usuario?.nombre} {usuario?.apellido}
+                </h3>
+                <p className="text-textSecondary text-xs md:text-sm">@{usuario?.nombre_usuario}</p>
+                <p className="text-textSecondary text-[10px] md:text-xs mt-1">{usuario?.email}</p>
+              </div>
+
+              {/* Rating */}
+              <div className="text-center mb-4 p-3 md:p-4 bg-primary/10 rounded-lg">
+                <p className="text-textSecondary text-xs md:text-sm mb-1">Rating</p>
+                <p className="text-3xl md:text-4xl font-black text-primary">{usuario?.rating || 1200}</p>
+              </div>
+
+              {/* Info Adicional */}
+              <div className="space-y-2 text-xs md:text-sm">
+                <div className="flex items-center gap-2 text-textSecondary">
+                  <Award size={14} className="text-primary" />
+                  <span>DRIVE - ZURDO</span>
+                </div>
+                <div className="flex items-center gap-2 text-textSecondary">
+                  <MapPin size={14} className="text-primary" />
+                  <span>{usuario?.ciudad || 'Ciudad'}, {usuario?.pais || 'País'}</span>
+                </div>
+                <div className="flex items-center gap-2 text-textSecondary">
+                  <Calendar size={14} className="text-primary" />
+                  <span>Miembro desde 2025</span>
+                </div>
+              </div>
+            </motion.div>
+
+            {/* Card de Categoría */}
+            <motion.div
+              initial={{ opacity: 0, x: -20 }}
+              animate={{ opacity: 1, x: 0 }}
+              transition={{ delay: 0.2 }}
+              className="bg-gradient-to-br from-primary/20 to-secondary/20 rounded-xl p-4 md:p-6 border border-primary/30"
+            >
+              <h3 className="text-base md:text-lg font-bold text-textPrimary mb-3 md:mb-4">Tu Categoría</h3>
+              
+              <div className="bg-primary/20 rounded-lg p-3 md:p-4 mb-3 md:mb-4">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-xl md:text-2xl font-black text-primary">7ma</span>
+                  <Trophy size={20} className="text-primary md:w-6 md:h-6" />
+                </div>
+                <p className="text-textSecondary text-xs md:text-sm">Intermedio Avanzado</p>
+                <p className="text-textSecondary text-[10px] md:text-xs mt-1">Rating: 900-1100</p>
+              </div>
+
+              {/* Barra de Progreso */}
+              <div className="space-y-2">
+                <div className="flex justify-between text-[10px] md:text-xs text-textSecondary">
+                  <span>Progreso a 6ta</span>
+                  <span>78%</span>
+                </div>
+                <div className="h-2 bg-background rounded-full overflow-hidden">
+                  <motion.div
+                    initial={{ width: 0 }}
+                    animate={{ width: '78%' }}
+                    transition={{ duration: 1, delay: 0.5 }}
+                    className="h-full bg-gradient-to-r from-secondary to-accent"
+                  />
+                </div>
+                <p className="text-[10px] md:text-xs text-textSecondary">22 puntos para subir</p>
+              </div>
+            </motion.div>
+          </div>
+
+          {/* Panel Derecho - Historial */}
+          <div className="lg:col-span-8">
+            <motion.div
+              initial={{ opacity: 0, x: 20 }}
+              animate={{ opacity: 1, x: 0 }}
+              className="bg-cardBg rounded-xl p-4 md:p-6 border border-cardBorder"
+            >
+              {/* Header */}
+              <div className="mb-4 md:mb-6">
+                <h2 className="text-xl md:text-2xl font-black text-textPrimary mb-3 md:mb-4">Historial de Partidos</h2>
+                
+                {/* Estadísticas */}
+                <div className="grid grid-cols-4 gap-2 md:gap-4 mb-4 md:mb-6">
+                  <div>
+                    <p className="text-textSecondary text-[10px] md:text-sm">Total</p>
+                    <p className="text-xl md:text-2xl font-black text-textPrimary">{totalPartidos}</p>
+                  </div>
+                  <div>
+                    <p className="text-textSecondary text-[10px] md:text-sm">Ganados</p>
+                    <p className="text-xl md:text-2xl font-black text-secondary">{victorias}</p>
+                  </div>
+                  <div>
+                    <p className="text-textSecondary text-[10px] md:text-sm">Perdidos</p>
+                    <p className="text-xl md:text-2xl font-black text-red-500">{derrotas}</p>
+                  </div>
+                  <div>
+                    <p className="text-textSecondary text-[10px] md:text-sm">Winrate</p>
+                    <p className="text-xl md:text-2xl font-black text-accent">{winrate}%</p>
+                  </div>
+                </div>
+
+                {/* Filtros */}
+                <div className="flex gap-1 md:gap-2 flex-wrap">
+                  <Button
+                    variant={filtro === 'todos' ? 'primary' : 'ghost'}
+                    onClick={() => setFiltro('todos')}
+                    className="text-[10px] md:text-sm px-2 md:px-4 py-1 md:py-2"
+                  >
+                    TODOS ({partidos.length})
+                  </Button>
+                  <Button
+                    variant={filtro === 'torneos' ? 'primary' : 'ghost'}
+                    onClick={() => setFiltro('torneos')}
+                    className="text-[10px] md:text-sm px-2 md:px-4 py-1 md:py-2"
+                  >
+                    TORNEOS ({partidos.length})
+                  </Button>
+                  <Button
+                    variant={filtro === 'amistosos' ? 'primary' : 'ghost'}
+                    onClick={() => setFiltro('amistosos')}
+                    className="text-[10px] md:text-sm px-2 md:px-4 py-1 md:py-2"
+                  >
+                    AMISTOSOS (0)
+                  </Button>
+                </div>
+              </div>
+
+              {/* Lista de Partidos */}
+              <div className="space-y-3">
+                {loading ? (
+                  <div className="text-center py-12 text-textSecondary">
+                    <div className="animate-pulse">Cargando partidos...</div>
+                  </div>
+                ) : partidosMostrados.length === 0 ? (
+                  <div className="text-center py-12">
+                    <div className="bg-cardBorder/30 rounded-lg p-8">
+                      <Trophy size={48} className="mx-auto mb-4 text-textSecondary opacity-50" />
+                      <p className="text-textPrimary font-bold mb-2">Sin partidos registrados</p>
+                      <p className="text-textSecondary text-sm">
+                        Tus partidos aparecerán aquí una vez que juegues
+                      </p>
+                    </div>
+                  </div>
+                ) : (
+                  partidosMostrados.map((partido, index) => {
+                    const victoria = esVictoria(partido);
+                    const miEquipo = obtenerEquipoUsuario(partido);
+                    const rivalEquipo = obtenerEquipoRival(partido);
+                    const detallesVisible = detallesAbiertos.has(partido.id_partido);
+
+                    return (
+                      <motion.div
+                        key={partido.id_partido}
+                        initial={{ opacity: 0, y: 20 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ delay: index * 0.05 }}
+                        className={`relative rounded-lg p-3 md:p-4 border-l-4 ${
+                          victoria
+                            ? 'bg-green-500/20 border-green-500 shadow-green-500/20 shadow-lg'
+                            : 'bg-red-500/20 border-red-500 shadow-red-500/20 shadow-lg'
+                        }`}
+                      >
+                        {/* Tipo y Fecha */}
+                        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 mb-3">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span className="px-2 md:px-3 py-0.5 md:py-1 rounded-full text-[10px] md:text-xs font-bold bg-accent/20 text-accent">
+                              TORNEO
+                            </span>
+                            <span className="text-textSecondary text-[10px] md:text-xs">
+                              {formatearFecha(partido.fecha)}
+                            </span>
+                          </div>
+                          {partido.historial_rating && (
+                            <span className={`text-base md:text-lg font-black ${
+                              partido.historial_rating.delta > 0 ? 'text-green-400' : 'text-red-400'
+                            }`}>
+                              {partido.historial_rating.delta > 0 ? '+' : ''}{partido.historial_rating.delta}
+                            </span>
+                          )}
+                        </div>
+
+                        {/* Equipos y Resultado */}
+                        <div className="grid grid-cols-12 gap-2 md:gap-4 items-center mb-2">
+                          {/* Mi Equipo */}
+                          <div className="col-span-5">
+                            {miEquipo.map((jugador, i) => (
+                              <p key={i} className="text-textPrimary font-semibold text-[11px] md:text-sm truncate">
+                                {jugador.nombre} {jugador.apellido}
+                              </p>
+                            ))}
+                          </div>
+
+                          {/* Resultado */}
+                          <div className="col-span-2 text-center">
+                            <p className={`text-2xl md:text-3xl font-black ${
+                              victoria ? 'text-green-400' : 'text-red-400'
+                            }`}>
+                              {formatearSets(partido)}
+                            </p>
+                            <p className="text-textSecondary text-[9px] md:text-xs hidden sm:block">
+                              {formatearDetalleSets(partido)}
+                            </p>
+                          </div>
+
+                          {/* Equipo Rival */}
+                          <div className="col-span-5 text-right">
+                            {rivalEquipo.map((jugador, i) => (
+                              <p key={i} className="text-textPrimary font-semibold text-[11px] md:text-sm truncate">
+                                {jugador.nombre} {jugador.apellido}
+                              </p>
+                            ))}
+                          </div>
+                        </div>
+
+                        {/* Detalles Expandibles */}
+                        <AnimatePresence>
+                          {detallesVisible && partido.resultado?.detalle_sets && (
+                            <motion.div
+                              initial={{ height: 0, opacity: 0 }}
+                              animate={{ height: 'auto', opacity: 1 }}
+                              exit={{ height: 0, opacity: 0 }}
+                              transition={{ duration: 0.2 }}
+                              className="overflow-hidden"
+                            >
+                              <div className="mt-3 md:mt-4 pt-3 md:pt-4 border-t border-cardBorder">
+                                <h4 className="text-[10px] md:text-xs font-bold text-textSecondary mb-2">Detalle por Set</h4>
+                                <div className="space-y-1 md:space-y-2">
+                                  {partido.resultado.detalle_sets.map((set, idx) => {
+                                    const miEquipoNum = partido.jugadores.find(j => j.id_usuario === usuario?.id_usuario)?.equipo;
+                                    const misJuegos = miEquipoNum === 1 ? set.juegos_eq1 : set.juegos_eq2;
+                                    const rivalJuegos = miEquipoNum === 1 ? set.juegos_eq2 : set.juegos_eq1;
+                                    const ganeSet = misJuegos > rivalJuegos;
+
+                                    return (
+                                      <div key={idx} className={`flex items-center justify-between p-1.5 md:p-2 rounded ${
+                                        ganeSet ? 'bg-green-500/10' : 'bg-red-500/10'
+                                      }`}>
+                                        <span className="text-textSecondary text-[10px] md:text-xs">Set {set.set}</span>
+                                        <span className={`font-bold text-xs md:text-sm ${
+                                          ganeSet ? 'text-green-400' : 'text-red-400'
+                                        }`}>
+                                          {misJuegos} - {rivalJuegos}
+                                          {set.tiebreak_eq1 !== undefined && set.tiebreak_eq2 !== undefined && (
+                                            <span className="text-[10px] md:text-xs ml-1">
+                                              ({miEquipoNum === 1 ? set.tiebreak_eq1 : set.tiebreak_eq2})
+                                            </span>
+                                          )}
+                                        </span>
+                                      </div>
+                                    );
+                                  })}
+                                </div>
+                                {partido.historial_rating && (
+                                  <div className="mt-2 md:mt-3 text-[10px] md:text-xs text-textSecondary space-y-0.5">
+                                    <p>Rating antes: {partido.historial_rating.rating_antes}</p>
+                                    <p>Rating después: {partido.historial_rating.rating_despues}</p>
+                                  </div>
+                                )}
+                              </div>
+                            </motion.div>
+                          )}
+                        </AnimatePresence>
+
+                        {/* Botón Ver Detalles */}
+                        {partido.resultado && (
+                          <button 
+                            onClick={() => toggleDetalles(partido.id_partido)}
+                            className="absolute bottom-1 md:bottom-2 right-1 md:right-2 text-textSecondary hover:text-primary text-[10px] md:text-xs flex items-center gap-1 transition-colors"
+                          >
+                            {detallesVisible ? 'ocultar' : 'detalles'}
+                            {detallesVisible ? <ChevronUp size={10} className="md:w-3 md:h-3" /> : <ChevronDown size={10} className="md:w-3 md:h-3" />}
+                          </button>
+                        )}
+                      </motion.div>
+                    );
+                  })
+                )}
+              </div>
+
+              {/* Botón Cargar Más */}
+              {!mostrarTodos && partidosFiltrados.length > 10 && (
+                <div className="mt-6 text-center">
+                  <Button
+                    variant="ghost"
+                    onClick={() => setMostrarTodos(true)}
+                    className="w-full"
+                  >
+                    cargar más
+                  </Button>
+                </div>
+              )}
+            </motion.div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}

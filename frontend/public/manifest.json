@@ -1,0 +1,52 @@
+{
+  "name": "PlayR",
+  "short_name": "PlayR",
+  "description": "Gestión de Torneos de Pádel",
+  "start_url": "/PlayR/",
+  "display": "standalone",
+  "background_color": "#0a0e1a",
+  "theme_color": "#3b82f6",
+  "orientation": "portrait-primary",
+  "scope": "/PlayR/",
+  "icons": [
+    {
+      "src": "/PlayR/logo-playr.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/PlayR/logo-playr.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    }
+  ],
+  "categories": ["sports", "games", "social"],
+  "shortcuts": [
+    {
+      "name": "Crear Sala",
+      "short_name": "Nueva Sala",
+      "description": "Crear una nueva sala de juego",
+      "url": "/PlayR/salas?action=create",
+      "icons": [{ "src": "/PlayR/logo-playr.png", "sizes": "96x96" }]
+    },
+    {
+      "name": "Ver Rankings",
+      "short_name": "Rankings",
+      "description": "Ver rankings por categoría",
+      "url": "/PlayR/rankings",
+      "icons": [{ "src": "/PlayR/logo-playr.png", "sizes": "96x96" }]
+    }
+  ],
+  "share_target": {
+    "action": "/PlayR/salas",
+    "method": "GET",
+    "enctype": "application/x-www-form-urlencoded",
+    "params": {
+      "title": "title",
+      "text": "text",
+      "url": "url"
+    }
+  }
+}
