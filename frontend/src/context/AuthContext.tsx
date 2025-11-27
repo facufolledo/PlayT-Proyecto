@@ -17,6 +17,7 @@ interface AuthContextType {
   logout: () => Promise<void>;
   updateProfile: (data: Partial<UsuarioResponse>) => void;
   completeProfile: (datos: any) => Promise<void>;
+  reloadUser: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -283,6 +284,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   };
 
+  const reloadUser = async () => {
+    try {
+      if (firebaseUser) {
+        const firebaseToken = await firebaseUser.getIdToken();
+        const usuarioBackend = await apiService.firebaseAuth(firebaseToken);
+        setUsuario(usuarioBackend);
+        console.log('✅ Usuario recargado:', usuarioBackend.rating);
+      }
+    } catch (error) {
+      console.error('Error al recargar usuario:', error);
+    }
+  };
+
   const completeProfile = async (datos: any) => {
     try {
       const usuarioCreado = await authService.completarPerfil(datos);
@@ -313,6 +327,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         logout,
         updateProfile,
         completeProfile,
+        reloadUser,
       }}
     >
       {children}

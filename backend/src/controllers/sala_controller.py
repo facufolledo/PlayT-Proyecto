@@ -169,15 +169,36 @@ async def obtener_sala(
             })
     
     # Obtener resultado del partido si existe
-    from ..models.playt_models import Partido
+    from ..models.playt_models import Partido, ResultadoPartido
     resultado = None
     estado_confirmacion = None
     
     if sala.id_partido:
         partido = db.query(Partido).filter(Partido.id_partido == sala.id_partido).first()
-        if partido and partido.resultado_padel:
-            resultado = partido.resultado_padel
+        if partido:
             estado_confirmacion = partido.estado_confirmacion
+            
+            # Buscar resultado en resultados_partidos (UNIFICADO)
+            resultado_db = db.query(ResultadoPartido).filter(
+                ResultadoPartido.id_partido == partido.id_partido
+            ).first()
+            
+            if resultado_db:
+                # Convertir a formato que espera el frontend
+                resultado = {
+                    "formato": "best_of_3",
+                    "sets": [
+                        {
+                            "gamesEquipoA": set_data.get("juegos_eq1", 0),
+                            "gamesEquipoB": set_data.get("juegos_eq2", 0),
+                            "ganador": "equipoA" if set_data.get("juegos_eq1", 0) > set_data.get("juegos_eq2", 0) else "equipoB",
+                            "completado": True
+                        }
+                        for set_data in resultado_db.detalle_sets
+                    ],
+                    "ganador": "equipoA" if partido.ganador_equipo == 1 else "equipoB",
+                    "completado": True
+                }
     
     return SalaCompleta(
         id_sala=str(sala.id_sala),
@@ -262,7 +283,7 @@ async def listar_salas(
         })
     
     # Obtener resultados de partidos y cambios de Elo
-    from ..models.playt_models import Partido, PartidoJugador
+    from ..models.playt_models import Partido, PartidoJugador, ResultadoPartido
     partidos_ids = [s.id_partido for s in salas if s.id_partido]
     partidos_dict = {}
     cambios_elo_dict = {}
@@ -298,7 +319,7 @@ async def listar_salas(
                 if int(jugador["id"]) == sala.id_creador:
                     jugador["esCreador"] = True
             
-            # Obtener resultado del partido si existe
+            # Obtener resultado del partido si existe (UNIFICADO)
             resultado_partido = None
             estado_confirmacion = None
             cambios_elo = None
@@ -306,10 +327,30 @@ async def listar_salas(
             
             if sala.id_partido and sala.id_partido in partidos_dict:
                 partido = partidos_dict[sala.id_partido]
-                if partido.resultado_padel:
-                    resultado_partido = partido.resultado_padel
-                    estado_confirmacion = partido.estado_confirmacion
-                    elo_aplicado = partido.elo_aplicado if hasattr(partido, 'elo_aplicado') else False
+                estado_confirmacion = partido.estado_confirmacion
+                elo_aplicado = partido.elo_aplicado if hasattr(partido, 'elo_aplicado') else False
+                
+                # Buscar resultado en resultados_partidos (UNIFICADO)
+                resultado_db = db.query(ResultadoPartido).filter(
+                    ResultadoPartido.id_partido == partido.id_partido
+                ).first()
+                
+                if resultado_db:
+                    # Convertir a formato que espera el frontend
+                    resultado_partido = {
+                        "formato": "best_of_3",
+                        "sets": [
+                            {
+                                "gamesEquipoA": set_data.get("juegos_eq1", 0),
+                                "gamesEquipoB": set_data.get("juegos_eq2", 0),
+                                "ganador": "equipoA" if set_data.get("juegos_eq1", 0) > set_data.get("juegos_eq2", 0) else "equipoB",
+                                "completado": True
+                            }
+                            for set_data in resultado_db.detalle_sets
+                        ],
+                        "ganador": "equipoA" if partido.ganador_equipo == 1 else "equipoB",
+                        "completado": True
+                    }
                     
                     # Agregar cambios de Elo si existen
                     if sala.id_partido in cambios_elo_dict:
@@ -507,9 +548,9 @@ async def cargar_resultado(
     current_user: Usuario = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
-    """Cargar resultado del partido (solo creador)"""
+    """Cargar resultado del partido (solo creador) - UNIFICADO"""
     from ..schemas.resultado_padel import ResultadoPadelSchema
-    from ..models.playt_models import Partido
+    from ..models.playt_models import Partido, ResultadoPartido
     
     sala = db.query(Sala).filter(Sala.id_sala == sala_id).first()
     
@@ -533,18 +574,51 @@ async def cargar_resultado(
     
     # Validar resultado con Pydantic
     try:
-        print(f"Datos recibidos: {resultado_data}")  # Debug
         resultado = ResultadoPadelSchema(**resultado_data)
-        print(f"Resultado validado: {resultado.model_dump()}")  # Debug
     except Exception as e:
-        print(f"Error de validación: {str(e)}")  # Debug
-        print(f"Datos que causaron el error: {resultado_data}")  # Debug
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=f"Resultado inválido: {str(e)}"
         )
     
     try:
+        # VALIDACIONES ROBUSTAS
+        from ..utils.padel_validator import PadelValidator
+        
+        # Convertir formato del marcador a formato para validación
+        sets_para_validar = []
+        for set_info in resultado.sets:
+            sets_para_validar.append({
+                'juegos_eq1': set_info.gamesEquipoA,
+                'juegos_eq2': set_info.gamesEquipoB
+            })
+        
+        # Preparar supertiebreak si existe
+        supertiebreak_para_validar = None
+        if resultado.supertiebreak and resultado.supertiebreak.completado:
+            supertiebreak_para_validar = {
+                'puntos_eq1': resultado.supertiebreak.puntosEquipoA,
+                'puntos_eq2': resultado.supertiebreak.puntosEquipoB
+            }
+        
+        # Validar resultado completo
+        es_valido, errores = PadelValidator.validar_resultado_completo(
+            sets_para_validar, 
+            supertiebreak_para_validar
+        )
+        
+        if not es_valido:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Resultado inválido: {'; '.join(errores)}"
+            )
+        
+        # Validar que sea razonable (detectar posibles trampas)
+        es_razonable, advertencias = PadelValidator.validar_resultado_razonable(sets_para_validar)
+        if not es_razonable:
+            # Log advertencias pero no bloquear
+            print(f"⚠️ Advertencias en resultado: {'; '.join(advertencias)}")
+        
         # Obtener partido
         partido = db.query(Partido).filter(Partido.id_partido == sala.id_partido).first()
         
@@ -554,24 +628,84 @@ async def cargar_resultado(
                 detail="Partido no encontrado"
             )
         
-        # Guardar resultado
-        partido.resultado_padel = resultado.model_dump()
+        # Verificar si ya existe resultado
+        resultado_existente = db.query(ResultadoPartido).filter(
+            ResultadoPartido.id_partido == partido.id_partido
+        ).first()
+        
+        # Si ya existe y está confirmado, no permitir edición
+        if resultado_existente and resultado_existente.confirmado:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="El resultado ya fue confirmado y no se puede editar"
+            )
+        
+        # Si existe pero no está confirmado, permitir actualización (eliminar el anterior)
+        if resultado_existente and not resultado_existente.confirmado:
+            db.delete(resultado_existente)
+            db.flush()
+        
+        # Convertir formato del marcador a formato unificado
+        sets_data = resultado.sets
+        sets_eq1 = 0
+        sets_eq2 = 0
+        detalle_sets = []
+        
+        for idx, set_info in enumerate(sets_data, 1):
+            games_eq1 = set_info.gamesEquipoA
+            games_eq2 = set_info.gamesEquipoB
+            
+            # Contar sets ganados
+            if games_eq1 > games_eq2:
+                sets_eq1 += 1
+            elif games_eq2 > games_eq1:
+                sets_eq2 += 1
+            
+            # Formato unificado
+            detalle_set = {
+                "set": idx,
+                "juegos_eq1": games_eq1,
+                "juegos_eq2": games_eq2
+            }
+            
+            # Agregar tiebreak si existe
+            if hasattr(set_info, 'tiebreakEquipoA') and set_info.tiebreakEquipoA is not None:
+                detalle_set["tiebreak_eq1"] = set_info.tiebreakEquipoA
+                detalle_set["tiebreak_eq2"] = set_info.tiebreakEquipoB
+            
+            detalle_sets.append(detalle_set)
+        
+        # Crear entrada en resultados_partidos
+        nuevo_resultado = ResultadoPartido(
+            id_partido=partido.id_partido,
+            id_reportador=current_user.id_usuario,
+            sets_eq1=sets_eq1,
+            sets_eq2=sets_eq2,
+            detalle_sets=detalle_sets,
+            confirmado=False,
+            desenlace="normal"
+        )
+        
+        db.add(nuevo_resultado)
+        
+        # Actualizar partido
         partido.ganador_equipo = 1 if resultado.ganador == "equipoA" else 2
         partido.estado_confirmacion = "pendiente_confirmacion"
         partido.estado = "pendiente"
         
-        # Mantener sala en juego hasta que se confirme el resultado
-        # No cambiar el estado de la sala aquí
-        
         db.commit()
-        db.refresh(partido)
+        db.refresh(nuevo_resultado)
         
         return {
             "success": True,
             "mensaje": "Resultado guardado. Esperando confirmación de rivales.",
             "partido": {
                 "id_partido": partido.id_partido,
-                "resultado": partido.resultado_padel,
+                "resultado": {
+                    "sets_eq1": sets_eq1,
+                    "sets_eq2": sets_eq2,
+                    "detalle_sets": detalle_sets
+                },
                 "estado_confirmacion": partido.estado_confirmacion
             }
         }

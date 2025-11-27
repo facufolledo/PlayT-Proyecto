@@ -1,10 +1,11 @@
 import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { X, Plus, Minus, Trophy, AlertCircle, CheckCircle, Flag, Crown } from 'lucide-react';
+import { X, Plus, Minus, Trophy, CheckCircle, Flag, Crown } from 'lucide-react';
 import Modal from './Modal';
 import Button from './Button';
 import ModalExito from './ModalExito';
 import ModalConfirmacionExitosa from './ModalConfirmacionExitosa';
+import ErrorMessage from './ErrorMessage';
 import { Sala } from '../utils/types';
 import { useSalas } from '../context/SalasContext';
 import { useAuth } from '../context/AuthContext';
@@ -38,7 +39,7 @@ interface MarcadorPadelProps {
 
 export default function MarcadorPadel({ isOpen, onClose, sala }: MarcadorPadelProps) {
   const { updateSala, cargarSalas } = useSalas();
-  const { usuario } = useAuth();
+  const { usuario, reloadUser } = useAuth();
   
   // Usar el formato de la sala o best_of_3 por defecto
   const formatoSala = sala?.formato === 'best_of_3_supertiebreak' ? 'best_of_3' : 'best_of_3';
@@ -62,6 +63,7 @@ export default function MarcadorPadel({ isOpen, onClose, sala }: MarcadorPadelPr
   const [mostrarModalExito, setMostrarModalExito] = useState(false);
   const [mostrarModalConfirmacion, setMostrarModalConfirmacion] = useState(false);
   const [datosConfirmacion, setDatosConfirmacion] = useState<any>(null);
+  const [jugadoresFaltantes, setJugadoresFaltantes] = useState<string[]>([]);
 
   // Auto-cerrar modal de éxito después de 2 segundos
   useEffect(() => {
@@ -135,16 +137,30 @@ export default function MarcadorPadel({ isOpen, onClose, sala }: MarcadorPadelPr
     if (isOpen) {
       setResultadoCargado(false);
       cargarResultado();
+      
+      // Cargar estado de confirmaciones si es creador y está pendiente
+      const esCreadorSala = usuario?.id_usuario?.toString() === sala?.creador_id?.toString();
+      const estaPendiente = sala?.estadoConfirmacion === 'pendiente_confirmacion';
+      
+      if (esCreadorSala && estaPendiente) {
+        salaService.obtenerEstadoConfirmaciones(parseInt(sala.id))
+          .then(estado => {
+            setJugadoresFaltantes(estado.jugadores_faltantes || []);
+          })
+          .catch(error => {
+            console.error('Error al cargar estado de confirmaciones:', error);
+          });
+      }
     }
-  }, [sala, isOpen]);
+  }, [sala, isOpen, usuario]);
 
   if (!sala) return null;
 
   const esCreador = usuario?.id_usuario?.toString() === sala.creador_id?.toString();
   const yaConfirmado = sala.estadoConfirmacion === 'confirmado';
   const pendienteConfirmacion = sala.estadoConfirmacion === 'pendiente_confirmacion';
-  const hayResultado = pendienteConfirmacion || yaConfirmado;
-  const puedeEditar = esCreador && !hayResultado;
+  // El creador puede editar si no está confirmado (incluso si está pendiente)
+  const puedeEditar = esCreador && !yaConfirmado;
 
   // Actualizar games de un set
   const handleUpdateGames = (setIndex: number, equipo: 'equipoA' | 'equipoB', delta: number) => {
@@ -181,9 +197,15 @@ export default function MarcadorPadel({ isOpen, onClose, sala }: MarcadorPadelPr
       currentSet.completado = true;
       currentSet.ganador = ganadorSet(newGamesA, newGamesB) || undefined;
       
-      // Verificar si se debe jugar supertiebreak (solo si el formato lo permite)
+      // Verificar si se debe jugar supertiebreak
+      // Si el formato es best_of_3_supertiebreak y hay empate 1-1, mostrar supertiebreak
       if (setIndex === 1 && requiereSuperTiebreak(newSets) && usarSupertiebreak) {
         setMostrarSupertiebreak(true);
+      }
+      
+      // Si el formato es best_of_3_supertiebreak y ya no hay empate, ocultar supertiebreak
+      if (!requiereSuperTiebreak(newSets)) {
+        setMostrarSupertiebreak(false);
       }
     } else {
       currentSet.completado = false;
@@ -288,7 +310,18 @@ export default function MarcadorPadel({ isOpen, onClose, sala }: MarcadorPadelPr
       // Recargar salas en segundo plano
       cargarSalas().catch(err => console.error('Error al recargar salas:', err));
     } catch (error: any) {
-      setError(error.message || 'Error al guardar resultado');
+      console.error('Error al guardar resultado:', error);
+      
+      // Extraer mensaje de error del backend
+      let mensajeError = 'Error al guardar resultado';
+      
+      if (error.response?.data?.detail) {
+        mensajeError = error.response.data.detail;
+      } else if (error.message) {
+        mensajeError = error.message;
+      }
+      
+      setError(mensajeError);
     } finally {
       setLoading(false);
     }
@@ -309,11 +342,28 @@ export default function MarcadorPadel({ isOpen, onClose, sala }: MarcadorPadelPr
       // Recargar salas para actualizar el estado
       await cargarSalas();
       
+      // Si el Elo fue aplicado, recargar el usuario para actualizar el rating
+      if (response.elo_aplicado) {
+        await reloadUser();
+        console.log('✅ Usuario recargado después de aplicar Elo');
+      }
+      
       // Mostrar modal con información de la confirmación
       setDatosConfirmacion(response);
       setMostrarModalConfirmacion(true);
     } catch (error: any) {
-      setError(error.message || 'Error al confirmar resultado');
+      console.error('Error al confirmar resultado:', error);
+      
+      // Extraer mensaje de error del backend
+      let mensajeError = 'Error al confirmar resultado';
+      
+      if (error.response?.data?.detail) {
+        mensajeError = error.response.data.detail;
+      } else if (error.message) {
+        mensajeError = error.message;
+      }
+      
+      setError(mensajeError);
     } finally {
       setLoading(false);
     }
@@ -366,14 +416,12 @@ export default function MarcadorPadel({ isOpen, onClose, sala }: MarcadorPadelPr
 
         {/* Mensaje de error */}
         {error && (
-          <motion.div
-            initial={{ opacity: 0, y: -10 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="bg-red-500/10 border border-red-500/50 rounded-lg p-3 mb-4 flex items-center gap-2"
-          >
-            <AlertCircle size={18} className="text-red-500 flex-shrink-0" />
-            <p className="text-red-500 text-sm">{error}</p>
-          </motion.div>
+          <ErrorMessage
+            message={error}
+            type="error"
+            onClose={() => setError('')}
+            className="mb-4"
+          />
         )}
 
         {/* Estado del partido */}
@@ -403,11 +451,45 @@ export default function MarcadorPadel({ isOpen, onClose, sala }: MarcadorPadelPr
         )}
 
         {pendienteConfirmacion && esCreador && (
-          <div className="bg-primary/10 border border-primary/50 rounded-lg p-3 mb-4 flex items-center gap-2">
-            <CheckCircle size={18} className="text-primary flex-shrink-0" />
-            <p className="text-primary text-sm font-bold">
-              Esperando confirmación de los rivales...
-            </p>
+          <div className="bg-gradient-to-r from-primary/20 to-accent/20 border border-primary/50 rounded-lg p-4 mb-4">
+            <div className="flex items-start justify-between gap-3">
+              <div className="flex items-start gap-2 flex-1">
+                <CheckCircle size={20} className="text-primary flex-shrink-0 mt-0.5" />
+                <div className="flex-1">
+                  <p className="text-primary text-sm md:text-base font-bold mb-1">
+                    ¡Resultado guardado!
+                  </p>
+                  <p className="text-textSecondary text-xs md:text-sm mb-2">
+                    Esperando confirmación de los demás jugadores...
+                  </p>
+                  {jugadoresFaltantes.length > 0 && (
+                    <div className="bg-background/50 rounded-lg p-2 mt-2">
+                      <p className="text-accent text-xs font-bold mb-1">
+                        Faltan por confirmar:
+                      </p>
+                      <div className="space-y-1">
+                        {jugadoresFaltantes.map((jugador, index) => (
+                          <div key={index} className="flex items-center gap-2 text-textPrimary text-xs">
+                            <div className="w-1.5 h-1.5 rounded-full bg-accent" />
+                            {jugador}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+              <Button
+                variant="ghost"
+                onClick={() => {
+                  // Permitir editar el resultado
+                  setError('');
+                }}
+                className="text-xs px-3 py-1.5 whitespace-nowrap"
+              >
+                Editar
+              </Button>
+            </div>
           </div>
         )}
 
@@ -449,16 +531,22 @@ export default function MarcadorPadel({ isOpen, onClose, sala }: MarcadorPadelPr
 
         {/* Marcador de sets */}
         <div className="space-y-2 md:space-y-4 mb-4 md:mb-6">
-          {sets.slice(0, mostrarSupertiebreak ? 2 : 3).map((set, index) => (
-            <SetDisplay
-              key={index}
-              setNumber={index + 1}
-              set={set}
-              onUpdateGames={(equipo, delta) => handleUpdateGames(index, equipo, delta)}
-              disabled={!puedeEditar}
-              esCreador={esCreador}
-            />
-          ))}
+          {sets.slice(0, mostrarSupertiebreak ? 2 : 3).map((set, index) => {
+            // No mostrar el tercer set si ya hay ganador (2-0)
+            const hayGanador = setsGanados.equipoA === 2 || setsGanados.equipoB === 2;
+            if (index === 2 && hayGanador) return null;
+            
+            return (
+              <SetDisplay
+                key={index}
+                setNumber={index + 1}
+                set={set}
+                onUpdateGames={(equipo, delta) => handleUpdateGames(index, equipo, delta)}
+                disabled={!puedeEditar}
+                esCreador={esCreador}
+              />
+            );
+          })}
 
           {/* SuperTiebreak */}
           {mostrarSupertiebreak && (
@@ -551,7 +639,7 @@ export default function MarcadorPadel({ isOpen, onClose, sala }: MarcadorPadelPr
         confirmacionesTotales={datosConfirmacion.confirmaciones_totales || 0}
         faltanConfirmar={3 - (datosConfirmacion.confirmaciones_totales || 0)}
         eloAplicado={datosConfirmacion.elo_aplicado || false}
-        cambioEloEstimado={datosConfirmacion.elo_changes?.cambio_usuario || 0}
+        cambioEloEstimado={datosConfirmacion.cambio_elo_usuario || 0}
         jugadoresFaltantes={datosConfirmacion.jugadores_faltantes || []}
       />
     )}

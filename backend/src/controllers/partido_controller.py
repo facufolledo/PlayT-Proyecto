@@ -620,7 +620,7 @@ async def partidos_usuario(
     limit: int = Query(50, ge=1, le=100),
     db: Session = Depends(get_db)
 ):
-    """Obtener partidos de un usuario específico con historial completo (solo confirmados con resultado)"""
+    """Obtener partidos de un usuario específico con historial completo (solo confirmados con resultado) - OPTIMIZADO"""
     
     # Verificar que el usuario existe
     usuario = db.query(Usuario).filter(Usuario.id_usuario == usuario_id).first()
@@ -631,49 +631,75 @@ async def partidos_usuario(
             detail="Usuario no encontrado"
         )
     
-    # Buscar partidos donde participa el usuario
-    partidos_jugador = db.query(PartidoJugador).filter(
-        PartidoJugador.id_usuario == usuario_id
+    # Obtener IDs de partidos del usuario con JOIN para filtrar solo los que tienen resultado
+    # Esto reduce drásticamente las consultas
+    from sqlalchemy import and_
+    
+    partidos_query = db.query(Partido).join(
+        PartidoJugador, Partido.id_partido == PartidoJugador.id_partido
+    ).join(
+        ResultadoPartido, Partido.id_partido == ResultadoPartido.id_partido
+    ).filter(
+        and_(
+            PartidoJugador.id_usuario == usuario_id,
+            Partido.estado.in_(["confirmado", "finalizado"])
+        )
+    ).order_by(Partido.fecha.desc()).limit(limit)
+    
+    partidos = partidos_query.all()
+    
+    if not partidos:
+        return []
+    
+    partido_ids = [p.id_partido for p in partidos]
+    
+    # OPTIMIZACIÓN: Cargar todos los datos necesarios de una vez
+    # Obtener todos los jugadores de todos los partidos en una sola consulta
+    todos_jugadores = db.query(PartidoJugador).filter(
+        PartidoJugador.id_partido.in_(partido_ids)
     ).all()
     
-    partido_ids = [pj.id_partido for pj in partidos_jugador]
+    # Agrupar jugadores por partido
+    jugadores_por_partido = {}
+    usuario_ids = set()
+    for jugador in todos_jugadores:
+        if jugador.id_partido not in jugadores_por_partido:
+            jugadores_por_partido[jugador.id_partido] = []
+        jugadores_por_partido[jugador.id_partido].append(jugador)
+        usuario_ids.add(jugador.id_usuario)
     
-    # Obtener solo partidos confirmados/finalizados con resultado
-    # Incluir tanto partidos con entrada en resultados_partidos como con resultado_padel (salas)
-    partidos = db.query(Partido).filter(
-        Partido.id_partido.in_(partido_ids),
-        Partido.estado.in_(["confirmado", "finalizado"])
-    ).order_by(Partido.fecha.desc()).limit(limit).all()
+    # Obtener todos los usuarios y perfiles en una sola consulta
+    usuarios_dict = {u.id_usuario: u for u in db.query(Usuario).filter(Usuario.id_usuario.in_(usuario_ids)).all()}
+    perfiles_dict = {p.id_usuario: p for p in db.query(PerfilUsuario).filter(PerfilUsuario.id_usuario.in_(usuario_ids)).all()}
     
-    # Filtrar solo los que tienen resultado (en resultados_partidos O en resultado_padel)
-    partidos_con_resultado = []
-    for partido in partidos:
-        resultado = db.query(ResultadoPartido).filter(
-            ResultadoPartido.id_partido == partido.id_partido
-        ).first()
-        # Incluir si tiene resultado en tabla O si tiene resultado_padel (partidos de sala)
-        if resultado or (partido.resultado_padel and partido.elo_aplicado):
-            partidos_con_resultado.append(partido)
+    # Obtener todos los resultados en una sola consulta
+    resultados_dict = {r.id_partido: r for r in db.query(ResultadoPartido).filter(ResultadoPartido.id_partido.in_(partido_ids)).all()}
     
-    partidos = partidos_con_resultado
+    # Obtener todo el historial de rating en una sola consulta
+    historial_dict = {h.id_partido: h for h in db.query(HistorialRating).filter(
+        and_(
+            HistorialRating.id_partido.in_(partido_ids),
+            HistorialRating.id_usuario == usuario_id
+        )
+    ).all()}
+    
+    # Obtener IDs de clubs únicos
+    club_ids = [p.id_club for p in partidos if p.id_club]
+    clubs_dict = {}
+    if club_ids:
+        clubs_dict = {c.id_club: c for c in db.query(Club).filter(Club.id_club.in_(club_ids)).all()}
     
     # Construir respuesta completa
     partidos_completos = []
     for partido in partidos:
-        # Obtener jugadores del partido
-        jugadores = db.query(PartidoJugador).filter(
-            PartidoJugador.id_partido == partido.id_partido
-        ).all()
+        # Obtener jugadores del partido desde el diccionario
+        jugadores = jugadores_por_partido.get(partido.id_partido, [])
         
         # Obtener información completa de los jugadores
         jugadores_info = []
         for jugador in jugadores:
-            usuario_jugador = db.query(Usuario).filter(
-                Usuario.id_usuario == jugador.id_usuario
-            ).first()
-            perfil_jugador = db.query(PerfilUsuario).filter(
-                PerfilUsuario.id_usuario == jugador.id_usuario
-            ).first()
+            usuario_jugador = usuarios_dict.get(jugador.id_usuario)
+            perfil_jugador = perfiles_dict.get(jugador.id_usuario)
             
             if usuario_jugador:
                 jugadores_info.append({
@@ -685,15 +711,12 @@ async def partidos_usuario(
                     "rating": usuario_jugador.rating
                 })
         
-        # Obtener resultado si existe (de tabla resultados_partidos)
-        resultado = db.query(ResultadoPartido).filter(
-            ResultadoPartido.id_partido == partido.id_partido
-        ).first()
+        # Obtener resultado desde el diccionario
+        resultado = resultados_dict.get(partido.id_partido)
         
         # Formatear resultado para incluir detalle_sets correctamente
         resultado_dict = None
         
-        # Opción 1: Resultado de tabla resultados_partidos (partidos antiguos)
         if resultado:
             # Normalizar detalle_sets a formato consistente
             detalle_sets_normalizado = []
@@ -748,50 +771,8 @@ async def partidos_usuario(
                 "creado_en": resultado.creado_en
             }
         
-        # Opción 2: Resultado de campo resultado_padel (partidos de sala)
-        elif partido.resultado_padel and isinstance(partido.resultado_padel, dict):
-            resultado_padel = partido.resultado_padel
-            sets_data = resultado_padel.get('sets', [])
-            
-            # Contar sets ganados por cada equipo
-            sets_eq1 = 0
-            sets_eq2 = 0
-            detalle_sets_normalizado = []
-            
-            for idx, set_info in enumerate(sets_data, 1):
-                games_eq1 = set_info.get('gamesEquipoA', 0)
-                games_eq2 = set_info.get('gamesEquipoB', 0)
-                
-                # Contar sets ganados
-                if games_eq1 > games_eq2:
-                    sets_eq1 += 1
-                elif games_eq2 > games_eq1:
-                    sets_eq2 += 1
-                
-                detalle_sets_normalizado.append({
-                    "set": idx,
-                    "juegos_eq1": games_eq1,
-                    "juegos_eq2": games_eq2,
-                    "tiebreak_eq1": set_info.get('tiebreakEquipoA'),
-                    "tiebreak_eq2": set_info.get('tiebreakEquipoB')
-                })
-            
-            resultado_dict = {
-                "id_partido": partido.id_partido,
-                "id_reportador": partido.creado_por,
-                "sets_eq1": sets_eq1,
-                "sets_eq2": sets_eq2,
-                "detalle_sets": detalle_sets_normalizado,
-                "confirmado": partido.elo_aplicado,
-                "desenlace": "normal",
-                "creado_en": partido.creado_en
-            }
-        
-        # Obtener historial de rating para el usuario actual
-        historial_rating = db.query(HistorialRating).filter(
-            HistorialRating.id_partido == partido.id_partido,
-            HistorialRating.id_usuario == usuario_id
-        ).first()
+        # Obtener historial de rating desde el diccionario
+        historial_rating = historial_dict.get(partido.id_partido)
         
         historial_rating_dict = None
         if historial_rating:
@@ -801,10 +782,10 @@ async def partidos_usuario(
                 "rating_despues": historial_rating.rating_despues
             }
         
-        # Obtener club si existe
+        # Obtener club desde el diccionario
         club = None
         if partido.id_club:
-            club_obj = db.query(Club).filter(Club.id_club == partido.id_club).first()
+            club_obj = clubs_dict.get(partido.id_club)
             if club_obj:
                 club = {
                     "id_club": club_obj.id_club,
@@ -813,8 +794,8 @@ async def partidos_usuario(
                     "pais": club_obj.pais
                 }
         
-        # Obtener creador
-        creador = db.query(Usuario).filter(Usuario.id_usuario == partido.id_creador).first()
+        # Obtener creador desde el diccionario
+        creador = usuarios_dict.get(partido.id_creador)
         
         partidos_completos.append({
             "id_partido": partido.id_partido,

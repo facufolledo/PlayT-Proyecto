@@ -32,6 +32,17 @@ export default function ModalConfirmarResultado({ isOpen, onClose, sala }: Modal
   const miEquipo = estaEnEquipoA ? 'equipoA' : estaEnEquipoB ? 'equipoB' : null;
   const yaConfirme = miEquipo ? sala[miEquipo].confirmado : false;
 
+  // Calcular sets ganados desde el resultado
+  let setsEquipoA = 0;
+  let setsEquipoB = 0;
+  
+  if (sala.resultado && sala.resultado.sets) {
+    sala.resultado.sets.forEach((set: any) => {
+      if (set.ganador === 'equipoA') setsEquipoA++;
+      if (set.ganador === 'equipoB') setsEquipoB++;
+    });
+  }
+
   const handleConfirmar = () => {
     if (!miEquipo) return;
     confirmarResultado(sala.id, miEquipo, usuario.id);
@@ -71,7 +82,7 @@ export default function ModalConfirmarResultado({ isOpen, onClose, sala }: Modal
               <p className="text-textSecondary text-sm mb-2">Equipo A</p>
               <p className="text-textPrimary font-semibold">{sala.equipoA.jugador1.nombre}</p>
               <p className="text-textPrimary font-semibold">{sala.equipoA.jugador2.nombre}</p>
-              <p className="text-4xl font-black text-primary mt-3">{sala.equipoA.puntos}</p>
+              <p className="text-4xl font-black text-primary mt-3">{setsEquipoA}</p>
               {sala.equipoA.confirmado && (
                 <div className="flex items-center justify-center gap-1 mt-2 text-secondary text-sm">
                   <CheckCircle size={16} />
@@ -88,7 +99,7 @@ export default function ModalConfirmarResultado({ isOpen, onClose, sala }: Modal
               <p className="text-textSecondary text-sm mb-2">Equipo B</p>
               <p className="text-textPrimary font-semibold">{sala.equipoB.jugador1.nombre}</p>
               <p className="text-textPrimary font-semibold">{sala.equipoB.jugador2.nombre}</p>
-              <p className="text-4xl font-black text-secondary mt-3">{sala.equipoB.puntos}</p>
+              <p className="text-4xl font-black text-secondary mt-3">{setsEquipoB}</p>
               {sala.equipoB.confirmado && (
                 <div className="flex items-center justify-center gap-1 mt-2 text-secondary text-sm">
                   <CheckCircle size={16} />
@@ -99,15 +110,15 @@ export default function ModalConfirmarResultado({ isOpen, onClose, sala }: Modal
           </div>
 
           {/* Detalle de sets */}
-          {sala.sets && sala.sets.length > 0 && (
+          {sala.resultado && sala.resultado.sets && sala.resultado.sets.length > 0 && (
             <div className="mt-4 space-y-2">
               <p className="text-textSecondary text-sm font-medium">Detalle por sets:</p>
               <div className="grid grid-cols-3 gap-2">
-                {sala.sets.map((set, index) => (
+                {sala.resultado.sets.map((set: any, index: number) => (
                   <div key={index} className="bg-cardBg rounded-lg p-2 text-center">
                     <p className="text-textSecondary text-xs mb-1">Set {index + 1}</p>
                     <p className="text-textPrimary font-bold">
-                      {set.equipoA} - {set.equipoB}
+                      {set.gamesEquipoA} - {set.gamesEquipoB}
                     </p>
                   </div>
                 ))}
@@ -115,11 +126,11 @@ export default function ModalConfirmarResultado({ isOpen, onClose, sala }: Modal
             </div>
           )}
 
-          {sala.ganador && (
+          {sala.resultado && sala.resultado.ganador && (
             <div className="flex items-center justify-center gap-2 py-3 bg-accent/10 rounded-lg mt-4">
               <Trophy size={20} className="text-accent" />
               <span className="text-accent font-bold">
-                Ganador: {sala.ganador === 'equipoA' ? 'Equipo A' : 'Equipo B'}
+                Ganador: {sala.resultado.ganador === 'equipoA' ? 'Equipo A' : 'Equipo B'}
               </span>
             </div>
           )}

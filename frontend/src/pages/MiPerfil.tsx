@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { useAuth } from '../context/AuthContext';
 import { Trophy, Award, MapPin, Calendar, ChevronDown, ChevronUp } from 'lucide-react';
 import Button from '../components/Button';
+import { PartidoCardSkeleton } from '../components/SkeletonLoader';
 import axios from 'axios';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
@@ -346,9 +347,13 @@ export default function MiPerfil() {
               {/* Lista de Partidos */}
               <div className="space-y-3">
                 {loading ? (
-                  <div className="text-center py-12 text-textSecondary">
-                    <div className="animate-pulse">Cargando partidos...</div>
-                  </div>
+                  <>
+                    <PartidoCardSkeleton />
+                    <PartidoCardSkeleton />
+                    <PartidoCardSkeleton />
+                    <PartidoCardSkeleton />
+                    <PartidoCardSkeleton />
+                  </>
                 ) : partidosMostrados.length === 0 ? (
                   <div className="text-center py-12">
                     <div className="bg-cardBorder/30 rounded-lg p-8">

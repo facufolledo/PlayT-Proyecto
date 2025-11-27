@@ -60,41 +60,48 @@ async def confirmar_resultado(
     Los rivales deben confirmar el resultado para que sea oficial.
     """
     try:
-        # Verificar que el usuario no sea el creador
-        confirmacion_service = ConfirmacionService(db)
-        resultado = confirmacion_service.obtener_resultado(id_sala)
+        # Obtener la sala y su partido
+        from ..models.playt_models import Sala, Partido
+        sala = db.query(Sala).filter(Sala.id_sala == id_sala).first()
         
-        if not resultado:
+        if not sala or not sala.id_partido:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
-                detail="Resultado no encontrado"
+                detail="Sala o partido no encontrado"
             )
         
-        if resultado.id_creador == current_user.id_usuario:
+        # Obtener el partido
+        partido = db.query(Partido).filter(Partido.id_partido == sala.id_partido).first()
+        
+        if not partido:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Partido no encontrado"
+            )
+        
+        # Verificar que el usuario no sea el creador
+        if partido.creado_por == current_user.id_usuario:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="El creador no puede confirmar su propio resultado"
             )
         
-        # Confirmar el resultado
-        resultado_confirmado = confirmacion_service.confirmar_resultado(
-            id_sala=id_sala,
-            id_usuario=confirmacion.id_usuario
+        # Confirmar el resultado usando el método estático
+        resultado_confirmado = ConfirmacionService.confirmar_resultado(
+            id_partido=partido.id_partido,
+            id_usuario=confirmacion.id_usuario,
+            db=db
         )
         
-        # Si se alcanzó consenso, aplicar Elo
-        if resultado_confirmado.get('consenso_alcanzado'):
-            return {
-                "message": "Resultado confirmado y Elo aplicado",
-                "consenso_alcanzado": True,
-                "resultado": resultado_confirmado
-            }
-        
+        # Devolver toda la información del servicio
         return {
-            "message": "Resultado confirmado. Esperando más confirmaciones.",
-            "consenso_alcanzado": False,
-            "confirmaciones": resultado_confirmado.get('confirmaciones', 0),
-            "confirmaciones_necesarias": 3
+            "success": resultado_confirmado.get('success', True),
+            "message": resultado_confirmado.get('mensaje', 'Resultado confirmado'),
+            "confirmaciones_totales": resultado_confirmado.get('confirmaciones_totales', 0),
+            "elo_aplicado": resultado_confirmado.get('elo_aplicado', False),
+            "elo_changes": resultado_confirmado.get('elo_changes'),
+            "cambio_elo_usuario": resultado_confirmado.get('cambio_elo_usuario'),
+            "jugadores_faltantes": resultado_confirmado.get('jugadores_faltantes', [])
         }
         
     except ValueError as e:
@@ -106,6 +113,48 @@ async def confirmar_resultado(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Error al confirmar resultado: {str(e)}"
+        )
+
+
+@router.get("/{id_sala}/estado", response_model=dict)
+async def obtener_estado_confirmaciones(
+    id_sala: str,
+    current_user: Usuario = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """
+    Obtener el estado de confirmaciones de un partido.
+    """
+    try:
+        # Obtener la sala y su partido
+        from ..models.playt_models import Sala, Partido
+        sala = db.query(Sala).filter(Sala.id_sala == id_sala).first()
+        
+        if not sala or not sala.id_partido:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Sala o partido no encontrado"
+            )
+        
+        # Obtener el estado de confirmaciones
+        estado = ConfirmacionService.obtener_estado_confirmaciones(
+            id_partido=sala.id_partido,
+            id_usuario_actual=current_user.id_usuario,
+            db=db
+        )
+        
+        if not estado:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Partido no encontrado"
+            )
+        
+        return estado
+        
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error al obtener estado: {str(e)}"
         )
 
 
