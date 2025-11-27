@@ -52,9 +52,9 @@ export function requiereTiebreak(gamesA: number, gamesB: number): boolean {
 /**
  * Valida si un supertiebreak es válido
  * Reglas:
- * - Mínimo 10 puntos para ganar
- * - Ventaja mínima de 2 puntos
- * - Si está 10-10, se juega hasta que alguien tenga 2 de ventaja
+ * - Gana el primero en llegar a 10 puntos
+ * - Si ambos llegan a 9 o más, se requiere diferencia de 2 puntos
+ * - Ejemplos válidos: 10-0, 10-5, 10-8, 11-9, 13-11, 15-13
  */
 export function validarSuperTiebreak(puntosA: number, puntosB: number): boolean {
   const diff = Math.abs(puntosA - puntosB);
@@ -67,8 +67,13 @@ export function validarSuperTiebreak(puntosA: number, puntosB: number): boolean 
   // Debe llegar a 10 como mínimo
   if (max < 10) return false;
   
-  // Si el máximo es 10, debe haber ventaja de 2+
-  if (max === 10) return diff >= 2;
+  // Si el máximo es 10
+  if (max === 10) {
+    // Si el mínimo es 9, necesita diferencia de 2 (sería 11-9)
+    if (min >= 9) return false;
+    // Cualquier otro resultado es válido: 10-0, 10-1, ..., 10-8
+    return true;
+  }
   
   // Si el máximo es mayor a 10, debe haber ventaja de exactamente 2
   if (max > 10) return diff === 2;
@@ -82,9 +87,13 @@ export function validarSuperTiebreak(puntosA: number, puntosB: number): boolean 
 export function supertiebreakCompleto(puntosA: number, puntosB: number): boolean {
   const diff = Math.abs(puntosA - puntosB);
   const max = Math.max(puntosA, puntosB);
+  const min = Math.min(puntosA, puntosB);
   
-  // Terminado a 10 con ventaja de 2+
-  if (max >= 10 && diff >= 2) return true;
+  // Si alguien llegó a 10 y el otro tiene menos de 9, está completo
+  if (max === 10 && min < 9) return true;
+  
+  // Si alguien tiene más de 10, debe haber diferencia de 2
+  if (max > 10 && diff >= 2) return true;
   
   return false;
 }
@@ -136,8 +145,8 @@ export function puedeIncrementarGame(gamesA: number, gamesB: number): { equipoA:
     return { equipoA: false, equipoB: false };
   }
   
-  // Permitir incrementar hasta 7 para ambos equipos
-  // Esto permite poner 7-6, 7-5, 6-7, etc. sin restricciones
+  // Permitir incrementar libremente hasta 7
+  // Esto permite cualquier combinación válida: 6-4, 7-5, 7-6, etc.
   const puedeA = gamesA < 7;
   const puedeB = gamesB < 7;
   
@@ -177,9 +186,17 @@ export function obtenerMensajeError(tipo: 'set' | 'supertiebreak', gamesA: numbe
     }
   } else {
     const max = Math.max(gamesA, gamesB);
+    const min = Math.min(gamesA, gamesB);
     const diff = Math.abs(gamesA - gamesB);
-    if (max >= 10 && diff < 2) {
-      return 'El supertiebreak requiere ventaja mínima de 2 puntos';
+    
+    if (max < 10) {
+      return 'El supertiebreak debe llegar a 10 puntos';
+    }
+    if (max === 10 && min >= 9) {
+      return 'Con 10-9 el supertiebreak continúa (debe haber diferencia de 2)';
+    }
+    if (max > 10 && diff !== 2) {
+      return 'El supertiebreak extendido requiere diferencia de exactamente 2 puntos';
     }
   }
   return 'Resultado inválido';

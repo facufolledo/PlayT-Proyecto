@@ -2,7 +2,7 @@ import { lazy, Suspense } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import Layout from './components/Layout';
 import PrivateRoute from './components/PrivateRoute';
-import { ErrorBoundary } from './components/ErrorBoundary';
+import ErrorBoundary from './components/ErrorBoundary';
 import { AuthProvider } from './context/AuthContext';
 import { SalasProvider } from './context/SalasContext';
 import { TorneosProvider } from './context/TorneosContext';
@@ -24,6 +24,7 @@ const Rankings = lazy(() => import('./pages/Rankings'));
 const RankingsCategorias = lazy(() => import('./pages/RankingsCategorias'));
 const Confirmaciones = lazy(() => import('./pages/Confirmaciones'));
 const MiPerfil = lazy(() => import('./pages/MiPerfil'));
+const EditarPerfil = lazy(() => import('./pages/EditarPerfil'));
 const MiRanking = lazy(() => import('./pages/MiRanking'));
 const CompletarPerfil = lazy(() => import('./pages/CompletarPerfil'));
 
@@ -186,6 +187,16 @@ function App() {
                   <PrivateRoute>
                     <Layout>
                       <MiPerfil />
+                    </Layout>
+                  </PrivateRoute>
+                }
+              />
+              <Route
+                path="/perfil/editar"
+                element={
+                  <PrivateRoute>
+                    <Layout>
+                      <EditarPerfil />
                     </Layout>
                   </PrivateRoute>
                 }

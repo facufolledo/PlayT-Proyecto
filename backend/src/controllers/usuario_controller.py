@@ -207,3 +207,33 @@ async def get_usuario_actual(
         partidos_jugados=current_user.partidos_jugados,
         id_categoria=current_user.id_categoria
     )
+
+
+class FCMTokenRequest(BaseModel):
+    fcm_token: str
+
+
+@router.post("/fcm-token")
+async def registrar_fcm_token(
+    datos: FCMTokenRequest,
+    current_user: Usuario = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """
+    Registrar o actualizar el token FCM del usuario para notificaciones push
+    """
+    try:
+        current_user.fcm_token = datos.fcm_token
+        db.commit()
+        
+        return {
+            "success": True,
+            "message": "Token FCM registrado exitosamente"
+        }
+        
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error al registrar token FCM: {str(e)}"
+        )

@@ -355,6 +355,29 @@ class SalaService {
       throw error;
     }
   }
+
+  // Obtener estado de confirmaciones
+  async obtenerEstadoConfirmaciones(salaId: number): Promise<any> {
+    try {
+      const headers = await this.getHeaders();
+      const response = await fetch(`${API_URL}/resultados/${salaId}/estado`, {
+        method: 'GET',
+        headers,
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.detail || 'Error al obtener estado de confirmaciones');
+      }
+
+      const data = await response.json();
+      logger.log('Estado de confirmaciones:', data);
+      return data;
+    } catch (error: any) {
+      logger.error('Error al obtener estado de confirmaciones:', error);
+      throw error;
+    }
+  }
 }
 
 export const salaService = new SalaService();

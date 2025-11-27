@@ -614,13 +614,13 @@ async def calcular_elo_partido(
             detail=f"Error al calcular Elo: {str(e)}"
         )
 
-@router.get("/usuario/{usuario_id}", response_model=List[PartidoCompleto])
+@router.get("/usuario/{usuario_id}")
 async def partidos_usuario(
     usuario_id: int,
-    limit: int = Query(20, ge=1, le=100),
+    limit: int = Query(50, ge=1, le=100),
     db: Session = Depends(get_db)
 ):
-    """Obtener partidos de un usuario específico"""
+    """Obtener partidos de un usuario específico con historial completo (solo confirmados con resultado) - OPTIMIZADO"""
     
     # Verificar que el usuario existe
     usuario = db.query(Usuario).filter(Usuario.id_usuario == usuario_id).first()
@@ -631,35 +631,75 @@ async def partidos_usuario(
             detail="Usuario no encontrado"
         )
     
-    # Buscar partidos donde participa el usuario
-    partidos_jugador = db.query(PartidoJugador).filter(
-        PartidoJugador.id_usuario == usuario_id
+    # Obtener IDs de partidos del usuario con JOIN para filtrar solo los que tienen resultado
+    # Esto reduce drásticamente las consultas
+    from sqlalchemy import and_
+    
+    partidos_query = db.query(Partido).join(
+        PartidoJugador, Partido.id_partido == PartidoJugador.id_partido
+    ).join(
+        ResultadoPartido, Partido.id_partido == ResultadoPartido.id_partido
+    ).filter(
+        and_(
+            PartidoJugador.id_usuario == usuario_id,
+            Partido.estado.in_(["confirmado", "finalizado"])
+        )
+    ).order_by(Partido.fecha.desc()).limit(limit)
+    
+    partidos = partidos_query.all()
+    
+    if not partidos:
+        return []
+    
+    partido_ids = [p.id_partido for p in partidos]
+    
+    # OPTIMIZACIÓN: Cargar todos los datos necesarios de una vez
+    # Obtener todos los jugadores de todos los partidos en una sola consulta
+    todos_jugadores = db.query(PartidoJugador).filter(
+        PartidoJugador.id_partido.in_(partido_ids)
     ).all()
     
-    partido_ids = [pj.id_partido for pj in partidos_jugador]
+    # Agrupar jugadores por partido
+    jugadores_por_partido = {}
+    usuario_ids = set()
+    for jugador in todos_jugadores:
+        if jugador.id_partido not in jugadores_por_partido:
+            jugadores_por_partido[jugador.id_partido] = []
+        jugadores_por_partido[jugador.id_partido].append(jugador)
+        usuario_ids.add(jugador.id_usuario)
     
-    # Obtener los partidos
-    partidos = db.query(Partido).filter(
-        Partido.id_partido.in_(partido_ids)
-    ).order_by(Partido.fecha.desc()).limit(limit).all()
+    # Obtener todos los usuarios y perfiles en una sola consulta
+    usuarios_dict = {u.id_usuario: u for u in db.query(Usuario).filter(Usuario.id_usuario.in_(usuario_ids)).all()}
+    perfiles_dict = {p.id_usuario: p for p in db.query(PerfilUsuario).filter(PerfilUsuario.id_usuario.in_(usuario_ids)).all()}
+    
+    # Obtener todos los resultados en una sola consulta
+    resultados_dict = {r.id_partido: r for r in db.query(ResultadoPartido).filter(ResultadoPartido.id_partido.in_(partido_ids)).all()}
+    
+    # Obtener todo el historial de rating en una sola consulta
+    historial_dict = {h.id_partido: h for h in db.query(HistorialRating).filter(
+        and_(
+            HistorialRating.id_partido.in_(partido_ids),
+            HistorialRating.id_usuario == usuario_id
+        )
+    ).all()}
+    
+    # Obtener IDs de clubs únicos
+    club_ids = [p.id_club for p in partidos if p.id_club]
+    clubs_dict = {}
+    if club_ids:
+        clubs_dict = {c.id_club: c for c in db.query(Club).filter(Club.id_club.in_(club_ids)).all()}
     
     # Construir respuesta completa
     partidos_completos = []
     for partido in partidos:
-        # Obtener jugadores del partido
-        jugadores = db.query(PartidoJugador).filter(
-            PartidoJugador.id_partido == partido.id_partido
-        ).all()
+        # Obtener jugadores del partido desde el diccionario
+        jugadores = jugadores_por_partido.get(partido.id_partido, [])
         
         # Obtener información completa de los jugadores
         jugadores_info = []
         for jugador in jugadores:
-            usuario_jugador = db.query(Usuario).filter(
-                Usuario.id_usuario == jugador.id_usuario
-            ).first()
-            perfil_jugador = db.query(PerfilUsuario).filter(
-                PerfilUsuario.id_usuario == jugador.id_usuario
-            ).first()
+            usuario_jugador = usuarios_dict.get(jugador.id_usuario)
+            perfil_jugador = perfiles_dict.get(jugador.id_usuario)
             
             if usuario_jugador:
                 jugadores_info.append({
@@ -671,40 +711,108 @@ async def partidos_usuario(
                     "rating": usuario_jugador.rating
                 })
         
-        # Obtener resultado si existe
-        resultado = db.query(ResultadoPartido).filter(
-            ResultadoPartido.id_partido == partido.id_partido
-        ).first()
+        # Obtener resultado desde el diccionario
+        resultado = resultados_dict.get(partido.id_partido)
         
-        # Obtener historial de rating para el usuario actual
-        historial_rating = db.query(HistorialRating).filter(
-            HistorialRating.id_partido == partido.id_partido,
-            HistorialRating.id_usuario == usuario_id
-        ).first()
+        # Formatear resultado para incluir detalle_sets correctamente
+        resultado_dict = None
         
-        # Obtener club si existe
+        if resultado:
+            # Normalizar detalle_sets a formato consistente
+            detalle_sets_normalizado = []
+            if resultado.detalle_sets and isinstance(resultado.detalle_sets, list):
+                for idx, set_data in enumerate(resultado.detalle_sets, 1):
+                    # Formato 1: {'games_eq1': 6, 'games_eq2': 4}
+                    if 'games_eq1' in set_data and 'games_eq2' in set_data:
+                        detalle_sets_normalizado.append({
+                            "set": idx,
+                            "juegos_eq1": set_data['games_eq1'],
+                            "juegos_eq2": set_data['games_eq2'],
+                            "tiebreak_eq1": set_data.get('tiebreak_eq1'),
+                            "tiebreak_eq2": set_data.get('tiebreak_eq2')
+                        })
+                    # Formato 2: {'puntos_eq1': 6, 'puntos_eq2': 4, 'set_numero': 1}
+                    elif 'puntos_eq1' in set_data and 'puntos_eq2' in set_data:
+                        detalle_sets_normalizado.append({
+                            "set": set_data.get('set_numero', idx),
+                            "juegos_eq1": set_data['puntos_eq1'],
+                            "juegos_eq2": set_data['puntos_eq2'],
+                            "tiebreak_eq1": set_data.get('tiebreak_eq1'),
+                            "tiebreak_eq2": set_data.get('tiebreak_eq2')
+                        })
+                    # Formato 3: {'set1': {'puntos_eq1': 6, 'puntos_eq2': 4}}
+                    elif f'set{idx}' in set_data:
+                        set_info = set_data[f'set{idx}']
+                        detalle_sets_normalizado.append({
+                            "set": idx,
+                            "juegos_eq1": set_info.get('puntos_eq1', 0),
+                            "juegos_eq2": set_info.get('puntos_eq2', 0),
+                            "tiebreak_eq1": set_info.get('tiebreak_eq1'),
+                            "tiebreak_eq2": set_info.get('tiebreak_eq2')
+                        })
+                    # Formato 4: Ya está en formato correcto
+                    elif 'juegos_eq1' in set_data and 'juegos_eq2' in set_data:
+                        detalle_sets_normalizado.append({
+                            "set": set_data.get('set', idx),
+                            "juegos_eq1": set_data['juegos_eq1'],
+                            "juegos_eq2": set_data['juegos_eq2'],
+                            "tiebreak_eq1": set_data.get('tiebreak_eq1'),
+                            "tiebreak_eq2": set_data.get('tiebreak_eq2')
+                        })
+            
+            resultado_dict = {
+                "id_partido": resultado.id_partido,
+                "id_reportador": resultado.id_reportador,
+                "sets_eq1": resultado.sets_eq1,
+                "sets_eq2": resultado.sets_eq2,
+                "detalle_sets": detalle_sets_normalizado,
+                "confirmado": resultado.confirmado,
+                "desenlace": resultado.desenlace,
+                "creado_en": resultado.creado_en
+            }
+        
+        # Obtener historial de rating desde el diccionario
+        historial_rating = historial_dict.get(partido.id_partido)
+        
+        historial_rating_dict = None
+        if historial_rating:
+            historial_rating_dict = {
+                "rating_antes": historial_rating.rating_antes,
+                "delta": historial_rating.delta,
+                "rating_despues": historial_rating.rating_despues
+            }
+        
+        # Obtener club desde el diccionario
         club = None
         if partido.id_club:
-            club = db.query(Club).filter(Club.id_club == partido.id_club).first()
+            club_obj = clubs_dict.get(partido.id_club)
+            if club_obj:
+                club = {
+                    "id_club": club_obj.id_club,
+                    "nombre": club_obj.nombre,
+                    "ciudad": club_obj.ciudad,
+                    "pais": club_obj.pais
+                }
         
-        # Obtener creador
-        creador = db.query(Usuario).filter(Usuario.id_usuario == partido.id_creador).first()
+        # Obtener creador desde el diccionario
+        creador = usuarios_dict.get(partido.id_creador)
         
-        partidos_completos.append(PartidoCompleto(
-            id_partido=partido.id_partido,
-            fecha=partido.fecha,
-            estado=partido.estado,
-            id_creador=partido.id_creador,
-            creado_en=partido.creado_en,
-            id_club=partido.id_club,
-            jugadores=jugadores_info,
-            resultado=resultado,
-            club=club,
-            creador={
+        partidos_completos.append({
+            "id_partido": partido.id_partido,
+            "fecha": partido.fecha,
+            "estado": partido.estado,
+            "tipo": partido.tipo if hasattr(partido, 'tipo') else "amistoso",
+            "id_creador": partido.id_creador,
+            "creado_en": partido.creado_en,
+            "id_club": partido.id_club,
+            "jugadores": jugadores_info,
+            "resultado": resultado_dict,
+            "club": club,
+            "creador": {
                 "id_usuario": creador.id_usuario,
                 "nombre_usuario": creador.nombre_usuario
             } if creador else {},
-            historial_rating=historial_rating
-        ))
+            "historial_rating": historial_rating_dict
+        })
     
     return partidos_completos

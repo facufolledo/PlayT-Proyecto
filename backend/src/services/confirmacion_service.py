@@ -49,6 +49,25 @@ class ConfirmacionService:
             partido.estado_confirmacion == 'pendiente_confirmacion'
         )
         
+        # Obtener jugadores que faltan por confirmar
+        jugadores_faltantes = []
+        if partido.estado_confirmacion == 'pendiente_confirmacion':
+            # Obtener todos los jugadores del partido
+            todos_jugadores = db.query(PartidoJugador).filter(
+                PartidoJugador.id_partido == id_partido
+            ).all()
+            
+            # Obtener quiénes ya confirmaron
+            ids_confirmados = {c.id_usuario for c in confirmaciones if c.tipo == 'confirmacion'}
+            ids_confirmados.add(partido.creado_por)  # El creador no confirma
+            
+            # Encontrar quiénes faltan
+            for jugador in todos_jugadores:
+                if jugador.id_usuario not in ids_confirmados:
+                    usuario = db.query(Usuario).filter(Usuario.id_usuario == jugador.id_usuario).first()
+                    if usuario:
+                        jugadores_faltantes.append(usuario.nombre_usuario)
+        
         return {
             "total_jugadores": 4,
             "confirmaciones": confirmaciones_count,
@@ -57,7 +76,8 @@ class ConfirmacionService:
             "puede_confirmar": puede_confirmar,
             "ya_confirmo": ya_confirmo,
             "estado": partido.estado_confirmacion,
-            "confirmaciones_detalle": confirmaciones
+            "confirmaciones_detalle": confirmaciones,
+            "jugadores_faltantes": jugadores_faltantes
         }
     
     @staticmethod
@@ -68,12 +88,18 @@ class ConfirmacionService:
         Returns:
             Dict con resultado de la confirmación
         """
+        from ..models.playt_models import ResultadoPartido
+        
         partido = db.query(Partido).filter(Partido.id_partido == id_partido).first()
         if not partido:
             raise ValueError("Partido no encontrado")
         
-        # Verificar que el partido tenga resultado
-        if not partido.resultado_padel:
+        # Verificar que el partido tenga resultado (UNIFICADO)
+        resultado = db.query(ResultadoPartido).filter(
+            ResultadoPartido.id_partido == id_partido
+        ).first()
+        
+        if not resultado:
             raise ValueError("El partido no tiene resultado cargado")
         
         # Verificar que el usuario sea parte del partido
@@ -125,6 +151,28 @@ class ConfirmacionService:
         if total_confirmaciones >= 3:
             elo_changes = ConfirmacionService._aplicar_elo(partido, db)
             partido.estado_confirmacion = 'confirmado'
+            partido.estado = 'confirmado'  # Actualizar también el estado principal
+            
+            # Enviar notificaciones push a todos los jugadores
+            try:
+                from .notification_service import NotificationService
+                
+                # Obtener todos los jugadores del partido
+                todos_jugadores = db.query(PartidoJugador).filter(
+                    PartidoJugador.id_partido == id_partido
+                ).all()
+                
+                ids_usuarios = [j.id_usuario for j in todos_jugadores]
+                
+                # Enviar notificaciones
+                NotificationService.enviar_notificacion_elo_actualizado(
+                    usuarios=ids_usuarios,
+                    cambios_elo=elo_changes,
+                    db=db
+                )
+            except Exception as e:
+                # No fallar si las notificaciones fallan
+                print(f"Error enviando notificaciones: {e}")
         
         # Obtener jugadores que faltan por confirmar
         jugadores_faltantes = []
@@ -152,10 +200,13 @@ class ConfirmacionService:
                     if usuario:
                         jugadores_faltantes.append(usuario.nombre_usuario)
         
-        # Calcular cambio de Elo estimado para el usuario actual
+        # Calcular cambio de Elo para el usuario actual
         cambio_elo_usuario = None
-        if not elo_changes:  # Solo si no se aplicó aún
-            # Estimación simple basada en el resultado
+        if elo_changes:
+            # Si se aplicó el Elo, obtener el cambio real
+            cambio_elo_usuario = elo_changes.get(id_usuario, {}).get('cambio', 0)
+        else:
+            # Si no se aplicó aún, dar estimación
             jugador_actual = db.query(PartidoJugador).filter(
                 and_(
                     PartidoJugador.id_partido == id_partido,
@@ -290,12 +341,33 @@ class ConfirmacionService:
                 'partidos': usuario.partidos_jugados
             })
         
-        # Extraer datos del resultado
-        resultado = partido.resultado_padel
-        sets_a = sum(1 for s in resultado['sets'] if s.get('ganador') == 'equipoA')
-        sets_b = sum(1 for s in resultado['sets'] if s.get('ganador') == 'equipoB')
-        games_a = sum(s.get('gamesEquipoA', 0) for s in resultado['sets'])
-        games_b = sum(s.get('gamesEquipoB', 0) for s in resultado['sets'])
+        # Extraer datos del resultado (UNIFICADO - desde resultados_partidos)
+        from ..models.playt_models import ResultadoPartido
+        
+        resultado_db = db.query(ResultadoPartido).filter(
+            ResultadoPartido.id_partido == partido.id_partido
+        ).first()
+        
+        if not resultado_db:
+            raise ValueError("El partido no tiene resultado cargado")
+        
+        # Usar los datos de resultados_partidos
+        sets_a = resultado_db.sets_eq1
+        sets_b = resultado_db.sets_eq2
+        
+        # Calcular games totales desde detalle_sets
+        games_a = sum(set_data.get('juegos_eq1', 0) for set_data in resultado_db.detalle_sets)
+        games_b = sum(set_data.get('juegos_eq2', 0) for set_data in resultado_db.detalle_sets)
+        
+        # Convertir detalle_sets al formato que espera el servicio Elo
+        sets_detail = [
+            {
+                'gamesEquipoA': set_data.get('juegos_eq1', 0),
+                'gamesEquipoB': set_data.get('juegos_eq2', 0),
+                'ganador': 'equipoA' if set_data.get('juegos_eq1', 0) > set_data.get('juegos_eq2', 0) else 'equipoB'
+            }
+            for set_data in resultado_db.detalle_sets
+        ]
         
         # Calcular Elo usando el servicio existente
         elo_service = EloService()
@@ -306,7 +378,7 @@ class ConfirmacionService:
             sets_b=sets_b,
             games_a=games_a,
             games_b=games_b,
-            sets_detail=resultado['sets'],
+            sets_detail=sets_detail,
             match_type='amistoso',
             match_date=partido.fecha
         )
@@ -370,6 +442,29 @@ class ConfirmacionService:
         
         # Marcar Elo como aplicado
         partido.elo_aplicado = True
+        
+        # CRÍTICO: Crear entradas en historial_rating para TODOS los jugadores
+        from ..models.playt_models import HistorialRating
+        
+        for jugador in jugadores:
+            # Verificar si ya existe entrada (por si acaso)
+            historial_existente = db.query(HistorialRating).filter(
+                and_(
+                    HistorialRating.id_partido == partido.id_partido,
+                    HistorialRating.id_usuario == jugador.id_usuario
+                )
+            ).first()
+            
+            if not historial_existente:
+                # Crear nueva entrada
+                historial_rating = HistorialRating(
+                    id_usuario=jugador.id_usuario,
+                    id_partido=partido.id_partido,
+                    rating_antes=jugador.rating_antes,
+                    delta=jugador.cambio_elo,
+                    rating_despues=jugador.rating_despues
+                )
+                db.add(historial_rating)
         
         # Actualizar historial de enfrentamientos
         historial = db.query(HistorialEnfrentamiento).filter(

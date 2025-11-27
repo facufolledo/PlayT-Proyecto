@@ -16,6 +16,9 @@ export interface UsuarioResponse {
   rating: number;
   partidos_jugados: number;
   id_categoria?: number;
+  foto_perfil?: string;
+  posicion_preferida?: 'drive' | 'reves';
+  mano_dominante?: 'derecha' | 'zurda';
 }
 
 export interface TokenResponse {

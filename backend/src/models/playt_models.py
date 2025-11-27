@@ -16,6 +16,7 @@ class Usuario(Base):
     partidos_jugados = Column(Integer, default=0, nullable=False)
     id_categoria = Column(BigInteger, ForeignKey("categorias.id_categoria"), nullable=True)
     sexo = Column(String(10), default="masculino", nullable=False)  # "masculino" o "femenino"
+    fcm_token = Column(String(255), nullable=True)  # Token para notificaciones push
     
     # Relaciones
     perfil = relationship("PerfilUsuario", back_populates="usuario", uselist=False)

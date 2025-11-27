@@ -99,26 +99,68 @@ export default function ModalConfirmacionExitosa({
                   </div>
                 </div>
 
-                {/* Cambio de Elo estimado */}
-                {!eloAplicado && cambioEloEstimado !== 0 && (
-                  <div className={`${esPositivo ? 'bg-green-500/10 border-green-500/30' : 'bg-red-500/10 border-red-500/30'} border rounded-lg p-4`}>
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-2">
-                        {esPositivo ? (
-                          <TrendingUp size={20} className="text-green-500" />
-                        ) : (
-                          <TrendingDown size={20} className="text-red-500" />
-                        )}
-                        <span className="text-textSecondary text-sm">Cambio estimado:</span>
+                {/* Cambio de Elo */}
+                {cambioEloEstimado !== 0 && (
+                  <motion.div
+                    initial={{ scale: 0.8, opacity: 0 }}
+                    animate={{ scale: 1, opacity: 1 }}
+                    transition={{ delay: 0.6, type: 'spring', stiffness: 200 }}
+                    className={`${esPositivo ? 'bg-gradient-to-br from-green-500/20 to-green-600/10 border-green-500/40' : 'bg-gradient-to-br from-red-500/20 to-red-600/10 border-red-500/40'} border-2 rounded-xl p-6 relative overflow-hidden`}
+                  >
+                    {/* Efecto de brillo */}
+                    <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/5 to-transparent animate-shimmer" />
+                    
+                    <div className="relative z-10">
+                      <div className="flex items-center justify-center gap-3 mb-3">
+                        <motion.div
+                          initial={{ rotate: -180, scale: 0 }}
+                          animate={{ rotate: 0, scale: 1 }}
+                          transition={{ delay: 0.7, type: 'spring', stiffness: 200 }}
+                        >
+                          {esPositivo ? (
+                            <TrendingUp size={32} className="text-green-500" />
+                          ) : (
+                            <TrendingDown size={32} className="text-red-500" />
+                          )}
+                        </motion.div>
+                        <div className="text-center">
+                          <p className="text-textSecondary text-xs font-medium mb-1">
+                            {eloAplicado ? 'Tu rating cambió' : 'Cambio estimado'}
+                          </p>
+                          <motion.div
+                            initial={{ scale: 0 }}
+                            animate={{ scale: 1 }}
+                            transition={{ delay: 0.8, type: 'spring', stiffness: 150 }}
+                            className={`font-black text-5xl ${esPositivo ? 'text-green-500' : 'text-red-500'}`}
+                          >
+                            {esPositivo ? '+' : ''}{cambioEloEstimado}
+                          </motion.div>
+                          <p className="text-textSecondary text-xs mt-1">
+                            puntos de Elo
+                          </p>
+                        </div>
                       </div>
-                      <span className={`font-black text-2xl ${esPositivo ? 'text-green-500' : 'text-red-500'}`}>
-                        {esPositivo ? '+' : ''}{cambioEloEstimado}
-                      </span>
+                      
+                      {!eloAplicado && (
+                        <p className="text-textSecondary text-xs text-center mt-3 opacity-70">
+                          Este cambio se aplicará cuando todos confirmen
+                        </p>
+                      )}
+                      
+                      {eloAplicado && (
+                        <motion.div
+                          initial={{ opacity: 0, y: 10 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          transition={{ delay: 1 }}
+                          className="text-center mt-3"
+                        >
+                          <p className={`text-sm font-bold ${esPositivo ? 'text-green-500' : 'text-red-500'}`}>
+                            {esPositivo ? '¡Felicitaciones! 🎉' : '¡Sigue practicando! 💪'}
+                          </p>
+                        </motion.div>
+                      )}
                     </div>
-                    <p className="text-textSecondary text-xs mt-2">
-                      Este es el cambio aproximado si todos confirman
-                    </p>
-                  </div>
+                  </motion.div>
                 )}
 
                 {/* Jugadores faltantes */}

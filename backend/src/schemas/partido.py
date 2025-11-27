@@ -50,9 +50,18 @@ class ResultadoResponse(ResultadoBase):
     class Config:
         from_attributes = True
 
+class HistorialRatingResponse(BaseModel):
+    """Esquema para historial de rating"""
+    rating_antes: int
+    delta: int
+    rating_despues: int
+    
+    class Config:
+        from_attributes = True
+
 class PartidoCompleto(PartidoResponse):
     """Esquema para partido completo con resultado"""
     resultado: Optional[ResultadoResponse] = None
     club: Optional[Dict[str, Any]] = None
     creador: Dict[str, Any] = {}
-    historial_rating: Optional[Dict[str, Any]] = None
+    historial_rating: Optional[HistorialRatingResponse] = None

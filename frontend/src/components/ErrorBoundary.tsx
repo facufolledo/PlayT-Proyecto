@@ -1,20 +1,21 @@
 import { Component, ReactNode } from 'react';
-import { AlertTriangle } from 'lucide-react';
+import { AlertTriangle, RefreshCw } from 'lucide-react';
 import Button from './Button';
 
 interface Props {
   children: ReactNode;
+  fallback?: ReactNode;
 }
 
 interface State {
   hasError: boolean;
-  error?: Error;
+  error: Error | null;
 }
 
-export class ErrorBoundary extends Component<Props, State> {
+export default class ErrorBoundary extends Component<Props, State> {
   constructor(props: Props) {
     super(props);
-    this.state = { hasError: false };
+    this.state = { hasError: false, error: null };
   }
 
   static getDerivedStateFromError(error: Error): State {
@@ -22,57 +23,51 @@ export class ErrorBoundary extends Component<Props, State> {
   }
 
   componentDidCatch(error: Error, errorInfo: any) {
-    // En producción, aquí enviarías el error a un servicio como Sentry
     console.error('Error capturado por ErrorBoundary:', error, errorInfo);
   }
 
-  handleReload = () => {
+  handleReset = () => {
+    this.setState({ hasError: false, error: null });
     window.location.reload();
   };
 
   render() {
     if (this.state.hasError) {
+      if (this.props.fallback) {
+        return this.props.fallback;
+      }
+
       return (
-        <div className="min-h-screen bg-background flex items-center justify-center p-4">
-          <div className="bg-cardBg rounded-2xl p-8 border border-cardBorder shadow-2xl max-w-md w-full">
-            <div className="flex flex-col items-center text-center">
-              <div className="bg-red-500/10 p-4 rounded-full mb-4">
-                <AlertTriangle className="text-red-500" size={48} />
-              </div>
-              
-              <h2 className="text-2xl font-bold text-textPrimary mb-2">
-                ¡Oops! Algo salió mal
-              </h2>
-              
-              <p className="text-textSecondary mb-6">
-                Ha ocurrido un error inesperado. Por favor, recarga la página o intenta más tarde.
-              </p>
-
-              {this.state.error && import.meta.env.DEV && (
-                <div className="bg-red-500/5 border border-red-500/20 rounded-lg p-4 mb-6 w-full">
-                  <p className="text-red-500 text-xs font-mono text-left break-all">
-                    {this.state.error.message}
-                  </p>
-                </div>
-              )}
-
-              <div className="flex gap-3 w-full">
-                <Button
-                  onClick={() => window.history.back()}
-                  variant="ghost"
-                  className="flex-1"
-                >
-                  Volver
-                </Button>
-                <Button
-                  onClick={this.handleReload}
-                  variant="primary"
-                  className="flex-1"
-                >
-                  Recargar página
-                </Button>
-              </div>
+        <div className="min-h-screen flex items-center justify-center p-4 bg-background">
+          <div className="max-w-md w-full bg-cardBg rounded-2xl p-8 border border-cardBorder text-center">
+            <div className="bg-red-500/10 rounded-full w-20 h-20 flex items-center justify-center mx-auto mb-6">
+              <AlertTriangle size={40} className="text-red-500" />
             </div>
+            
+            <h2 className="text-2xl font-black text-textPrimary mb-3">
+              Algo salió mal
+            </h2>
+            
+            <p className="text-textSecondary mb-6">
+              Ha ocurrido un error inesperado. Por favor, intenta recargar la página.
+            </p>
+
+            {this.state.error && (
+              <div className="bg-background rounded-lg p-4 mb-6 text-left">
+                <p className="text-xs text-red-400 font-mono break-all">
+                  {this.state.error.message}
+                </p>
+              </div>
+            )}
+
+            <Button
+              variant="primary"
+              onClick={this.handleReset}
+              className="w-full flex items-center justify-center gap-2"
+            >
+              <RefreshCw size={18} />
+              Recargar página
+            </Button>
           </div>
         </div>
       );
