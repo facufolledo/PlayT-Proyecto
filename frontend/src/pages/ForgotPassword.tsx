@@ -1,188 +1,207 @@
 import { useState } from 'react';
 import { motion } from 'framer-motion';
-import { useNavigate, Link } from 'react-router-dom';
+import { Link } from 'react-router-dom';
 import { Mail, ArrowLeft, CheckCircle } from 'lucide-react';
+import { sendPasswordResetEmail } from 'firebase/auth';
+import { auth } from '../config/firebase';
 import Button from '../components/Button';
 import Input from '../components/Input';
-import CursorTrail from '../components/CursorTrail';
-import { authService } from '../services/auth.service';
+import Logo from '../components/Logo';
 
 export default function ForgotPassword() {
-  const navigate = useNavigate();
   const [email, setEmail] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
-  const [emailSent, setEmailSent] = useState(false);
+  const [success, setSuccess] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
-
-    if (!email) {
-      setError('Por favor ingresa tu email');
-      return;
-    }
-
-    if (!/\S+@\S+\.\S+/.test(email)) {
-      setError('Email inválido');
-      return;
-    }
-
     setLoading(true);
 
     try {
-      await authService.sendPasswordResetEmail(email);
-      setEmailSent(true);
-    } catch (err: any) {
-      setError(err.message || 'Error al enviar el email de recuperación');
+      await sendPasswordResetEmail(auth, email, {
+        url: window.location.origin + '/login',
+        handleCodeInApp: false,
+      });
+      setSuccess(true);
+    } catch (error: any) {
+      console.error('Error al enviar email:', error);
+      
+      switch (error.code) {
+        case 'auth/user-not-found':
+          setError('No existe una cuenta con este email');
+          break;
+        case 'auth/invalid-email':
+          setError('Email inválido');
+          break;
+        case 'auth/too-many-requests':
+          setError('Demasiados intentos. Intenta más tarde');
+          break;
+        default:
+          setError('Error al enviar el email. Intenta nuevamente');
+      }
     } finally {
       setLoading(false);
     }
   };
 
-  return (
-    <div className="min-h-screen bg-background flex items-center justify-center p-4 relative overflow-hidden">
-      <CursorTrail />
-      {/* Fondo de pádel */}
-      <div className="fixed inset-0 pointer-events-none">
-        <div 
-          className="absolute inset-0 bg-cover bg-center opacity-30"
-          style={{
-            backgroundImage: 'url(https://i.ibb.co/wN0RJcvS/padel2.webp)',
-          }}
-        />
-      </div>
+  if (success) {
+    return (
+      <div className="min-h-screen flex items-center justify-center p-4 bg-gradient-to-br from-background via-background to-primary/5">
+        <motion.div
+          initial={{ opacity: 0, scale: 0.9 }}
+          animate={{ opacity: 1, scale: 1 }}
+          className="w-full max-w-md"
+        >
+          <div className="bg-cardBg/95 backdrop-blur-xl rounded-2xl p-8 border border-cardBorder shadow-2xl">
+            <div className="text-center mb-6">
+              <motion.div
+                initial={{ scale: 0 }}
+                animate={{ scale: 1 }}
+                transition={{ delay: 0.2, type: 'spring' }}
+                className="inline-flex items-center justify-center w-16 h-16 bg-green-500/20 rounded-full mb-4"
+              >
+                <CheckCircle size={32} className="text-green-500" />
+              </motion.div>
+              <h2 className="text-2xl font-black text-textPrimary mb-2">
+                ¡Email Enviado!
+              </h2>
+              <p className="text-textSecondary text-sm">
+                Revisa tu bandeja de entrada
+              </p>
+            </div>
 
+            <div className="bg-primary/10 rounded-lg p-4 mb-6">
+              <p className="text-textPrimary text-sm mb-2">
+                Te enviamos un email a:
+              </p>
+              <p className="text-primary font-bold break-all">
+                {email}
+              </p>
+            </div>
+
+            <div className="space-y-3 text-sm text-textSecondary">
+              <p>
+                📧 Haz clic en el enlace del email para restablecer tu contraseña
+              </p>
+              <p>
+                ⏰ El enlace expira en 1 hora
+              </p>
+              <p>
+                📁 Si no lo ves, revisa tu carpeta de spam
+              </p>
+            </div>
+
+            <Link to="/login" className="block mt-6">
+              <Button variant="primary" className="w-full">
+                Volver al Login
+              </Button>
+            </Link>
+
+            <button
+              onClick={() => {
+                setSuccess(false);
+                setEmail('');
+              }}
+              className="w-full mt-3 text-sm text-textSecondary hover:text-primary transition-colors"
+            >
+              Enviar a otro email
+            </button>
+          </div>
+        </motion.div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="min-h-screen flex items-center justify-center p-4 bg-gradient-to-br from-background via-background to-primary/5">
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.5 }}
-        className="w-full max-w-md relative z-10 px-4"
+        className="w-full max-w-md"
       >
-        {/* Logo y título */}
-        <div className="text-center mb-6 md:mb-8">
-          <motion.div
-            initial={{ scale: 0 }}
-            animate={{ scale: 1 }}
-            transition={{ type: "spring", stiffness: 200 }}
-            className="inline-flex flex-col items-center justify-center mb-3 md:mb-4"
-          >
-            <img 
-              src={`${import.meta.env.BASE_URL}logo-playr.png`}
-              alt="PlayR Logo" 
-              className="w-20 h-20 md:w-28 md:h-28 mb-2 md:mb-3"
-            />
-            <h1 className="text-2xl md:text-3xl font-black text-textPrimary">
-              Play<span className="text-primary">R</span>
+        <div className="bg-cardBg/95 backdrop-blur-xl rounded-2xl p-8 border border-cardBorder shadow-2xl">
+          {/* Logo */}
+          <div className="flex justify-center mb-6">
+            <Logo />
+          </div>
+
+          {/* Header */}
+          <div className="text-center mb-8">
+            <h1 className="text-3xl font-black text-textPrimary mb-2">
+              ¿Olvidaste tu contraseña?
             </h1>
-          </motion.div>
-          <p className="text-textSecondary text-center text-sm md:text-base">Recupera tu contraseña</p>
-        </div>
+            <p className="text-textSecondary text-sm">
+              No te preocupes, te enviaremos instrucciones para restablecerla
+            </p>
+          </div>
 
-        {/* Formulario */}
-        <div className="bg-cardBg rounded-xl md:rounded-2xl p-5 md:p-8 border border-cardBorder shadow-2xl">
-          {emailSent ? (
-            <motion.div
-              initial={{ opacity: 0, scale: 0.9 }}
-              animate={{ opacity: 1, scale: 1 }}
-              className="text-center py-4 md:py-8"
-            >
-              <div className="w-16 h-16 md:w-20 md:h-20 bg-primary/20 rounded-full flex items-center justify-center mx-auto mb-4">
-                <CheckCircle className="text-primary" size={32} />
-              </div>
-              <h3 className="text-lg md:text-xl font-bold text-textPrimary mb-2">
-                ¡Email enviado!
-              </h3>
-              <p className="text-textSecondary mb-2 text-sm md:text-base">
-                Te enviamos un correo a <span className="text-primary font-bold">{email}</span>
-              </p>
-              <p className="text-textSecondary text-xs md:text-sm mb-6">
-                Haz clic en el enlace del correo para restablecer tu contraseña.
-              </p>
-              <div className="space-y-3">
-                <Button
-                  variant="primary"
-                  onClick={() => navigate('/login')}
-                  className="w-full text-sm md:text-base"
-                >
-                  Ir a Iniciar Sesión
-                </Button>
-                <button
-                  onClick={() => {
-                    setEmailSent(false);
-                    setEmail('');
-                  }}
-                  className="text-textSecondary hover:text-textPrimary text-sm transition-colors w-full"
-                >
-                  Enviar a otro email
-                </button>
-              </div>
-            </motion.div>
-          ) : (
-            <>
-              <h2 className="text-xl md:text-2xl font-bold text-textPrimary mb-2">
-                ¿Olvidaste tu contraseña?
-              </h2>
-              <p className="text-textSecondary text-xs md:text-sm mb-4 md:mb-6">
-                Ingresa tu email y te enviaremos un enlace para restablecer tu contraseña.
-              </p>
-
-              {error && (
-                <motion.div
-                  initial={{ opacity: 0, y: -10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  className="bg-red-500/10 border border-red-500/50 rounded-lg p-3 mb-4"
-                >
-                  <p className="text-red-500 text-sm">{error}</p>
-                </motion.div>
-              )}
-
-              <form onSubmit={handleSubmit} className="space-y-4">
-                <div>
-                  <label className="block text-textSecondary text-xs md:text-sm font-medium mb-1.5 md:mb-2">
-                    Email
-                  </label>
-                  <div className="relative">
-                    <Mail className="absolute left-3 top-1/2 -translate-y-1/2 text-textSecondary" size={18} />
-                    <Input
-                      type="email"
-                      value={email}
-                      onChange={(e) => setEmail(e.target.value)}
-                      placeholder="tu@email.com"
-                      className="pl-10 text-sm md:text-base"
-                      autoFocus
-                    />
-                  </div>
-                </div>
-
-                <Button
-                  type="submit"
-                  variant="primary"
-                  className="w-full text-sm md:text-base py-2.5 md:py-3"
+          {/* Form */}
+          <form onSubmit={handleSubmit} className="space-y-4">
+            <div>
+              <label className="block text-textSecondary text-sm font-medium mb-2">
+                Email
+              </label>
+              <div className="relative">
+                <Mail className="absolute left-3 top-1/2 -translate-y-1/2 text-textSecondary" size={18} />
+                <Input
+                  type="email"
+                  placeholder="tu@email.com"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  required
                   disabled={loading}
-                >
-                  {loading ? 'Enviando...' : 'Enviar enlace de recuperación'}
-                </Button>
-              </form>
-
-              <div className="mt-6 text-center space-y-3">
-                <Link 
-                  to="/login" 
-                  className="text-textSecondary hover:text-primary text-sm transition-colors flex items-center justify-center gap-2"
-                >
-                  <ArrowLeft size={16} />
-                  Volver a Iniciar Sesión
-                </Link>
-                <p className="text-textSecondary text-sm">
-                  ¿No tienes cuenta?{' '}
-                  <Link to="/register" className="text-primary hover:text-blue-400 font-bold transition-colors">
-                    Regístrate aquí
-                  </Link>
-                </p>
+                  className="pl-10"
+                />
               </div>
-            </>
-          )}
+            </div>
+
+            {error && (
+              <motion.div
+                initial={{ opacity: 0, y: -10 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="bg-red-500/10 border border-red-500/30 rounded-lg p-3"
+              >
+                <p className="text-red-500 text-sm">{error}</p>
+              </motion.div>
+            )}
+
+            <Button
+              type="submit"
+              variant="primary"
+              disabled={loading || !email}
+              className="w-full"
+            >
+              {loading ? 'Enviando...' : 'Enviar Email de Recuperación'}
+            </Button>
+          </form>
+
+          {/* Info adicional */}
+          <div className="mt-6 p-4 bg-primary/5 rounded-lg">
+            <p className="text-xs text-textSecondary">
+              💡 <span className="font-semibold">Nota:</span> Si iniciaste sesión con Google, 
+              debes restablecer tu contraseña desde tu cuenta de Google.
+            </p>
+          </div>
+
+          {/* Back to login */}
+          <Link
+            to="/login"
+            className="flex items-center justify-center gap-2 mt-6 text-sm text-textSecondary hover:text-primary transition-colors"
+          >
+            <ArrowLeft size={16} />
+            Volver al Login
+          </Link>
         </div>
+
+        {/* Footer */}
+        <p className="text-center text-xs text-textSecondary mt-6">
+          ¿No tienes cuenta?{' '}
+          <Link to="/register" className="text-primary hover:underline font-semibold">
+            Regístrate aquí
+          </Link>
+        </p>
       </motion.div>
     </div>
   );

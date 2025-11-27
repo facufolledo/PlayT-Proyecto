@@ -1,6 +1,7 @@
 // Configuración de Firebase
 import { initializeApp } from 'firebase/app';
 import { getAuth, GoogleAuthProvider, setPersistence, browserLocalPersistence } from 'firebase/auth';
+import { getStorage } from 'firebase/storage';
 
 // Validar que las variables de entorno estén configuradas
 const requiredEnvVars = {
@@ -53,5 +54,8 @@ setPersistence(auth, browserLocalPersistence).catch((error) => {
 
 // Provider de Google
 export const googleProvider = new GoogleAuthProvider();
+
+// Storage para subir archivos
+export const storage = getStorage(app);
 
 export default app;

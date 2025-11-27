@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useAuth } from '../context/AuthContext';
-import { Trophy, Award, MapPin, Calendar, ChevronDown, ChevronUp } from 'lucide-react';
+import { Trophy, Award, MapPin, Calendar, ChevronDown, ChevronUp, Target, Hand } from 'lucide-react';
 import Button from '../components/Button';
 import { PartidoCardSkeleton } from '../components/SkeletonLoader';
 import axios from 'axios';
@@ -210,15 +210,31 @@ export default function MiPerfil() {
               animate={{ opacity: 1, x: 0 }}
               className="bg-cardBg rounded-xl p-4 md:p-6 border border-cardBorder"
             >
-              <h2 className="text-lg md:text-xl font-bold text-textPrimary mb-4 md:mb-6 flex items-center gap-2">
-                <div className="h-0.5 md:h-1 w-6 md:w-8 bg-gradient-to-r from-primary to-secondary rounded-full" />
-                Mi Perfil
-              </h2>
+              <div className="flex items-center justify-between mb-4 md:mb-6">
+                <h2 className="text-lg md:text-xl font-bold text-textPrimary flex items-center gap-2">
+                  <div className="h-0.5 md:h-1 w-6 md:w-8 bg-gradient-to-r from-primary to-secondary rounded-full" />
+                  Mi Perfil
+                </h2>
+                <button
+                  onClick={() => window.location.href = '/perfil/editar'}
+                  className="text-primary hover:text-primary/80 text-sm font-semibold transition-colors"
+                >
+                  Editar
+                </button>
+              </div>
 
               {/* Avatar y Nombre */}
               <div className="flex flex-col items-center mb-4">
-                <div className="w-24 h-24 md:w-32 md:h-32 rounded-full bg-gradient-to-br from-primary to-secondary flex items-center justify-center text-white text-3xl md:text-4xl font-black mb-3">
-                  {usuario?.nombre?.charAt(0)}{usuario?.apellido?.charAt(0)}
+                <div className="w-24 h-24 md:w-32 md:h-32 rounded-full bg-gradient-to-br from-primary to-secondary flex items-center justify-center text-white text-3xl md:text-4xl font-black mb-3 overflow-hidden">
+                  {usuario?.foto_perfil ? (
+                    <img
+                      src={usuario.foto_perfil}
+                      alt={`${usuario.nombre} ${usuario.apellido}`}
+                      className="w-full h-full object-cover"
+                    />
+                  ) : (
+                    <span>{usuario?.nombre?.charAt(0)}{usuario?.apellido?.charAt(0)}</span>
+                  )}
                 </div>
                 <h3 className="text-xl md:text-2xl font-black text-textPrimary text-center">
                   {usuario?.nombre} {usuario?.apellido}
@@ -236,11 +252,15 @@ export default function MiPerfil() {
               {/* Info Adicional */}
               <div className="space-y-2 text-xs md:text-sm">
                 <div className="flex items-center gap-2 text-textSecondary">
-                  <Award size={14} className="text-primary" />
-                  <span>DRIVE - ZURDO</span>
+                  <Target size={14} className="text-primary" />
+                  <span className="capitalize">{usuario?.posicion_preferida || 'Drive'}</span>
                 </div>
                 <div className="flex items-center gap-2 text-textSecondary">
-                  <MapPin size={14} className="text-primary" />
+                  <Hand size={14} className="text-secondary" />
+                  <span className="capitalize">{usuario?.mano_dominante || 'Derecha'}</span>
+                </div>
+                <div className="flex items-center gap-2 text-textSecondary">
+                  <MapPin size={14} className="text-accent" />
                   <span>{usuario?.ciudad || 'Ciudad'}, {usuario?.pais || 'País'}</span>
                 </div>
                 <div className="flex items-center gap-2 text-textSecondary">

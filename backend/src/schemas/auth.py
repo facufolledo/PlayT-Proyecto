@@ -46,6 +46,12 @@ class UserResponse(BaseModel):
     rating: int
     partidos_jugados: int
     id_categoria: Optional[int]
+    posicion_preferida: Optional[str] = None
+    mano_dominante: Optional[str] = None
+    foto_perfil: Optional[str] = None
+    dni: Optional[str] = None
+    fecha_nacimiento: Optional[str] = None
+    telefono: Optional[str] = None
     
     class Config:
         from_attributes = True
