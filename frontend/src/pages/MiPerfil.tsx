@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useAuth } from '../context/AuthContext';
-import { Trophy, Award, MapPin, Calendar, ChevronDown, ChevronUp } from 'lucide-react';
+import { Trophy, Award, MapPin, Calendar, ChevronDown, ChevronUp, Target, Hand } from 'lucide-react';
 import Button from '../components/Button';
 import { PartidoCardSkeleton } from '../components/SkeletonLoader';
 import axios from 'axios';
@@ -252,11 +252,15 @@ export default function MiPerfil() {
               {/* Info Adicional */}
               <div className="space-y-2 text-xs md:text-sm">
                 <div className="flex items-center gap-2 text-textSecondary">
-                  <Award size={14} className="text-primary" />
-                  <span>DRIVE - ZURDO</span>
+                  <Target size={14} className="text-primary" />
+                  <span className="capitalize">{usuario?.posicion_preferida || 'Drive'}</span>
                 </div>
                 <div className="flex items-center gap-2 text-textSecondary">
-                  <MapPin size={14} className="text-primary" />
+                  <Hand size={14} className="text-secondary" />
+                  <span className="capitalize">{usuario?.mano_dominante || 'Derecha'}</span>
+                </div>
+                <div className="flex items-center gap-2 text-textSecondary">
+                  <MapPin size={14} className="text-accent" />
                   <span>{usuario?.ciudad || 'Ciudad'}, {usuario?.pais || 'País'}</span>
                 </div>
                 <div className="flex items-center gap-2 text-textSecondary">

@@ -29,6 +29,20 @@ class CompletarPerfilRequest(BaseModel):
     pais: Optional[str] = None
 
 
+class ActualizarPerfilRequest(BaseModel):
+    """Esquema para actualizar perfil de usuario"""
+    nombre: Optional[str] = None
+    apellido: Optional[str] = None
+    ciudad: Optional[str] = None
+    pais: Optional[str] = None
+    posicion_preferida: Optional[str] = None  # 'drive' o 'reves'
+    mano_dominante: Optional[str] = None  # 'derecha' o 'zurda'
+    foto_perfil: Optional[str] = None  # URL de la foto
+    dni: Optional[str] = None
+    fecha_nacimiento: Optional[str] = None  # formato: YYYY-MM-DD
+    telefono: Optional[str] = None
+
+
 @router.post("/completar-perfil", response_model=UserResponse)
 async def completar_perfil(
     datos: CompletarPerfilRequest,
@@ -162,7 +176,13 @@ async def completar_perfil(
             pais=perfil.pais,
             rating=current_user.rating,
             partidos_jugados=current_user.partidos_jugados,
-            id_categoria=current_user.id_categoria
+            id_categoria=current_user.id_categoria,
+            posicion_preferida=perfil.posicion_preferida,
+            mano_dominante=perfil.mano_habil,
+            foto_perfil=perfil.url_avatar,
+            dni=perfil.dni,
+            fecha_nacimiento=perfil.fecha_nacimiento.isoformat() if perfil.fecha_nacimiento else None,
+            telefono=perfil.telefono
         )
         
     except ValueError as e:
@@ -205,8 +225,118 @@ async def get_usuario_actual(
         pais=perfil.pais,
         rating=current_user.rating,
         partidos_jugados=current_user.partidos_jugados,
-        id_categoria=current_user.id_categoria
+        id_categoria=current_user.id_categoria,
+        posicion_preferida=perfil.posicion_preferida,
+        mano_dominante=perfil.mano_habil,
+        foto_perfil=perfil.url_avatar,
+        dni=perfil.dni,
+        fecha_nacimiento=perfil.fecha_nacimiento.isoformat() if perfil.fecha_nacimiento else None,
+        telefono=perfil.telefono
     )
+
+
+@router.put("/perfil", response_model=UserResponse)
+async def actualizar_perfil(
+    datos: ActualizarPerfilRequest,
+    current_user: Usuario = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """
+    Actualizar información del perfil del usuario actual
+    """
+    try:
+        # Buscar perfil del usuario
+        perfil = db.query(PerfilUsuario).filter(
+            PerfilUsuario.id_usuario == current_user.id_usuario
+        ).first()
+        
+        if not perfil:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Perfil no encontrado"
+            )
+        
+        # Actualizar solo los campos que vienen en el request
+        if datos.nombre is not None:
+            perfil.nombre = datos.nombre
+        
+        if datos.apellido is not None:
+            perfil.apellido = datos.apellido
+        
+        if datos.ciudad is not None:
+            perfil.ciudad = datos.ciudad
+        
+        if datos.pais is not None:
+            perfil.pais = datos.pais
+        
+        if datos.posicion_preferida is not None:
+            # Validar que sea un valor válido
+            if datos.posicion_preferida not in ['drive', 'reves', 'indiferente']:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="posicion_preferida debe ser 'drive', 'reves' o 'indiferente'"
+                )
+            perfil.posicion_preferida = datos.posicion_preferida
+        
+        if datos.mano_dominante is not None:
+            # Validar que sea un valor válido
+            if datos.mano_dominante not in ['derecha', 'zurda']:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="mano_dominante debe ser 'derecha' o 'zurda'"
+                )
+            perfil.mano_habil = datos.mano_dominante
+        
+        if datos.foto_perfil is not None:
+            perfil.url_avatar = datos.foto_perfil
+        
+        if datos.dni is not None:
+            perfil.dni = datos.dni
+        
+        if datos.fecha_nacimiento is not None:
+            try:
+                perfil.fecha_nacimiento = datetime.strptime(datos.fecha_nacimiento, '%Y-%m-%d').date()
+            except ValueError:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Formato de fecha inválido. Use YYYY-MM-DD"
+                )
+        
+        if datos.telefono is not None:
+            perfil.telefono = datos.telefono
+        
+        db.commit()
+        db.refresh(perfil)
+        db.refresh(current_user)
+        
+        return UserResponse(
+            id_usuario=current_user.id_usuario,
+            nombre_usuario=current_user.nombre_usuario,
+            email=current_user.email,
+            nombre=perfil.nombre,
+            apellido=perfil.apellido,
+            sexo=current_user.sexo,
+            ciudad=perfil.ciudad,
+            pais=perfil.pais,
+            rating=current_user.rating,
+            partidos_jugados=current_user.partidos_jugados,
+            id_categoria=current_user.id_categoria,
+            posicion_preferida=perfil.posicion_preferida,
+            mano_dominante=perfil.mano_habil,
+            foto_perfil=perfil.url_avatar,
+            dni=perfil.dni,
+            fecha_nacimiento=perfil.fecha_nacimiento.isoformat() if perfil.fecha_nacimiento else None,
+            telefono=perfil.telefono
+        )
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error al actualizar perfil: {str(e)}"
+        )
 
 
 class FCMTokenRequest(BaseModel):
