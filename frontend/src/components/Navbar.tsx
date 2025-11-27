@@ -39,9 +39,11 @@ export default function Navbar({ onMenuClick }: NavbarProps) {
           >
             <Menu size={24} />
           </motion.button>
-          <motion.div 
-            className="flex items-center gap-3"
+          <motion.button 
+            onClick={() => window.location.reload()}
+            className="flex items-center gap-3 hover:opacity-80 transition-opacity cursor-pointer"
             whileHover={{ scale: 1.02 }}
+            whileTap={{ scale: 0.98 }}
           >
             <img 
               src={`${import.meta.env.BASE_URL}logo-playr.png`}
@@ -51,7 +53,7 @@ export default function Navbar({ onMenuClick }: NavbarProps) {
             <h1 className="text-2xl font-black text-textPrimary tracking-tight">
               Play<span className="text-primary">R</span>
             </h1>
-          </motion.div>
+          </motion.button>
         </div>
 
         <div className="flex items-center gap-4">

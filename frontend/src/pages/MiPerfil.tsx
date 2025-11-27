@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useAuth } from '../context/AuthContext';
-import { Trophy, Award, MapPin, Calendar, ChevronDown, ChevronUp } from 'lucide-react';
+import { Trophy, MapPin, Calendar, ChevronDown, ChevronUp } from 'lucide-react';
 import Button from '../components/Button';
 import { PartidoCardSkeleton } from '../components/SkeletonLoader';
 import axios from 'axios';
@@ -208,7 +208,7 @@ export default function MiPerfil() {
             <motion.div
               initial={{ opacity: 0, x: -20 }}
               animate={{ opacity: 1, x: 0 }}
-              className="bg-cardBg rounded-xl p-4 md:p-6 border border-cardBorder"
+              className="bg-cardBg rounded-xl p-3 md:p-6 border border-cardBorder"
             >
               <div className="flex items-center justify-between mb-4 md:mb-6">
                 <h2 className="text-lg md:text-xl font-bold text-textPrimary flex items-center gap-2">
@@ -216,7 +216,7 @@ export default function MiPerfil() {
                   Mi Perfil
                 </h2>
                 <button
-                  onClick={() => window.location.href = '/perfil/editar'}
+                  onClick={() => window.location.href = '/PlayR/perfil/editar'}
                   className="text-primary hover:text-primary/80 text-sm font-semibold transition-colors"
                 >
                   Editar
@@ -224,8 +224,8 @@ export default function MiPerfil() {
               </div>
 
               {/* Avatar y Nombre */}
-              <div className="flex flex-col items-center mb-4">
-                <div className="w-24 h-24 md:w-32 md:h-32 rounded-full bg-gradient-to-br from-primary to-secondary flex items-center justify-center text-white text-3xl md:text-4xl font-black mb-3 overflow-hidden">
+              <div className="flex flex-col items-center mb-3">
+                <div className="w-20 h-20 md:w-32 md:h-32 rounded-full bg-gradient-to-br from-primary to-secondary flex items-center justify-center text-white text-2xl md:text-4xl font-black mb-2 overflow-hidden">
                   {usuario?.foto_perfil ? (
                     <img
                       src={usuario.foto_perfil}
@@ -236,69 +236,59 @@ export default function MiPerfil() {
                     <span>{usuario?.nombre?.charAt(0)}{usuario?.apellido?.charAt(0)}</span>
                   )}
                 </div>
-                <h3 className="text-xl md:text-2xl font-black text-textPrimary text-center">
+                <h3 className="text-lg md:text-2xl font-black text-textPrimary text-center">
                   {usuario?.nombre} {usuario?.apellido}
                 </h3>
-                <p className="text-textSecondary text-xs md:text-sm">@{usuario?.nombre_usuario}</p>
-                <p className="text-textSecondary text-[10px] md:text-xs mt-1">{usuario?.email}</p>
+                <p className="text-textSecondary text-[10px] md:text-sm">@{usuario?.nombre_usuario}</p>
+                <p className="text-textSecondary text-[9px] md:text-xs mt-0.5">{usuario?.email}</p>
               </div>
 
               {/* Rating */}
-              <div className="text-center mb-4 p-3 md:p-4 bg-primary/10 rounded-lg">
-                <p className="text-textSecondary text-xs md:text-sm mb-1">Rating</p>
-                <p className="text-3xl md:text-4xl font-black text-primary">{usuario?.rating || 1200}</p>
+              <div className="text-center mb-3 p-2 md:p-4 bg-primary/10 rounded-lg">
+                <p className="text-textSecondary text-[10px] md:text-sm mb-0.5">Rating</p>
+                <p className="text-2xl md:text-4xl font-black text-primary">{usuario?.rating || 1200}</p>
               </div>
 
               {/* Info Adicional */}
-              <div className="space-y-2 text-xs md:text-sm">
-                <div className="flex items-center gap-2 text-textSecondary">
-                  <Award size={14} className="text-primary" />
-                  <span>DRIVE - ZURDO</span>
-                </div>
-                <div className="flex items-center gap-2 text-textSecondary">
-                  <MapPin size={14} className="text-primary" />
-                  <span>{usuario?.ciudad || 'Ciudad'}, {usuario?.pais || 'País'}</span>
-                </div>
-                <div className="flex items-center gap-2 text-textSecondary">
-                  <Calendar size={14} className="text-primary" />
-                  <span>Miembro desde 2025</span>
+              <div className="space-y-1.5 text-[10px] md:text-sm">
+                {usuario?.ciudad && usuario?.pais && (
+                  <div className="flex items-center gap-1.5 text-textSecondary">
+                    <MapPin size={12} className="text-primary md:w-3.5 md:h-3.5" />
+                    <span>{usuario.ciudad}, {usuario.pais}</span>
+                  </div>
+                )}
+                <div className="flex items-center gap-1.5 text-textSecondary">
+                  <Calendar size={12} className="text-primary md:w-3.5 md:h-3.5" />
+                  <span>Miembro desde {new Date().getFullYear()}</span>
                 </div>
               </div>
             </motion.div>
 
-            {/* Card de Categoría */}
+            {/* Card de Estadísticas */}
             <motion.div
               initial={{ opacity: 0, x: -20 }}
               animate={{ opacity: 1, x: 0 }}
               transition={{ delay: 0.2 }}
-              className="bg-gradient-to-br from-primary/20 to-secondary/20 rounded-xl p-4 md:p-6 border border-primary/30"
+              className="bg-gradient-to-br from-primary/20 to-secondary/20 rounded-xl p-3 md:p-6 border border-primary/30"
             >
-              <h3 className="text-base md:text-lg font-bold text-textPrimary mb-3 md:mb-4">Tu Categoría</h3>
+              <h3 className="text-sm md:text-lg font-bold text-textPrimary mb-2 md:mb-4">Estadísticas</h3>
               
-              <div className="bg-primary/20 rounded-lg p-3 md:p-4 mb-3 md:mb-4">
-                <div className="flex items-center justify-between mb-2">
-                  <span className="text-xl md:text-2xl font-black text-primary">7ma</span>
-                  <Trophy size={20} className="text-primary md:w-6 md:h-6" />
+              <div className="grid grid-cols-2 gap-2">
+                <div className="bg-primary/20 rounded-lg p-2 text-center">
+                  <Trophy size={16} className="text-primary mx-auto mb-1 md:w-5 md:h-5" />
+                  <p className="text-xl md:text-2xl font-black text-primary">{victorias}</p>
+                  <p className="text-[9px] md:text-xs text-textSecondary">Victorias</p>
                 </div>
-                <p className="text-textSecondary text-xs md:text-sm">Intermedio Avanzado</p>
-                <p className="text-textSecondary text-[10px] md:text-xs mt-1">Rating: 900-1100</p>
+                <div className="bg-red-500/20 rounded-lg p-2 text-center">
+                  <Trophy size={16} className="text-red-500 mx-auto mb-1 md:w-5 md:h-5" />
+                  <p className="text-xl md:text-2xl font-black text-red-500">{derrotas}</p>
+                  <p className="text-[9px] md:text-xs text-textSecondary">Derrotas</p>
+                </div>
               </div>
 
-              {/* Barra de Progreso */}
-              <div className="space-y-2">
-                <div className="flex justify-between text-[10px] md:text-xs text-textSecondary">
-                  <span>Progreso a 6ta</span>
-                  <span>78%</span>
-                </div>
-                <div className="h-2 bg-background rounded-full overflow-hidden">
-                  <motion.div
-                    initial={{ width: 0 }}
-                    animate={{ width: '78%' }}
-                    transition={{ duration: 1, delay: 0.5 }}
-                    className="h-full bg-gradient-to-r from-secondary to-accent"
-                  />
-                </div>
-                <p className="text-[10px] md:text-xs text-textSecondary">22 puntos para subir</p>
+              <div className="mt-2 bg-accent/20 rounded-lg p-2 text-center">
+                <p className="text-[9px] md:text-xs text-textSecondary mb-0.5">Winrate</p>
+                <p className="text-2xl md:text-3xl font-black text-accent">{winrate}%</p>
               </div>
             </motion.div>
           </div>

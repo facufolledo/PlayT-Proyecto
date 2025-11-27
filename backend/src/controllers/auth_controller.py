@@ -186,7 +186,13 @@ async def firebase_auth(
         pais=perfil.pais,
         rating=user.rating,
         partidos_jugados=user.partidos_jugados,
-        id_categoria=user.id_categoria
+        id_categoria=user.id_categoria,
+        posicion_preferida=perfil.posicion_preferida,
+        mano_dominante=perfil.mano_habil,
+        foto_perfil=perfil.url_avatar,
+        dni=perfil.dni,
+        fecha_nacimiento=perfil.fecha_nacimiento.isoformat() if perfil.fecha_nacimiento else None,
+        telefono=perfil.telefono
     )
 
 @router.get("/me", response_model=UserResponse)
@@ -213,5 +219,11 @@ async def get_current_user_info(current_user: Usuario = Depends(get_current_user
         pais=perfil.pais,
         rating=current_user.rating,
         partidos_jugados=current_user.partidos_jugados,
-        id_categoria=current_user.id_categoria
+        id_categoria=current_user.id_categoria,
+        posicion_preferida=perfil.posicion_preferida,
+        mano_dominante=perfil.mano_habil,
+        foto_perfil=perfil.url_avatar,
+        dni=perfil.dni,
+        fecha_nacimiento=perfil.fecha_nacimiento.isoformat() if perfil.fecha_nacimiento else None,
+        telefono=perfil.telefono
     )

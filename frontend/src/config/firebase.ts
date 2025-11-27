@@ -52,8 +52,11 @@ setPersistence(auth, browserLocalPersistence).catch((error) => {
   console.error('Error al configurar persistencia de Firebase:', error);
 });
 
-// Provider de Google
+// Provider de Google con configuración para evitar errores COOP
 export const googleProvider = new GoogleAuthProvider();
+googleProvider.setCustomParameters({
+  prompt: 'select_account'
+});
 
 // Storage para subir archivos
 export const storage = getStorage(app);

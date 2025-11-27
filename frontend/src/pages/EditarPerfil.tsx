@@ -1,7 +1,7 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
-import { Camera, Save, X, MapPin, User, Award } from 'lucide-react';
+import { Camera, Save, X, MapPin, User, Award, Pencil } from 'lucide-react';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { storage } from '../config/firebase';
 import { useAuth } from '../context/AuthContext';
@@ -12,7 +12,7 @@ import axios from 'axios';
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
 
 export default function EditarPerfil() {
-  const { usuario, updateProfile } = useAuth();
+  const { usuario, updateProfile, reloadUser } = useAuth();
   const navigate = useNavigate();
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -24,24 +24,52 @@ export default function EditarPerfil() {
   );
 
   const [formData, setFormData] = useState({
-    nombre: usuario?.nombre || '',
-    apellido: usuario?.apellido || '',
-    ciudad: usuario?.ciudad || '',
-    pais: usuario?.pais || 'Argentina',
-    posicion_preferida: usuario?.posicion_preferida || 'drive',
-    mano_dominante: usuario?.mano_dominante || 'derecha',
+    nombre: '',
+    apellido: '',
+    ciudad: '',
+    pais: 'Argentina',
+    posicion_preferida: 'drive',
+    mano_dominante: 'derecha',
+    dni: '',
+    fecha_nacimiento: '',
+    telefono: '',
   });
+
+  // Actualizar formData cuando cambie el usuario
+  useEffect(() => {
+    if (usuario) {
+      console.log('🔍 Usuario cargado en EditarPerfil:', {
+        posicion_preferida: usuario.posicion_preferida,
+        mano_dominante: usuario.mano_dominante,
+        usuario_completo: usuario
+      });
+      
+      setFormData({
+        nombre: usuario.nombre || '',
+        apellido: usuario.apellido || '',
+        ciudad: usuario.ciudad || '',
+        pais: usuario.pais || 'Argentina',
+        // Usar los valores del usuario, o valores por defecto si no existen
+        posicion_preferida: usuario.posicion_preferida || 'drive',
+        mano_dominante: usuario.mano_dominante || 'derecha',
+        dni: usuario.dni || '',
+        fecha_nacimiento: usuario.fecha_nacimiento || '',
+        telefono: usuario.telefono || '',
+      });
+      setPhotoPreview(usuario.foto_perfil || null);
+      
+      console.log('✅ FormData actualizado:', {
+        posicion_preferida: usuario.posicion_preferida || 'drive',
+        mano_dominante: usuario.mano_dominante || 'derecha'
+      });
+    }
+  }, [usuario]);
 
   const handlePhotoClick = () => {
     fileInputRef.current?.click();
   };
 
   const handlePhotoChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    // TEMPORALMENTE DESHABILITADO - Pendiente implementación backend
-    setError('La funcionalidad de cambiar foto estará disponible próximamente');
-    return;
-    
-    /* 
     const file = e.target.files?.[0];
     if (!file) return;
 
@@ -74,7 +102,7 @@ export default function EditarPerfil() {
       const photoURL = await getDownloadURL(storageRef);
 
       // Actualizar en el backend
-      const token = localStorage.getItem('token');
+      const token = localStorage.getItem('firebase_token');
       await axios.put(
         `${API_URL}/usuarios/perfil`,
         { foto_perfil: photoURL },
@@ -91,7 +119,6 @@ export default function EditarPerfil() {
     } finally {
       setUploadingPhoto(false);
     }
-    */
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -100,17 +127,35 @@ export default function EditarPerfil() {
     setLoading(true);
 
     try {
-      const token = localStorage.getItem('token');
-      await axios.put(
+      const token = localStorage.getItem('firebase_token');
+      
+      if (!token) {
+        setError('No se encontró token de autenticación. Por favor, inicia sesión nuevamente.');
+        setLoading(false);
+        return;
+      }
+
+      // Filtrar campos vacíos para no sobrescribir con valores vacíos
+      const datosAEnviar = Object.fromEntries(
+        Object.entries(formData).filter(([_, value]) => value !== '' && value !== null && value !== undefined)
+      );
+      
+      console.log('📤 Enviando al backend:', datosAEnviar);
+      
+      const response = await axios.put(
         `${API_URL}/usuarios/perfil`,
-        formData,
+        datosAEnviar,
         { headers: { Authorization: `Bearer ${token}` } }
       );
 
-      // Actualizar contexto
-      updateProfile(formData);
+      console.log('✅ Respuesta del backend:', response.data);
+      
+      // Recargar usuario desde el backend para asegurar datos frescos
+      await reloadUser();
+      
+      console.log('✅ Usuario recargado, navegando a perfil...');
 
-      navigate('/perfil');
+      navigate('/PlayR/perfil');
     } catch (error: any) {
       console.error('Error al actualizar perfil:', error);
       setError(error.response?.data?.detail || 'Error al actualizar perfil');
@@ -119,7 +164,8 @@ export default function EditarPerfil() {
     }
   };
 
-  const esUsuarioGoogle = usuario?.email?.includes('gmail.com') || usuario?.foto_perfil?.includes('googleusercontent.com');
+  // Solo bloquear si la foto actual viene de Google (no solo por tener email de Gmail)
+  const fotoDeGoogle = usuario?.foto_perfil?.includes('googleusercontent.com');
 
   return (
     <div className="min-h-screen p-4 md:p-6">
@@ -149,9 +195,14 @@ export default function EditarPerfil() {
 
           <form onSubmit={handleSubmit} className="space-y-6">
             {/* Foto de perfil */}
-            <div className="flex flex-col items-center">
-              <div className="relative group">
-                <div className="w-32 h-32 rounded-full overflow-hidden bg-gradient-to-br from-primary to-secondary flex items-center justify-center">
+            <div className="flex flex-col items-center mb-2">
+              <button
+                type="button"
+                onClick={handlePhotoClick}
+                disabled={uploadingPhoto}
+                className="relative group cursor-pointer disabled:cursor-not-allowed"
+              >
+                <div className="w-32 h-32 rounded-full overflow-hidden bg-gradient-to-br from-primary to-secondary flex items-center justify-center ring-4 ring-cardBorder group-hover:ring-primary transition-all">
                   {photoPreview ? (
                     <img
                       src={photoPreview}
@@ -165,18 +216,10 @@ export default function EditarPerfil() {
                   )}
                 </div>
 
-                {/* Botón de cámara - TEMPORALMENTE DESHABILITADO */}
-                {!esUsuarioGoogle && (
-                  <button
-                    type="button"
-                    onClick={handlePhotoClick}
-                    disabled={true}
-                    className="absolute bottom-0 right-0 bg-gray-500 text-white p-3 rounded-full shadow-lg opacity-50 cursor-not-allowed"
-                    title="Próximamente disponible"
-                  >
-                    <Camera size={20} />
-                  </button>
-                )}
+                {/* Overlay con ícono de editar al hacer hover */}
+                <div className="absolute inset-0 rounded-full bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center pointer-events-none">
+                  <Pencil size={32} className="text-white" />
+                </div>
 
                 <input
                   ref={fileInputRef}
@@ -185,19 +228,17 @@ export default function EditarPerfil() {
                   onChange={handlePhotoChange}
                   className="hidden"
                 />
-              </div>
+              </button>
 
-              {esUsuarioGoogle && (
-                <p className="text-xs text-textSecondary mt-3 text-center">
-                  Tu foto viene de Google
-                </p>
-              )}
-
-              {!esUsuarioGoogle && (
-                <p className="text-xs text-textSecondary mt-3 text-center">
-                  Cambio de foto próximamente disponible
-                </p>
-              )}
+              <p className="text-xs text-textSecondary mt-3 text-center">
+                {uploadingPhoto ? (
+                  <span className="text-primary animate-pulse">Subiendo foto...</span>
+                ) : fotoDeGoogle ? (
+                  'Haz clic para reemplazar tu foto de Google'
+                ) : (
+                  'Haz clic para cambiar tu foto'
+                )}
+              </p>
             </div>
 
             {/* Nombre y Apellido */}
@@ -342,6 +383,47 @@ export default function EditarPerfil() {
               </div>
             </div>
 
+            {/* Información Adicional */}
+            <div>
+              <h3 className="text-lg font-bold text-textPrimary mb-4">Información Adicional (Opcional)</h3>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-textSecondary text-sm font-medium mb-2">
+                    DNI
+                  </label>
+                  <Input
+                    type="text"
+                    value={formData.dni || ''}
+                    onChange={(e) => setFormData({ ...formData, dni: e.target.value })}
+                    placeholder="12345678"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-textSecondary text-sm font-medium mb-2">
+                    Teléfono
+                  </label>
+                  <Input
+                    type="tel"
+                    value={formData.telefono || ''}
+                    onChange={(e) => setFormData({ ...formData, telefono: e.target.value })}
+                    placeholder="+54 9 11 1234-5678"
+                  />
+                </div>
+
+                <div className="md:col-span-2">
+                  <label className="block text-textSecondary text-sm font-medium mb-2">
+                    Fecha de Nacimiento
+                  </label>
+                  <Input
+                    type="date"
+                    value={formData.fecha_nacimiento || ''}
+                    onChange={(e) => setFormData({ ...formData, fecha_nacimiento: e.target.value })}
+                  />
+                </div>
+              </div>
+            </div>
+
             {/* Error */}
             {error && (
               <motion.div
@@ -358,7 +440,7 @@ export default function EditarPerfil() {
               <Button
                 type="button"
                 variant="ghost"
-                onClick={() => navigate('/perfil')}
+                onClick={() => navigate('/PlayR/perfil')}
                 className="flex-1"
               >
                 Cancelar

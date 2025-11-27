@@ -1,10 +1,10 @@
 import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { Trophy, TrendingUp, TrendingDown, Minus, Medal, Filter, Search, BarChart3 } from 'lucide-react';
+import { Trophy, Minus, Medal, Filter, Search } from 'lucide-react';
 import Card from '../components/Card';
 import Button from '../components/Button';
 import Input from '../components/Input';
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
+
 import { apiService } from '../services/api';
 import { logger } from '../utils/logger';
 
@@ -27,26 +27,14 @@ export default function Rankings() {
   const [filtroCategoria, setFiltroCategoria] = useState<string>('todas');
   const [filtroGenero, setFiltroGenero] = useState<string>('todos');
   const [busqueda, setBusqueda] = useState('');
-  const [jugadorSeleccionado, setJugadorSeleccionado] = useState<any | null>(null);
+
   const [jugadores, setJugadores] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [categorias, setCategorias] = useState<any[]>([]);
+
   const [mostrarTodos, setMostrarTodos] = useState(false);
   const ITEMS_POR_PAGINA = 20;
 
-  // Cargar categorías al montar (solo una vez)
-  useEffect(() => {
-    const cargarCategorias = async () => {
-      try {
-        const categoriasData = await apiService.getCategorias();
-        setCategorias(categoriasData);
-      } catch (error) {
-        logger.error('Error al cargar categorías:', error);
-      }
-    };
 
-    cargarCategorias();
-  }, []);
 
   // Recargar cuando cambie el filtro de categoría o género
   useEffect(() => {
@@ -78,16 +66,6 @@ export default function Rankings() {
 
     cargarRanking();
   }, [filtroCategoria, filtroGenero]);
-
-  // Datos de progresión de rating (mock)
-  const progresionRating = [
-    { mes: 'Ene', rating: 1200 },
-    { mes: 'Feb', rating: 1250 },
-    { mes: 'Mar', rating: 1280 },
-    { mes: 'Abr', rating: 1320 },
-    { mes: 'May', rating: 1380 },
-    { mes: 'Jun', rating: 1450 },
-  ];
 
   // Filtrar jugadores localmente solo por búsqueda (el género ya se filtra en el backend)
   const jugadoresFiltrados = jugadores.filter(jugador => {
@@ -253,8 +231,7 @@ export default function Rankings() {
                       initial={{ opacity: 0, x: -20 }}
                       animate={{ opacity: 1, x: 0 }}
                       transition={{ delay: index * 0.02 }}
-                      onClick={() => setJugadorSeleccionado(jugador)}
-                      className="border-b border-cardBorder hover:bg-cardBorder transition-colors cursor-pointer active:scale-[0.98]"
+                      className="border-b border-cardBorder hover:bg-cardBorder transition-colors"
                     >
                       <td className="py-2 md:py-4 px-2 md:px-4">
                         <div className="flex items-center gap-1 md:gap-2">
@@ -332,38 +309,37 @@ export default function Rankings() {
                   initial={{ opacity: 0, x: -20 }}
                   animate={{ opacity: 1, x: 0 }}
                   transition={{ delay: index * 0.02 }}
-                  onClick={() => setJugadorSeleccionado(jugador)}
-                  className="bg-cardBg/50 rounded-lg p-3 border border-cardBorder active:scale-[0.98] transition-all"
+                  className="bg-cardBg/50 rounded-lg p-2 border border-cardBorder"
                 >
-                  <div className="flex items-center gap-3 mb-2">
+                  <div className="flex items-center gap-2 mb-1.5">
                     {/* Posición y medalla */}
                     <div className="flex items-center gap-1 flex-shrink-0">
-                      {index === 0 && <Medal className="text-accent" size={16} />}
-                      {index === 1 && <Medal className="text-gray-400" size={16} />}
-                      {index === 2 && <Medal className="text-orange-400" size={16} />}
-                      <span className="text-textPrimary font-bold text-base">#{index + 1}</span>
+                      {index === 0 && <Medal className="text-accent" size={14} />}
+                      {index === 1 && <Medal className="text-gray-400" size={14} />}
+                      {index === 2 && <Medal className="text-orange-400" size={14} />}
+                      <span className="text-textPrimary font-bold text-sm">#{index + 1}</span>
                     </div>
 
                     {/* Nombre y usuario */}
                     <div className="flex-1 min-w-0">
-                      <p className="text-textPrimary font-bold text-sm truncate">{nombreCompleto}</p>
-                      <p className="text-textSecondary text-[10px] truncate">@{jugador.nombre_usuario}</p>
+                      <p className="text-textPrimary font-bold text-xs truncate">{nombreCompleto}</p>
+                      <p className="text-textSecondary text-[9px] truncate">@{jugador.nombre_usuario}</p>
                     </div>
 
                     {/* Rating destacado */}
                     <div className="text-right flex-shrink-0">
-                      <p className="text-2xl font-black text-primary">{jugador.rating}</p>
-                      <span className={`inline-block px-2 py-0.5 rounded-full text-white font-bold text-[9px] bg-gradient-to-r ${catInfo.color}`}>
+                      <p className="text-xl font-black text-primary">{jugador.rating}</p>
+                      <span className={`inline-block px-1.5 py-0.5 rounded-full text-white font-bold text-[8px] bg-gradient-to-r ${catInfo.color}`}>
                         {catInfo.nombre}
                       </span>
                     </div>
                   </div>
 
                   {/* Estadísticas en fila */}
-                  <div className="flex items-center justify-between text-[10px] pt-2 border-t border-cardBorder/50">
+                  <div className="flex items-center justify-between text-[9px] pt-1.5 border-t border-cardBorder/50">
                     <div className="text-center">
-                      <p className="text-textSecondary">Género</p>
-                      <span className={`inline-block px-2 py-0.5 rounded-full text-white font-bold text-[10px] ${
+                      <p className="text-textSecondary mb-0.5">Género</p>
+                      <span className={`inline-block px-1.5 py-0.5 rounded-full text-white font-bold text-[9px] ${
                         jugador.sexo === 'M' 
                           ? 'bg-gradient-to-r from-blue-500 to-blue-600' 
                           : 'bg-gradient-to-r from-pink-500 to-pink-600'
@@ -372,16 +348,16 @@ export default function Rankings() {
                       </span>
                     </div>
                     <div className="text-center">
-                      <p className="text-textSecondary">Partidos</p>
-                      <p className="text-textPrimary font-bold">{partidosJugados}</p>
+                      <p className="text-textSecondary mb-0.5">Partidos</p>
+                      <p className="text-textPrimary font-bold text-xs">{partidosJugados}</p>
                     </div>
                     <div className="text-center">
-                      <p className="text-textSecondary">Victorias</p>
-                      <p className="text-secondary font-bold">{partidosGanados}</p>
+                      <p className="text-textSecondary mb-0.5">Victorias</p>
+                      <p className="text-secondary font-bold text-xs">{partidosGanados}</p>
                     </div>
                     <div className="text-center">
-                      <p className="text-textSecondary">% Victoria</p>
-                      <p className="text-accent font-bold">{porcentaje}%</p>
+                      <p className="text-textSecondary mb-0.5">% Win</p>
+                      <p className="text-accent font-bold text-xs">{porcentaje}%</p>
                     </div>
                   </div>
                 </motion.div>
@@ -452,75 +428,7 @@ export default function Rankings() {
         </Card>
       </div>
 
-      {/* Gráfico de Progresión de Rating */}
-      {jugadorSeleccionado && (
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-        >
-          <Card gradient>
-            <div className="flex items-center justify-between mb-6">
-              <div className="flex items-center gap-2">
-                <BarChart3 className="text-primary" size={28} />
-                <h2 className="text-2xl font-bold text-textPrimary">
-                  Progresión de Rating - {jugadorSeleccionado.nombre}
-                </h2>
-              </div>
-              <Button
-                variant="ghost"
-                onClick={() => setJugadorSeleccionado(null)}
-                size="sm"
-              >
-                Cerrar
-              </Button>
-            </div>
-            <ResponsiveContainer width="100%" height={300}>
-              <LineChart data={progresionRating}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#3A4558" />
-                <XAxis dataKey="mes" stroke="#94A3B8" />
-                <YAxis stroke="#94A3B8" domain={[1000, 1500]} />
-                <Tooltip 
-                  contentStyle={{ 
-                    backgroundColor: '#242B3D', 
-                    border: '1px solid #3A4558',
-                    borderRadius: '8px'
-                  }}
-                />
-                <Line 
-                  type="monotone" 
-                  dataKey="rating" 
-                  stroke="#0055FF" 
-                  strokeWidth={3}
-                  name="Rating"
-                  dot={{ fill: '#0055FF', r: 6 }}
-                />
-              </LineChart>
-            </ResponsiveContainer>
-            <div className="mt-4 grid grid-cols-2 md:grid-cols-4 gap-4">
-              <div className="bg-background rounded-lg p-3">
-                <p className="text-textSecondary text-xs mb-1">Rating Actual</p>
-                <p className="text-2xl font-black text-primary">{jugadorSeleccionado.rating}</p>
-              </div>
-              <div className="bg-background rounded-lg p-3">
-                <p className="text-textSecondary text-xs mb-1">Cambio Reciente</p>
-                <p className={`text-2xl font-black ${jugadorSeleccionado.cambioReciente > 0 ? 'text-secondary' : 'text-red-500'}`}>
-                  {jugadorSeleccionado.cambioReciente > 0 ? '+' : ''}{jugadorSeleccionado.cambioReciente}
-                </p>
-              </div>
-              <div className="bg-background rounded-lg p-3">
-                <p className="text-textSecondary text-xs mb-1">Partidos</p>
-                <p className="text-2xl font-black text-textPrimary">{jugadorSeleccionado.partidosJugados}</p>
-              </div>
-              <div className="bg-background rounded-lg p-3">
-                <p className="text-textSecondary text-xs mb-1">% Victoria</p>
-                <p className="text-2xl font-black text-accent">
-                  {((jugadorSeleccionado.partidosGanados / jugadorSeleccionado.partidosJugados) * 100).toFixed(0)}%
-                </p>
-              </div>
-            </div>
-          </Card>
-        </motion.div>
-      )}
+
     </div>
   );
 }

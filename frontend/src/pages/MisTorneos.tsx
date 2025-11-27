@@ -42,81 +42,15 @@ export default function MisTorneos() {
   const cargarMisTorneos = async () => {
     try {
       setLoading(true);
-      // TODO: Llamar al backend para obtener los torneos del usuario
+      // TODO: Conectar con backend cuando esté disponible
       // const response = await fetch(`${import.meta.env.VITE_API_URL}/torneos/mis-torneos`, {
       //   headers: { 'Authorization': `Bearer ${token}` }
       // });
       // const data = await response.json();
+      // setTorneos(data);
       
-      // Datos de ejemplo mientras se implementa el backend
-      const torneosEjemplo: Torneo[] = [
-        {
-          id: 1,
-          nombre: 'Torneo Primavera 2024',
-          descripcion: 'Torneo de categoría 6ta',
-          fecha_inicio: '2024-12-01',
-          fecha_fin: '2024-12-15',
-          ubicacion: 'Club Padel Center',
-          categoria: '6ta',
-          tipo: 'eliminacion_simple',
-          max_equipos: 16,
-          equipos_inscritos: 16,
-          estado: 'en_curso',
-          premio: '$50,000',
-          mi_estado: 'en_progreso',
-          mi_posicion: 4,
-          proxima_fecha: '2024-12-10T18:00:00'
-        },
-        {
-          id: 2,
-          nombre: 'Copa Verano',
-          descripcion: 'Torneo mixto categoría libre',
-          fecha_inicio: '2024-12-20',
-          fecha_fin: '2024-12-22',
-          ubicacion: 'Padel Arena',
-          categoria: 'Libre',
-          tipo: 'eliminacion_doble',
-          max_equipos: 32,
-          equipos_inscritos: 28,
-          estado: 'inscripcion',
-          premio: '$100,000',
-          mi_estado: 'inscrito'
-        },
-        {
-          id: 3,
-          nombre: 'Torneo Relámpago',
-          descripcion: 'Torneo express de un día',
-          fecha_inicio: '2024-11-15',
-          fecha_fin: '2024-11-15',
-          ubicacion: 'Padel Club Norte',
-          categoria: '5ta',
-          tipo: 'round_robin',
-          max_equipos: 8,
-          equipos_inscritos: 8,
-          estado: 'finalizado',
-          premio: '$20,000',
-          mi_estado: 'finalista',
-          mi_posicion: 2
-        },
-        {
-          id: 4,
-          nombre: 'Campeonato Otoño',
-          descripcion: 'Gran torneo de categoría 6ta',
-          fecha_inicio: '2024-10-01',
-          fecha_fin: '2024-10-20',
-          ubicacion: 'Mega Padel Complex',
-          categoria: '6ta',
-          tipo: 'eliminacion_simple',
-          max_equipos: 24,
-          equipos_inscritos: 24,
-          estado: 'finalizado',
-          premio: '$75,000',
-          mi_estado: 'campeon',
-          mi_posicion: 1
-        }
-      ];
-      
-      setTorneos(torneosEjemplo);
+      // Por ahora, sin datos
+      setTorneos([]);
     } catch (error) {
       console.error('Error al cargar torneos:', error);
     } finally {

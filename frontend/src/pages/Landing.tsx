@@ -10,22 +10,22 @@ export default function Landing() {
 
   const features = [
     {
-      icon: <Trophy className="w-7 h-7 md:w-9 md:h-9" />,
+      icon: <Trophy className="w-6 h-6 md:w-9 md:h-9" />,
       title: "Torneos",
       description: "Organizá y gestioná torneos profesionales"
     },
     {
-      icon: <Users2 className="w-7 h-7 md:w-9 md:h-9" />,
+      icon: <Users2 className="w-6 h-6 md:w-9 md:h-9" />,
       title: "Jugadores",
       description: "Seguí el rendimiento de cada jugador"
     },
     {
-      icon: <TrendingUp className="w-7 h-7 md:w-9 md:h-9" />,
+      icon: <TrendingUp className="w-6 h-6 md:w-9 md:h-9" />,
       title: "Estadísticas",
       description: "Análisis detallado en tiempo real"
     },
     {
-      icon: <Gamepad2 className="w-7 h-7 md:w-9 md:h-9" />,
+      icon: <Gamepad2 className="w-6 h-6 md:w-9 md:h-9" />,
       title: "Partidos",
       description: "Control completo de cada encuentro"
     }
@@ -51,7 +51,10 @@ export default function Landing() {
       {/* Navbar simple */}
       <nav className="relative z-20 backdrop-blur-md bg-[#0E0F11]/80 border-b border-white/10">
         <div className="max-w-7xl mx-auto px-6 py-4 flex items-center justify-between">
-          <div className="flex items-center gap-2 md:gap-3">
+          <button 
+            onClick={() => window.location.reload()}
+            className="flex items-center gap-2 md:gap-3 hover:opacity-80 transition-opacity cursor-pointer"
+          >
             <img 
               src={`${import.meta.env.BASE_URL}logo-playr.png`}
               alt="PlayR Logo" 
@@ -60,7 +63,7 @@ export default function Landing() {
             <h1 className="text-xl md:text-2xl font-black text-white">
               Play<span className="text-primary">R</span>
             </h1>
-          </div>
+          </button>
           {isAuthenticated ? (
             <motion.button
               onClick={() => navigate("/dashboard")}
@@ -145,7 +148,7 @@ export default function Landing() {
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.8, delay: 0.8 }}
-            className="grid grid-cols-2 md:grid-cols-4 gap-8"
+            className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-8"
           >
             {features.map((feature, index) => (
               <motion.div
@@ -162,19 +165,19 @@ export default function Landing() {
                   scale: 1.08,
                   y: -8,
                 }}
-                className="bg-[#0E0F11]/70 backdrop-blur-sm border border-white/10 hover:border-primary/50 rounded-xl p-8 text-center transition-all cursor-pointer group"
+                className="bg-[#0E0F11]/70 backdrop-blur-sm border border-white/10 hover:border-primary/50 rounded-lg md:rounded-xl p-4 md:p-8 text-center transition-all cursor-pointer group"
               >
                 <motion.div
-                  className="text-primary mb-4 flex justify-center"
+                  className="text-primary mb-2 md:mb-4 flex justify-center"
                   whileHover={{ rotate: [0, -10, 10, -10, 0], scale: 1.1 }}
                   transition={{ duration: 0.5 }}
                 >
                   {feature.icon}
                 </motion.div>
-                <h3 className="text-[#E8E9EB] font-semibold text-base md:text-lg mb-2 group-hover:text-white transition-colors">
+                <h3 className="text-[#E8E9EB] font-semibold text-sm md:text-lg mb-1 md:mb-2 group-hover:text-white transition-colors">
                   {feature.title}
                 </h3>
-                <p className="text-[#9DA3AF] text-base group-hover:text-[#B5BBC7] transition-colors">
+                <p className="text-[#9DA3AF] text-xs md:text-base leading-tight md:leading-normal group-hover:text-[#B5BBC7] transition-colors">
                   {feature.description}
                 </p>
               </motion.div>

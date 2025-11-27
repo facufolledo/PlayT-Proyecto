@@ -19,6 +19,9 @@ export interface UsuarioResponse {
   foto_perfil?: string;
   posicion_preferida?: 'drive' | 'reves';
   mano_dominante?: 'derecha' | 'zurda';
+  dni?: string;
+  fecha_nacimiento?: string;
+  telefono?: string;
 }
 
 export interface TokenResponse {

@@ -1,8 +1,10 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { Trophy, Medal, Award, TrendingUp, Users } from 'lucide-react';
 import Card from '../components/Card';
 import RatingProgressBar from '../components/RatingProgressBar';
+import { apiService } from '../services/api';
+import { logger } from '../utils/logger';
 
 type Categoria = '8va' | '7ma' | '6ta' | '5ta' | '4ta' | 'Libre';
 type Genero = 'masculino' | 'femenino' | 'mixto';
@@ -21,41 +23,53 @@ export default function RankingsCategorias() {
   const [categoriaSeleccionada, setCategoriaSeleccionada] = useState<Categoria>('6ta');
   const [generoSeleccionado, setGeneroSeleccionado] = useState<Genero>('masculino');
   const [mostrarTodos, setMostrarTodos] = useState(false);
-  const LIMITE_INICIAL = 20; // Solo cargar 20 jugadores inicialmente
+  const [jugadores, setJugadores] = useState<Jugador[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const LIMITE_INICIAL = 20;
 
-  // Datos de ejemplo - reemplazar con datos reales del backend
-  const jugadoresPorCategoria: Record<Categoria, Jugador[]> = {
-    '8va': [
-      { posicion: 1, nombre: 'Carlos Ruiz', rating: 895, partidosJugados: 15, partidosGanados: 12, winRate: 80, cambioSemanal: +25 },
-      { posicion: 2, nombre: 'Ana Torres', rating: 880, partidosJugados: 18, partidosGanados: 13, winRate: 72, cambioSemanal: +18 },
-      { posicion: 3, nombre: 'Luis Gómez', rating: 865, partidosJugados: 20, partidosGanados: 14, winRate: 70, cambioSemanal: +12 },
-    ],
-    '7ma': [
-      { posicion: 1, nombre: 'María López', rating: 1095, partidosJugados: 25, partidosGanados: 18, winRate: 72, cambioSemanal: +30 },
-      { posicion: 2, nombre: 'Pedro Sánchez', rating: 1080, partidosJugados: 22, partidosGanados: 16, winRate: 73, cambioSemanal: +22 },
-      { posicion: 3, nombre: 'Laura Martín', rating: 1065, partidosJugados: 28, partidosGanados: 19, winRate: 68, cambioSemanal: +15 },
-    ],
-    '6ta': [
-      { posicion: 1, nombre: 'Juan Pérez', rating: 1295, partidosJugados: 35, partidosGanados: 26, winRate: 74, cambioSemanal: +35 },
-      { posicion: 2, nombre: 'Carmen García', rating: 1280, partidosJugados: 32, partidosGanados: 24, winRate: 75, cambioSemanal: +28 },
-      { posicion: 3, nombre: 'Diego Fernández', rating: 1265, partidosJugados: 30, partidosGanados: 22, winRate: 73, cambioSemanal: +20 },
-    ],
-    '5ta': [
-      { posicion: 1, nombre: 'Roberto Silva', rating: 1495, partidosJugados: 45, partidosGanados: 35, winRate: 78, cambioSemanal: +40 },
-      { posicion: 2, nombre: 'Elena Rodríguez', rating: 1480, partidosJugados: 42, partidosGanados: 33, winRate: 79, cambioSemanal: +35 },
-      { posicion: 3, nombre: 'Miguel Ángel', rating: 1465, partidosJugados: 40, partidosGanados: 31, winRate: 78, cambioSemanal: +30 },
-    ],
-    '4ta': [
-      { posicion: 1, nombre: 'Alejandro Pro', rating: 1695, partidosJugados: 60, partidosGanados: 50, winRate: 83, cambioSemanal: +45 },
-      { posicion: 2, nombre: 'Sofía Elite', rating: 1680, partidosJugados: 58, partidosGanados: 48, winRate: 83, cambioSemanal: +42 },
-      { posicion: 3, nombre: 'Fernando Master', rating: 1665, partidosJugados: 55, partidosGanados: 45, winRate: 82, cambioSemanal: +38 },
-    ],
-    'Libre': [
-      { posicion: 1, nombre: 'Martín Campeón', rating: 1895, partidosJugados: 80, partidosGanados: 70, winRate: 88, cambioSemanal: +50 },
-      { posicion: 2, nombre: 'Lucía Estrella', rating: 1880, partidosJugados: 75, partidosGanados: 65, winRate: 87, cambioSemanal: +48 },
-      { posicion: 3, nombre: 'Gabriel Maestro', rating: 1865, partidosJugados: 72, partidosGanados: 62, winRate: 86, cambioSemanal: +45 },
-    ],
+  // Mapeo de categorías a IDs del backend
+  const categoriaIds: Record<Categoria, number> = {
+    'Principiante': 7,
+    '8va': 1,
+    '7ma': 2,
+    '6ta': 3,
+    '5ta': 4,
+    '4ta': 5,
+    'Libre': 6,
   };
+
+  // Cargar jugadores cuando cambie categoría o género
+  useEffect(() => {
+    const cargarJugadores = async () => {
+      try {
+        setIsLoading(true);
+        const categoriaId = categoriaIds[categoriaSeleccionada];
+        const sexo = generoSeleccionado === 'masculino' ? 'masculino' : generoSeleccionado === 'femenino' ? 'femenino' : 'masculino';
+        
+        const response = await apiService.getRankingPorCategoria(categoriaId, sexo as any);
+        
+        // Transformar datos del backend al formato del componente
+        const jugadoresTransformados = (response.jugadores || []).map((j: any, index: number) => ({
+          posicion: index + 1,
+          nombre: `${j.nombre || ''} ${j.apellido || ''}`.trim() || j.nombre_usuario,
+          rating: j.rating || 0,
+          partidosJugados: j.partidos_jugados || 0,
+          partidosGanados: j.partidos_ganados || 0,
+          winRate: j.partidos_jugados > 0 ? Math.round((j.partidos_ganados / j.partidos_jugados) * 100) : 0,
+          cambioSemanal: 0, // TODO: Implementar en backend
+        }));
+        
+        setJugadores(jugadoresTransformados);
+      } catch (error) {
+        logger.error('Error al cargar ranking por categoría:', error);
+        setJugadores([]);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    cargarJugadores();
+  }, [categoriaSeleccionada, generoSeleccionado]);
 
   const categorias: { id: Categoria; nombre: string; rango: string; color: string; bgColor: string; textColor: string; icon: any }[] = [
     { 
@@ -114,10 +128,9 @@ export default function RankingsCategorias() {
     },
   ];
 
-  const jugadoresTodos = jugadoresPorCategoria[categoriaSeleccionada];
-  const jugadores = mostrarTodos ? jugadoresTodos : jugadoresTodos.slice(0, LIMITE_INICIAL);
+  const jugadoresMostrados = mostrarTodos ? jugadores : jugadores.slice(0, LIMITE_INICIAL);
   const categoriaActual = categorias.find(c => c.id === categoriaSeleccionada)!;
-  const hayMasJugadores = jugadoresTodos.length > LIMITE_INICIAL;
+  const hayMasJugadores = jugadores.length > LIMITE_INICIAL;
 
   return (
     <div className="space-y-8">
@@ -212,15 +225,15 @@ export default function RankingsCategorias() {
 
             <div className="grid grid-cols-3 gap-2 md:gap-6 mt-2 md:mt-6">
               <div className="text-center">
-                <p className="text-xl md:text-3xl font-black text-primary">{jugadoresTodos.length}</p>
+                <p className="text-xl md:text-3xl font-black text-primary">{jugadores.length}</p>
                 <p className="text-textSecondary text-[9px] md:text-sm">Jugadores</p>
               </div>
               <div className="text-center">
-                <p className="text-xl md:text-3xl font-black text-secondary">{jugadoresTodos[0]?.rating || 0}</p>
+                <p className="text-xl md:text-3xl font-black text-secondary">{jugadores[0]?.rating || 0}</p>
                 <p className="text-textSecondary text-[9px] md:text-sm">Rating Máx</p>
               </div>
               <div className="text-center">
-                <p className="text-xl md:text-3xl font-black text-accent">{jugadoresTodos.length > 0 ? Math.round(jugadoresTodos.reduce((acc, j) => acc + j.winRate, 0) / jugadoresTodos.length) : 0}%</p>
+                <p className="text-xl md:text-3xl font-black text-accent">{jugadores.length > 0 ? Math.round(jugadores.reduce((acc, j) => acc + j.winRate, 0) / jugadores.length) : 0}%</p>
                 <p className="text-textSecondary text-[9px] md:text-sm">Win Rate</p>
               </div>
             </div>
@@ -229,8 +242,24 @@ export default function RankingsCategorias() {
       </motion.div>
 
       {/* Top 3 Destacado */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-3 md:gap-6">
-        {jugadores.slice(0, 3).map((jugador, index) => (
+      {isLoading ? (
+        <div className="text-center py-12">
+          <p className="text-textSecondary">Cargando rankings...</p>
+        </div>
+      ) : jugadores.length === 0 ? (
+        <div className="text-center py-12">
+          <Card>
+            <div className="p-8">
+              <Trophy size={48} className="mx-auto mb-4 text-textSecondary opacity-50" />
+              <p className="text-textPrimary font-bold mb-2">No hay jugadores en esta categoría</p>
+              <p className="text-textSecondary text-sm">Intenta con otra categoría o género</p>
+            </div>
+          </Card>
+        </div>
+      ) : (
+        <>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-3 md:gap-6">
+            {jugadoresMostrados.slice(0, 3).map((jugador, index) => (
           <motion.div
             key={jugador.posicion}
             initial={{ opacity: 0, y: 20 }}
@@ -280,12 +309,12 @@ export default function RankingsCategorias() {
                 </div>
               </div>
             </Card>
-          </motion.div>
-        ))}
-      </div>
+            </motion.div>
+          ))}
+        </div>
 
-      {/* Resto del Ranking */}
-      {jugadores.length > 3 && (
+        {/* Resto del Ranking */}
+        {jugadoresMostrados.length > 3 && (
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
@@ -299,7 +328,7 @@ export default function RankingsCategorias() {
               </h3>
 
               <div className="space-y-2 md:space-y-3">
-                {jugadores.slice(3).map((jugador, index) => (
+                {jugadoresMostrados.slice(3).map((jugador, index) => (
                   <motion.div
                     key={jugador.posicion}
                     initial={{ opacity: 0, x: -20 }}
@@ -331,34 +360,36 @@ export default function RankingsCategorias() {
                 ))}
               </div>
 
-              {/* Botón Cargar Más */}
-              {!mostrarTodos && hayMasJugadores && (
-                <div className="mt-6 text-center">
-                  <button
-                    onClick={() => setMostrarTodos(true)}
-                    className="w-full py-3 bg-cardBorder hover:bg-primary/20 text-textPrimary font-bold rounded-lg transition-colors"
-                  >
-                    Cargar más jugadores ({jugadoresTodos.length - LIMITE_INICIAL} restantes)
-                  </button>
-                </div>
-              )}
+                {/* Botón Cargar Más */}
+                {!mostrarTodos && hayMasJugadores && (
+                  <div className="mt-6 text-center">
+                    <button
+                      onClick={() => setMostrarTodos(true)}
+                      className="w-full py-3 bg-cardBorder hover:bg-primary/20 text-textPrimary font-bold rounded-lg transition-colors"
+                    >
+                      Cargar más jugadores ({jugadores.length - LIMITE_INICIAL} restantes)
+                    </button>
+                  </div>
+                )}
 
               {mostrarTodos && hayMasJugadores && (
                 <div className="mt-6 text-center">
                   <button
                     onClick={() => {
-                      setMostrarTodos(false);
-                      window.scrollTo({ top: 0, behavior: 'smooth' });
-                    }}
-                    className="w-full py-3 bg-cardBorder hover:bg-primary/20 text-textPrimary font-bold rounded-lg transition-colors"
-                  >
-                    Mostrar menos
-                  </button>
-                </div>
-              )}
-            </div>
-          </Card>
-        </motion.div>
+                        setMostrarTodos(false);
+                        window.scrollTo({ top: 0, behavior: 'smooth' });
+                      }}
+                      className="w-full py-3 bg-cardBorder hover:bg-primary/20 text-textPrimary font-bold rounded-lg transition-colors"
+                    >
+                      Mostrar menos
+                    </button>
+                  </div>
+                )}
+              </div>
+            </Card>
+          </motion.div>
+        )}
+      </>
       )}
     </div>
   );

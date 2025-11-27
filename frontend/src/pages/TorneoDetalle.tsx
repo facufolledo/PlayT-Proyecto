@@ -40,23 +40,12 @@ export default function TorneoDetalle() {
   };
 
   const handleIniciar = () => {
-    // Mock: Crear participantes de ejemplo
-    const participantesMock = Array.from({ length: 8 }, (_, i) => ({
-      id: `jugador-${i + 1}`,
-      nombre: `Jugador ${i + 1}`,
-      email: `jugador${i + 1}@email.com`,
-      avatar: undefined,
-      rol: 'jugador' as const,
-      estadisticas: {
-        partidosJugados: 0,
-        partidosGanados: 0,
-        torneosParticipados: 0,
-        torneosGanados: 0,
-      },
-      createdAt: new Date().toISOString(),
-    }));
-
-    iniciarTorneo(torneo.id, participantesMock);
+    // Iniciar torneo con los participantes inscritos
+    if (torneo.participantes && torneo.participantes.length >= torneo.maxParticipantes) {
+      iniciarTorneo(torneo.id, torneo.participantes);
+    } else {
+      alert(`Se necesitan al menos ${torneo.maxParticipantes} participantes para iniciar el torneo`);
+    }
   };
 
   const handleInscribir = (torneoId: string) => {
