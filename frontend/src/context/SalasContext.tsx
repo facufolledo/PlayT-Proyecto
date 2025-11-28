@@ -174,28 +174,40 @@ export function SalasProvider({ children }: { children: ReactNode }) {
     }));
   };
 
-  const confirmarResultado = (id: string, equipo: 'equipoA' | 'equipoB', jugadorId: string) => {
-    setSalas(prev => prev.map(sala => {
-      if (sala.id === id) {
-        const equipoActualizado = {
-          ...sala[equipo],
-          confirmado: true,
-          confirmadoPor: jugadorId,
-          fechaConfirmacion: new Date().toISOString()
-        };
+  const confirmarResultado = async (id: string, equipo: 'equipoA' | 'equipoB', jugadorId: string) => {
+    try {
+      // Llamar al backend para confirmar
+      await salaService.confirmarResultado(id);
+      
+      // Actualizar estado local
+      setSalas(prev => prev.map(sala => {
+        if (sala.id === id) {
+          const equipoActualizado = {
+            ...sala[equipo],
+            confirmado: true,
+            confirmadoPor: jugadorId,
+            fechaConfirmacion: new Date().toISOString()
+          };
 
-        const otroEquipo = equipo === 'equipoA' ? 'equipoB' : 'equipoA';
-        const ambosConfirmados = equipoActualizado.confirmado && sala[otroEquipo].confirmado;
+          const otroEquipo = equipo === 'equipoA' ? 'equipoB' : 'equipoA';
+          const ambosConfirmados = equipoActualizado.confirmado && sala[otroEquipo].confirmado;
 
-        return {
-          ...sala,
-          [equipo]: equipoActualizado,
-          estadoConfirmacion: ambosConfirmados ? 'confirmado' as const : 'pendiente_confirmacion' as const,
-          resultadoFinal: ambosConfirmados
-        };
-      }
-      return sala;
-    }));
+          return {
+            ...sala,
+            [equipo]: equipoActualizado,
+            estadoConfirmacion: ambosConfirmados ? 'confirmado' as const : 'pendiente_confirmacion' as const,
+            resultadoFinal: ambosConfirmados
+          };
+        }
+        return sala;
+      }));
+      
+      // Recargar salas para obtener el estado actualizado del backend
+      await cargarSalas();
+    } catch (error) {
+      console.error('Error al confirmar resultado:', error);
+      logger.error('Error al confirmar resultado', error);
+    }
   };
 
   const disputarResultado = (id: string, motivo: string) => {

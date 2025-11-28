@@ -8,12 +8,14 @@ import { Plus, Filter, Trophy } from 'lucide-react';
 import { useTorneos } from '../context/TorneosContext';
 
 export default function Torneos() {
-  const { torneos } = useTorneos();
+  const { torneos, puedeCrearTorneos, esAdministrador } = useTorneos();
   const [modalCrearOpen, setModalCrearOpen] = useState(false);
   const [filtro, setFiltro] = useState<'todos' | 'activo' | 'programado' | 'finalizado'>('todos');
   const [filtroGenero, setFiltroGenero] = useState<'todos' | 'masculino' | 'femenino' | 'mixto'>('todos');
   const [mostrarTodos, setMostrarTodos] = useState(false);
   const ITEMS_POR_PAGINA = 20;
+  
+  const puedeCrear = puedeCrearTorneos || esAdministrador;
 
   const torneosActivos = torneos.filter(t => t.estado === 'activo');
   const torneosProgramados = torneos.filter(t => t.estado === 'programado');
@@ -49,18 +51,20 @@ export default function Torneos() {
           </div>
           <p className="text-textSecondary text-xs md:text-base ml-10 md:ml-15">Organiza y gestiona competencias</p>
         </div>
-        <motion.div
-          whileHover={{ scale: 1.05 }}
-          whileTap={{ scale: 0.95 }}
-        >
-          <Button variant="accent" onClick={() => setModalCrearOpen(true)} className="text-sm md:text-base">
-            <div className="flex items-center gap-1.5 md:gap-2">
-              <Plus size={18} className="md:w-5 md:h-5" />
-              <span className="hidden sm:inline">Nuevo Torneo</span>
-              <span className="sm:hidden">Nuevo</span>
-            </div>
-          </Button>
-        </motion.div>
+        {puedeCrear && (
+          <motion.div
+            whileHover={{ scale: 1.05 }}
+            whileTap={{ scale: 0.95 }}
+          >
+            <Button variant="accent" onClick={() => setModalCrearOpen(true)} className="text-sm md:text-base">
+              <div className="flex items-center gap-1.5 md:gap-2">
+                <Plus size={18} className="md:w-5 md:h-5" />
+                <span className="hidden sm:inline">Nuevo Torneo</span>
+                <span className="sm:hidden">Nuevo</span>
+              </div>
+            </Button>
+          </motion.div>
+        )}
       </motion.div>
 
       {/* Estadísticas compactas */}
@@ -151,9 +155,10 @@ export default function Torneos() {
                 : `No hay torneos ${filtro === 'activo' ? 'en curso' : filtro === 'programado' ? 'programados' : 'finalizados'}`}
             </p>
             <p className="text-xs md:text-sm mb-3 md:mb-4">
-              {filtro === 'todos' && 'Crea tu primer torneo para comenzar a organizar competencias'}
+              {filtro === 'todos' && puedeCrear && 'Crea tu primer torneo para comenzar a organizar competencias'}
+              {filtro === 'todos' && !puedeCrear && 'Aún no hay torneos disponibles'}
             </p>
-            {filtro === 'todos' && (
+            {filtro === 'todos' && puedeCrear && (
               <Button variant="accent" onClick={() => setModalCrearOpen(true)} className="text-sm md:text-base">
                 <div className="flex items-center gap-1.5 md:gap-2">
                   <Plus size={18} className="md:w-5 md:h-5" />

@@ -58,6 +58,55 @@ export interface Torneo {
   participantes: number;
   ganadorId?: string;
   createdAt: string;
+  lugar?: string;
+}
+
+// Tipos específicos para torneos del backend
+export interface TorneoBackend {
+  id: number;
+  nombre: string;
+  descripcion?: string;
+  tipo: string;
+  categoria: string;
+  estado: 'INSCRIPCION' | 'ARMANDO_ZONAS' | 'FASE_GRUPOS' | 'FASE_ELIMINACION' | 'FINALIZADO';
+  fecha_inicio: string;
+  fecha_fin: string;
+  lugar?: string;
+  reglas_json?: any;
+  creado_por: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ParejaInscripcion {
+  jugador1_id: number;
+  jugador2_id: number;
+  observaciones?: string;
+}
+
+export interface Pareja {
+  id: number;
+  torneo_id: number;
+  jugador1: {
+    id: number;
+    nombre: string;
+    apellido: string;
+    foto_perfil?: string;
+    rating?: number;
+    categoria?: string;
+  };
+  jugador2: {
+    id: number;
+    nombre: string;
+    apellido: string;
+    foto_perfil?: string;
+    rating?: number;
+    categoria?: string;
+  };
+  estado: 'inscripta' | 'confirmada' | 'baja';
+  categoria_asignada?: string;
+  observaciones?: string;
+  created_at: string;
 }
 
 export interface Usuario {
@@ -66,6 +115,8 @@ export interface Usuario {
   email: string;
   avatar?: string;
   rol: 'jugador' | 'admin';
+  puede_crear_torneos?: boolean;
+  es_administrador?: boolean;
   estadisticas: {
     partidosJugados: number;
     partidosGanados: number;

@@ -22,6 +22,8 @@ export interface UsuarioResponse {
   dni?: string;
   fecha_nacimiento?: string;
   telefono?: string;
+  puede_crear_torneos?: boolean;
+  es_administrador?: boolean;
 }
 
 export interface TokenResponse {

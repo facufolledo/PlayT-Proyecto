@@ -1,257 +1,285 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { ArrowLeft, Trophy, Calendar, Users, Edit, Trash2, Play, CheckCircle } from 'lucide-react';
+import { ArrowLeft, Calendar, MapPin, Trophy, Users, Settings } from 'lucide-react';
+import { useTorneos } from '../context/TorneosContext';
 import Card from '../components/Card';
 import Button from '../components/Button';
-import BracketVisualization from '../components/BracketVisualization';
-import ModalInscripcionTorneo from '../components/ModalInscripcionTorneo';
-import { useTorneos } from '../context/TorneosContext';
-import { useAuth } from '../context/AuthContext';
-import { logger } from '../utils/logger';
-import { Partido } from '../utils/bracketGenerator';
+import SkeletonLoader from '../components/SkeletonLoader';
 
 export default function TorneoDetalle() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const { getTorneoById, getBracket, deleteTorneo, inscribirUsuario, iniciarTorneo } = useTorneos();
-  const { usuario } = useAuth();
-  const [modalInscripcionOpen, setModalInscripcionOpen] = useState(false);
+  const { torneoActual, cargarTorneo, cargarParejas, parejas, loading, esAdministrador, esOrganizadorDe } = useTorneos();
+  const [tab, setTab] = useState<'info' | 'parejas' | 'partidos'>('info');
 
-  const torneo = id ? getTorneoById(id) : null;
-  const bracket = id ? getBracket(id) : null;
+  useEffect(() => {
+    if (id) {
+      cargarTorneo(parseInt(id));
+      cargarParejas(parseInt(id));
+    }
+  }, [id]);
 
-  if (!torneo) {
+  if (loading && !torneoActual) {
     return (
-      <div className="text-center py-12">
-        <p className="text-textPrimary text-xl">Torneo no encontrado</p>
-        <Button onClick={() => navigate('/torneos')} className="mt-4">
-          Volver a Torneos
-        </Button>
+      <div className="space-y-4">
+        <SkeletonLoader height="200px" />
+        <SkeletonLoader height="400px" />
       </div>
     );
   }
 
-  const handleEliminar = () => {
-    if (window.confirm('¿Estás seguro de eliminar este torneo?')) {
-      deleteTorneo(torneo.id);
-      navigate('/torneos');
-    }
-  };
+  if (!torneoActual) {
+    return (
+      <Card>
+        <div className="text-center py-12">
+          <Trophy size={48} className="mx-auto text-textSecondary mb-4" />
+          <h2 className="text-xl font-bold text-textPrimary mb-2">Torneo no encontrado</h2>
+          <p className="text-textSecondary mb-4">El torneo que buscas no existe o fue eliminado</p>
+          <Button onClick={() => navigate('/torneos')}>
+            Volver a Torneos
+          </Button>
+        </div>
+      </Card>
+    );
+  }
 
-  const handleIniciar = () => {
-    // Iniciar torneo con los participantes inscritos
-    if (torneo.participantes && torneo.participantes.length >= torneo.maxParticipantes) {
-      iniciarTorneo(torneo.id, torneo.participantes);
-    } else {
-      alert(`Se necesitan al menos ${torneo.maxParticipantes} participantes para iniciar el torneo`);
-    }
-  };
-
-  const handleInscribir = (torneoId: string) => {
-    if (usuario) {
-      inscribirUsuario(torneoId, usuario.id);
-    }
-  };
-
-  const handlePartidoClick = (partido: Partido) => {
-    logger.log('Partido seleccionado:', partido);
-    // TODO: Abrir modal para registrar resultado
-  };
-
-  const getEstadoColor = () => {
-    switch (torneo.estado) {
-      case 'activo':
-        return 'from-secondary to-pink-600';
-      case 'finalizado':
-        return 'from-accent to-yellow-500';
-      case 'programado':
-        return 'from-primary to-blue-600';
-    }
-  };
-
-  const getEstadoLabel = () => {
-    switch (torneo.estado) {
-      case 'activo':
-        return 'En Curso';
-      case 'finalizado':
-        return 'Finalizado';
-      case 'programado':
-        return 'Próximamente';
-    }
-  };
+  const esOrganizador = esAdministrador || esOrganizadorDe(parseInt(id!));
+  const puedeInscribirse = torneoActual.estado === 'programado' && torneoActual.inscripcionAbierta;
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-6">
       {/* Header */}
       <motion.div
-        initial={{ opacity: 0, y: -30 }}
+        initial={{ opacity: 0, y: -20 }}
         animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.6 }}
+        className="flex items-center gap-4"
       >
         <Button
           variant="ghost"
           onClick={() => navigate('/torneos')}
-          className="mb-4"
+          className="flex items-center gap-2"
         >
-          <ArrowLeft size={20} className="mr-2" />
-          Volver a Torneos
+          <ArrowLeft size={20} />
+          Volver
         </Button>
+      </motion.div>
 
-        <div className="flex items-start justify-between gap-4">
-          <div className="flex-1">
-            <div className="flex items-center gap-3 mb-2">
-              <div className={`bg-gradient-to-br ${getEstadoColor()} p-3 rounded-lg`}>
-                <Trophy className="text-white" size={32} />
-              </div>
-              <div>
-                <h1 className="text-5xl font-black text-textPrimary tracking-tight">
-                  {torneo.nombre}
-                </h1>
-                <div className="flex items-center gap-3 mt-2">
-                  <span className={`px-3 py-1 rounded-full bg-gradient-to-r ${getEstadoColor()} text-white text-sm font-bold`}>
-                    {getEstadoLabel()}
-                  </span>
-                  <span className="px-3 py-1 rounded-full bg-primary/10 text-primary text-sm font-bold">
-                    Categoría {torneo.categoria}
-                  </span>
+      {/* Información del Torneo */}
+      <Card>
+        <div className="p-6">
+          <div className="flex items-start justify-between mb-6">
+            <div className="flex-1">
+              <div className="flex items-center gap-3 mb-2">
+                <div className="bg-accent/10 p-3 rounded-lg">
+                  <Trophy className="text-accent" size={32} />
                 </div>
+                <div>
+                  <h1 className="text-3xl font-bold text-textPrimary">{torneoActual.nombre}</h1>
+                  <p className="text-textSecondary">Categoría {torneoActual.categoria}</p>
+                </div>
+              </div>
+            </div>
+            
+            {esOrganizador && (
+              <Button variant="ghost" className="flex items-center gap-2">
+                <Settings size={18} />
+                Gestionar
+              </Button>
+            )}
+          </div>
+
+          {/* Estado */}
+          <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-primary/10 text-primary mb-6">
+            <span className="w-2 h-2 rounded-full bg-primary animate-pulse" />
+            <span className="font-bold text-sm">
+              {torneoActual.estado === 'programado' && 'Inscripciones Abiertas'}
+              {torneoActual.estado === 'activo' && 'En Curso'}
+              {torneoActual.estado === 'finalizado' && 'Finalizado'}
+            </span>
+          </div>
+
+          {/* Información básica */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+            <div className="flex items-center gap-3 p-4 bg-background rounded-lg">
+              <Calendar className="text-primary" size={24} />
+              <div>
+                <p className="text-xs text-textSecondary">Fechas</p>
+                <p className="font-bold text-textPrimary">
+                  {new Date(torneoActual.fechaInicio).toLocaleDateString('es-ES', { 
+                    day: 'numeric', 
+                    month: 'short' 
+                  })} - {new Date(torneoActual.fechaFin).toLocaleDateString('es-ES', { 
+                    day: 'numeric', 
+                    month: 'short',
+                    year: 'numeric'
+                  })}
+                </p>
+              </div>
+            </div>
+
+            {torneoActual.lugar && (
+              <div className="flex items-center gap-3 p-4 bg-background rounded-lg">
+                <MapPin className="text-primary" size={24} />
+                <div>
+                  <p className="text-xs text-textSecondary">Lugar</p>
+                  <p className="font-bold text-textPrimary">{torneoActual.lugar}</p>
+                </div>
+              </div>
+            )}
+
+            <div className="flex items-center gap-3 p-4 bg-background rounded-lg">
+              <Users className="text-primary" size={24} />
+              <div>
+                <p className="text-xs text-textSecondary">Parejas Inscritas</p>
+                <p className="font-bold text-textPrimary">{parejas.length}</p>
               </div>
             </div>
           </div>
 
-          <div className="flex gap-2">
-            {torneo.estado === 'programado' && (
-              <>
-                <Button
-                  variant="primary"
-                  onClick={handleIniciar}
-                >
-                  <Play size={20} className="mr-2" />
-                  Iniciar Torneo
-                </Button>
-                <Button
-                  variant="secondary"
-                  onClick={() => navigate(`/torneos/${torneo.id}/editar`)}
-                >
-                  <Edit size={20} />
-                </Button>
-                <Button
-                  variant="ghost"
-                  onClick={handleEliminar}
-                  className="text-red-500 hover:text-red-400"
-                >
-                  <Trash2 size={20} />
-                </Button>
-              </>
-            )}
-            {torneo.estado === 'programado' && (
-              <Button
-                variant="accent"
-                onClick={() => setModalInscripcionOpen(true)}
-              >
-                Inscribirse
+          {/* Descripción */}
+          {torneoActual.descripcion && (
+            <div className="mb-6">
+              <h3 className="font-bold text-textPrimary mb-2">Descripción</h3>
+              <p className="text-textSecondary">{torneoActual.descripcion}</p>
+            </div>
+          )}
+
+          {/* Botón de inscripción */}
+          {puedeInscribirse && !esOrganizador && (
+            <div className="border-t border-cardBorder pt-6">
+              <Button variant="accent" className="w-full md:w-auto">
+                Inscribirse al Torneo
               </Button>
-            )}
-          </div>
+            </div>
+          )}
         </div>
-      </motion.div>
+      </Card>
 
-      {/* Información del Torneo */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <Card>
-          <div className="flex items-center gap-3 mb-2">
-            <Calendar className="text-primary" size={24} />
-            <h3 className="text-lg font-bold text-textPrimary">Fechas</h3>
-          </div>
-          <p className="text-textSecondary text-sm">
-            {new Date(torneo.fechaInicio).toLocaleDateString('es-ES', {
-              day: 'numeric',
-              month: 'long',
-              year: 'numeric',
-            })}
-            {' - '}
-            {new Date(torneo.fechaFin).toLocaleDateString('es-ES', {
-              day: 'numeric',
-              month: 'long',
-              year: 'numeric',
-            })}
-          </p>
-        </Card>
-
-        <Card>
-          <div className="flex items-center gap-3 mb-2">
-            <Users className="text-secondary" size={24} />
-            <h3 className="text-lg font-bold text-textPrimary">Participantes</h3>
-          </div>
-          <p className="text-textSecondary text-sm">
-            {torneo.participantes} jugadores ({torneo.participantes / 2} parejas)
-          </p>
-        </Card>
-
-        <Card>
-          <div className="flex items-center gap-3 mb-2">
-            <Trophy className="text-accent" size={24} />
-            <h3 className="text-lg font-bold text-textPrimary">Formato</h3>
-          </div>
-          <p className="text-textSecondary text-sm">
-            {torneo.formato === 'eliminacion-simple' && 'Eliminación Simple'}
-            {torneo.formato === 'eliminacion-doble' && 'Eliminación Doble'}
-            {torneo.formato === 'round-robin' && 'Round Robin'}
-            {torneo.formato === 'grupos' && 'Por Grupos'}
-          </p>
-        </Card>
+      {/* Tabs */}
+      <div className="flex gap-2 border-b border-cardBorder">
+        <button
+          onClick={() => setTab('info')}
+          className={`px-4 py-2 font-bold transition-colors ${
+            tab === 'info'
+              ? 'text-primary border-b-2 border-primary'
+              : 'text-textSecondary hover:text-textPrimary'
+          }`}
+        >
+          Información
+        </button>
+        <button
+          onClick={() => setTab('parejas')}
+          className={`px-4 py-2 font-bold transition-colors ${
+            tab === 'parejas'
+              ? 'text-primary border-b-2 border-primary'
+              : 'text-textSecondary hover:text-textPrimary'
+          }`}
+        >
+          Parejas ({parejas.length})
+        </button>
+        <button
+          onClick={() => setTab('partidos')}
+          className={`px-4 py-2 font-bold transition-colors ${
+            tab === 'partidos'
+              ? 'text-primary border-b-2 border-primary'
+              : 'text-textSecondary hover:text-textPrimary'
+          }`}
+        >
+          Partidos
+        </button>
       </div>
 
-      {/* Descripción */}
-      {torneo.descripcion && (
+      {/* Contenido de tabs */}
+      {tab === 'info' && (
         <Card>
-          <h3 className="text-xl font-bold text-textPrimary mb-3">Descripción</h3>
-          <p className="text-textSecondary">{torneo.descripcion}</p>
-        </Card>
-      )}
-
-      {/* Bracket */}
-      {bracket && torneo.estado === 'activo' ? (
-        <Card>
-          <BracketVisualization bracket={bracket} onPartidoClick={handlePartidoClick} />
-        </Card>
-      ) : torneo.estado === 'programado' ? (
-        <Card>
-          <div className="text-center py-12">
-            <Trophy size={64} className="text-accent mx-auto mb-4" />
-            <h3 className="text-2xl font-bold text-textPrimary mb-2">
-              Torneo Próximamente
-            </h3>
-            <p className="text-textSecondary mb-6">
-              El bracket se generará cuando el torneo inicie
-            </p>
-            <Button variant="accent" onClick={() => setModalInscripcionOpen(true)}>
-              Inscribirse Ahora
-            </Button>
-          </div>
-        </Card>
-      ) : (
-        <Card>
-          <div className="text-center py-12">
-            <CheckCircle size={64} className="text-secondary mx-auto mb-4" />
-            <h3 className="text-2xl font-bold text-textPrimary mb-2">
-              Torneo Finalizado
-            </h3>
-            <p className="text-textSecondary">
-              Este torneo ha concluido
-            </p>
+          <div className="p-6">
+            <h3 className="font-bold text-textPrimary mb-4">Reglas del Torneo</h3>
+            <div className="space-y-2 text-textSecondary">
+              <p>• Sistema de puntuación: {torneoActual.reglas?.puntos_victoria || 3} puntos por victoria</p>
+              <p>• Sets para ganar: {torneoActual.reglas?.sets_para_ganar || 2}</p>
+              {torneoActual.reglas?.canchas_disponibles && (
+                <p>• Canchas disponibles: {torneoActual.reglas.canchas_disponibles}</p>
+              )}
+            </div>
           </div>
         </Card>
       )}
 
-      {/* Modal */}
-      <ModalInscripcionTorneo
-        isOpen={modalInscripcionOpen}
-        onClose={() => setModalInscripcionOpen(false)}
-        torneo={torneo}
-        onInscribir={handleInscribir}
-      />
+      {tab === 'parejas' && (
+        <Card>
+          <div className="p-6">
+            {parejas.length === 0 ? (
+              <div className="text-center py-12">
+                <Users size={48} className="mx-auto text-textSecondary mb-4" />
+                <p className="text-textSecondary">Aún no hay parejas inscritas</p>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {parejas.map((pareja) => (
+                  <div
+                    key={pareja.id}
+                    className="flex items-center justify-between p-4 bg-background rounded-lg"
+                  >
+                    <div className="flex items-center gap-4">
+                      <div className="flex -space-x-2">
+                        {pareja.jugador1.foto_perfil && (
+                          <img
+                            src={pareja.jugador1.foto_perfil}
+                            alt={pareja.jugador1.nombre}
+                            className="w-10 h-10 rounded-full border-2 border-cardBg"
+                          />
+                        )}
+                        {pareja.jugador2.foto_perfil && (
+                          <img
+                            src={pareja.jugador2.foto_perfil}
+                            alt={pareja.jugador2.nombre}
+                            className="w-10 h-10 rounded-full border-2 border-cardBg"
+                          />
+                        )}
+                      </div>
+                      <div>
+                        <p className="font-bold text-textPrimary">
+                          {pareja.jugador1.nombre} {pareja.jugador1.apellido} / {pareja.jugador2.nombre} {pareja.jugador2.apellido}
+                        </p>
+                        <p className="text-xs text-textSecondary">
+                          Rating promedio: {Math.round(((pareja.jugador1.rating || 0) + (pareja.jugador2.rating || 0)) / 2)}
+                        </p>
+                      </div>
+                    </div>
+                    <div>
+                      <span
+                        className={`px-3 py-1 rounded-full text-xs font-bold ${
+                          pareja.estado === 'confirmada'
+                            ? 'bg-green-500/10 text-green-500'
+                            : pareja.estado === 'inscripta'
+                            ? 'bg-yellow-500/10 text-yellow-500'
+                            : 'bg-red-500/10 text-red-500'
+                        }`}
+                      >
+                        {pareja.estado === 'confirmada' && 'Confirmada'}
+                        {pareja.estado === 'inscripta' && 'Pendiente'}
+                        {pareja.estado === 'baja' && 'Baja'}
+                      </span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </Card>
+      )}
+
+      {tab === 'partidos' && (
+        <Card>
+          <div className="p-6">
+            <div className="text-center py-12">
+              <Trophy size={48} className="mx-auto text-textSecondary mb-4" />
+              <p className="text-textSecondary">Los partidos se generarán cuando comience el torneo</p>
+            </div>
+          </div>
+        </Card>
+      )}
     </div>
   );
 }

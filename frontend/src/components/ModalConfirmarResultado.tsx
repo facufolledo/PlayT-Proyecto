@@ -43,9 +43,9 @@ export default function ModalConfirmarResultado({ isOpen, onClose, sala }: Modal
     });
   }
 
-  const handleConfirmar = () => {
+  const handleConfirmar = async () => {
     if (!miEquipo) return;
-    confirmarResultado(sala.id, miEquipo, usuario.id);
+    await confirmarResultado(sala.id, miEquipo, usuario.id);
     onClose();
   };
 

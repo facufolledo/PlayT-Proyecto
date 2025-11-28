@@ -1,6 +1,7 @@
 import os
 import json
 from contextlib import asynccontextmanager
+from datetime import datetime
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -21,6 +22,7 @@ from src.controllers.ranking_controller import router as ranking_router
 from src.controllers.estadisticas_controller import router as estadisticas_router
 from src.controllers.sala_controller import router as sala_router
 from src.controllers.resultado_controller import router as resultado_router
+from src.controllers.torneo_controller import router as torneo_router
 
 
 # ---- Lifespan (startup/shutdown) ----
@@ -88,6 +90,7 @@ app.include_router(resultado_router)
 app.include_router(partido_router)
 app.include_router(ranking_router)
 app.include_router(estadisticas_router)
+app.include_router(torneo_router)
 
 # ---- Endpoints básicos ----
 @app.get("/")
@@ -101,7 +104,16 @@ async def root():
 
 @app.get("/health")
 async def health_check():
-    return {"status": "healthy", "service": "PlayT API", "database": "connected"}
+    return {"status": "healthy", "service": "PlayT API", "database": "connected", "cors": "enabled"}
+
+@app.get("/api/test-cors")
+async def test_cors():
+    """Endpoint de prueba para verificar que CORS funciona correctamente"""
+    return {
+        "message": "CORS está funcionando correctamente",
+        "timestamp": datetime.now().isoformat(),
+        "cors_enabled": True
+    }
 
 @app.get("/debug/firebase")
 async def firebase_debug():

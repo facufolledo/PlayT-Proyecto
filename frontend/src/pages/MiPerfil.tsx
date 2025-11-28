@@ -216,7 +216,7 @@ export default function MiPerfil() {
                   Mi Perfil
                 </h2>
                 <button
-                  onClick={() => window.location.href = '/PlayR/perfil/editar'}
+                  onClick={() => window.location.href = '/perfil/editar'}
                   className="text-primary hover:text-primary/80 text-sm font-semibold transition-colors"
                 >
                   Editar
