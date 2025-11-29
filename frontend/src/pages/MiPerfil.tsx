@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useAuth } from '../context/AuthContext';
-import { Trophy, MapPin, Calendar, ChevronDown, ChevronUp } from 'lucide-react';
+import { Trophy, MapPin, Calendar, ChevronDown, ChevronUp, Target, Hand } from 'lucide-react';
 import Button from '../components/Button';
 import { PartidoCardSkeleton } from '../components/SkeletonLoader';
 import axios from 'axios';
@@ -216,7 +216,7 @@ export default function MiPerfil() {
                   Mi Perfil
                 </h2>
                 <button
-                  onClick={() => window.location.href = '/PlayR/perfil/editar'}
+                  onClick={() => window.location.href = '/perfil/editar'}
                   className="text-primary hover:text-primary/80 text-sm font-semibold transition-colors"
                 >
                   Editar
@@ -251,6 +251,18 @@ export default function MiPerfil() {
 
               {/* Info Adicional */}
               <div className="space-y-1.5 text-[10px] md:text-sm">
+                {usuario?.posicion_preferida && (
+                  <div className="flex items-center gap-1.5 text-textSecondary">
+                    <Target size={12} className="text-primary md:w-3.5 md:h-3.5" />
+                    <span className="capitalize">{usuario.posicion_preferida}</span>
+                  </div>
+                )}
+                {usuario?.mano_dominante && (
+                  <div className="flex items-center gap-1.5 text-textSecondary">
+                    <Hand size={12} className="text-secondary md:w-3.5 md:h-3.5" />
+                    <span className="capitalize">{usuario.mano_dominante}</span>
+                  </div>
+                )}
                 {usuario?.ciudad && usuario?.pais && (
                   <div className="flex items-center gap-1.5 text-textSecondary">
                     <MapPin size={12} className="text-primary md:w-3.5 md:h-3.5" />

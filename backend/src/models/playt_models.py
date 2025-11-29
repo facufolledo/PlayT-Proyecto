@@ -8,23 +8,25 @@ class Usuario(Base):
     __tablename__ = "usuarios"
     
     id_usuario = Column(BigInteger, primary_key=True, index=True)
-    nombre_usuario = Column(String(50), unique=True, index=True, nullable=False)
-    email = Column(String(255), unique=True, index=True, nullable=False)
-    password_hash = Column(String(255), nullable=False)
+    nombre_usuario = Column(String(50), unique=True, nullable=False)
+    email = Column(String(255), unique=True, nullable=False)
+    password_hash = Column(String(255), nullable=True)
     creado_en = Column(DateTime(timezone=True), server_default=func.now())
-    rating = Column(Integer, default=1000, nullable=False)
-    partidos_jugados = Column(Integer, default=0, nullable=False)
+    rating = Column(Integer, default=1200)
+    partidos_jugados = Column(Integer, default=0)
     id_categoria = Column(BigInteger, ForeignKey("categorias.id_categoria"), nullable=True)
-    sexo = Column(String(10), default="masculino", nullable=False)  # "masculino" o "femenino"
-    fcm_token = Column(String(255), nullable=True)  # Token para notificaciones push
+    avatar_url = Column(Text, nullable=True)
+    sexo = Column(String(10), nullable=True)
+    fcm_token = Column(String(255), nullable=True)
+    puede_crear_torneos = Column(Boolean, default=False)
+    es_administrador = Column(Boolean, default=False)
     
     # Relaciones
-    perfil = relationship("PerfilUsuario", back_populates="usuario", uselist=False)
-    categoria = relationship("Categoria")
-    partidos_creados = relationship("Partido", foreign_keys="Partido.id_creador", back_populates="creador")
-    partidos_jugados_rel = relationship("PartidoJugador", back_populates="usuario")
     historial_rating = relationship("HistorialRating", back_populates="usuario")
     checkpoints_categoria = relationship("CategoriaCheckpoint")
+    perfil = relationship("PerfilUsuario", back_populates="usuario", uselist=False)
+    partidos_creados = relationship("Partido", back_populates="creador", foreign_keys="Partido.id_creador")
+    partidos_jugados_rel = relationship("PartidoJugador", back_populates="usuario")
 
 class PerfilUsuario(Base):
     """Modelo de Perfil de Usuario basado en tu tabla 'perfil_usuarios'"""

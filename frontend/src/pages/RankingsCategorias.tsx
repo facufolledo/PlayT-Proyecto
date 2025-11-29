@@ -233,8 +233,8 @@ export default function RankingsCategorias() {
                 <p className="text-textSecondary text-[9px] md:text-sm">Rating Máx</p>
               </div>
               <div className="text-center">
-                <p className="text-xl md:text-3xl font-black text-accent">{jugadores.length > 0 ? Math.round(jugadores.reduce((acc, j) => acc + j.winRate, 0) / jugadores.length) : 0}%</p>
-                <p className="text-textSecondary text-[9px] md:text-sm">Win Rate</p>
+                <p className="text-xl md:text-3xl font-black text-accent">{jugadores.length > 0 ? Math.round(jugadores.reduce((acc, j) => acc + j.rating, 0) / jugadores.length) : 0}</p>
+                <p className="text-textSecondary text-[9px] md:text-sm">Rating Prom.</p>
               </div>
             </div>
           </div>
@@ -299,8 +299,8 @@ export default function RankingsCategorias() {
 
                 <div className="grid grid-cols-2 gap-2 md:gap-4 mt-2 md:mt-4 pt-2 md:pt-4 border-t border-cardBorder">
                   <div>
-                    <p className="text-lg md:text-2xl font-bold text-textPrimary">{jugador.winRate}%</p>
-                    <p className="text-[9px] md:text-xs text-textSecondary">Win Rate</p>
+                    <p className="text-lg md:text-2xl font-bold text-textPrimary">{jugador.partidosGanados}</p>
+                    <p className="text-[9px] md:text-xs text-textSecondary">Victorias</p>
                   </div>
                   <div>
                     <p className="text-lg md:text-2xl font-bold text-textPrimary">{jugador.partidosJugados}</p>
@@ -352,8 +352,8 @@ export default function RankingsCategorias() {
                         <p className="text-secondary text-[9px] md:text-sm font-bold">+{jugador.cambioSemanal}</p>
                       </div>
                       <div className="text-right hidden md:block">
-                        <p className="text-lg font-bold text-textPrimary">{jugador.winRate}%</p>
-                        <p className="text-textSecondary text-xs">Win Rate</p>
+                        <p className="text-lg font-bold text-textPrimary">{jugador.partidosGanados}</p>
+                        <p className="text-textSecondary text-xs">Victorias</p>
                       </div>
                     </div>
                   </motion.div>

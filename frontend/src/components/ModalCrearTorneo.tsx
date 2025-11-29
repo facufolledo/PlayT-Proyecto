@@ -1,77 +1,86 @@
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, Trophy, Calendar, Users, FileText, Lock } from 'lucide-react';
+import { X, Trophy, Calendar, MapPin, FileText } from 'lucide-react';
 import Button from './Button';
 import Input from './Input';
 import { useTorneos } from '../context/TorneosContext';
-import { useAuth } from '../context/AuthContext';
 
 interface ModalCrearTorneoProps {
   isOpen: boolean;
   onClose: () => void;
 }
 
-const FORMATOS = [
-  { value: 'eliminacion-simple', label: 'Eliminación Simple', descripcion: 'Un solo partido, pierdes y quedas fuera', requiereAutorizacion: false },
-  { value: 'eliminacion-doble', label: 'Eliminación Doble', descripcion: 'Dos oportunidades, bracket de ganadores y perdedores', requiereAutorizacion: false },
-  { value: 'round-robin', label: 'Round Robin', descripcion: 'Todos contra todos', requiereAutorizacion: false },
-  { value: 'grupos', label: 'Por Grupos', descripcion: 'Fase de grupos + eliminación directa', requiereAutorizacion: false },
-  { value: 'por-puntos', label: 'Por Puntos', descripcion: 'Sistema de puntuación acumulativa (Solo admin)', requiereAutorizacion: true },
-] as const;
-
 const CATEGORIAS = ['8va', '7ma', '6ta', '5ta', '4ta', 'Libre'];
 
-const GENEROS = [
-  { value: 'masculino', label: 'Masculino', icon: '♂' },
-  { value: 'femenino', label: 'Femenino', icon: '♀' },
-  { value: 'mixto', label: 'Mixto', icon: '⚥' },
-] as const;
-
 export default function ModalCrearTorneo({ isOpen, onClose }: ModalCrearTorneoProps) {
-  const { addTorneo } = useTorneos();
-  const { usuario } = useAuth();
-  const esAdmin = usuario?.rol === 'admin';
+  const { crearTorneo, loading, error, limpiarError } = useTorneos();
   
-  const [formData, setFormData] = useState<{
-    nombre: string;
-    fechaInicio: string;
-    fechaFin: string;
-    categoria: string;
-    formato: 'eliminacion-simple' | 'eliminacion-doble' | 'round-robin' | 'grupos' | 'por-puntos';
-    genero: 'masculino' | 'femenino' | 'mixto';
-    descripcion: string;
-    participantes: number;
-  }>({
+  const [formData, setFormData] = useState({
     nombre: '',
     fechaInicio: '',
     fechaFin: '',
-    categoria: '8va',
-    formato: 'eliminacion-simple',
-    genero: 'masculino',
+    categoria: '5ta',
     descripcion: '',
-    participantes: 8,
+    lugar: '',
+    canchasDisponibles: 2,
   });
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    addTorneo({
-      ...formData,
-      estado: 'programado',
-      salasIds: [],
-    });
+    if (!formData.nombre.trim()) {
+      return;
+    }
+    
+    if (!formData.fechaInicio || !formData.fechaFin) {
+      return;
+    }
+    
+    if (new Date(formData.fechaInicio) >= new Date(formData.fechaFin)) {
+      return;
+    }
+    
+    try {
+      limpiarError();
+      
+      // Preparar datos para el backend
+      const torneoData = {
+        nombre: formData.nombre.trim(),
+        descripcion: formData.descripcion?.trim() || undefined,
+        categoria: formData.categoria,
+        fecha_inicio: formData.fechaInicio,
+        fecha_fin: formData.fechaFin,
+        lugar: formData.lugar?.trim() || undefined,
+        reglas_json: {
+          puntos_victoria: 3,
+          puntos_derrota: 0,
+          sets_para_ganar: 2,
+          canchas_disponibles: formData.canchasDisponibles
+        }
+      };
+      
+      await crearTorneo(torneoData);
+      
+      // Reset form y cerrar
+      setFormData({
+        nombre: '',
+        fechaInicio: '',
+        fechaFin: '',
+        categoria: '5ta',
+        descripcion: '',
+        lugar: '',
+        canchasDisponibles: 2,
+      });
+      onClose();
+    } catch (err: any) {
+      // El error ya se maneja en el context
+      console.error('Error al crear torneo:', err);
+    }
+  };
 
+  const handleClose = () => {
+    limpiarError();
     onClose();
-    setFormData({
-      nombre: '',
-      fechaInicio: '',
-      fechaFin: '',
-      categoria: '8va',
-      formato: 'eliminacion-simple',
-      genero: 'masculino',
-      descripcion: '',
-      participantes: 8,
-    });
   };
 
   return (
@@ -82,7 +91,7 @@ export default function ModalCrearTorneo({ isOpen, onClose }: ModalCrearTorneoPr
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            onClick={onClose}
+            onClick={handleClose}
             className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50"
           />
           
@@ -106,7 +115,7 @@ export default function ModalCrearTorneo({ isOpen, onClose }: ModalCrearTorneoPr
                 <motion.button
                   whileHover={{ scale: 1.1, rotate: 90 }}
                   whileTap={{ scale: 0.9 }}
-                  onClick={onClose}
+                  onClick={handleClose}
                   className="text-textSecondary hover:text-textPrimary transition-colors"
                 >
                   <X size={20} />
@@ -114,12 +123,19 @@ export default function ModalCrearTorneo({ isOpen, onClose }: ModalCrearTorneoPr
               </div>
 
               <form onSubmit={handleSubmit} className="p-3 sm:p-5 space-y-4 sm:space-y-5">
+                {/* Error message */}
+                {error && (
+                  <div className="bg-red-500/10 border border-red-500/50 rounded-lg p-3 text-red-500 text-sm">
+                    {error}
+                  </div>
+                )}
+
                 {/* Nombre del torneo */}
                 <div>
                   <label className="block text-textSecondary text-xs sm:text-sm font-bold mb-1.5">
                     <div className="flex items-center gap-2">
                       <Trophy size={14} />
-                      Nombre del Torneo
+                      Nombre del Torneo *
                     </div>
                   </label>
                   <Input
@@ -136,8 +152,8 @@ export default function ModalCrearTorneo({ isOpen, onClose }: ModalCrearTorneoPr
                     <label className="block text-textSecondary text-xs sm:text-sm font-bold mb-1.5">
                       <div className="flex items-center gap-1.5">
                         <Calendar size={14} />
-                        <span className="hidden sm:inline">Fecha de Inicio</span>
-                        <span className="sm:hidden">Inicio</span>
+                        <span className="hidden sm:inline">Fecha de Inicio *</span>
+                        <span className="sm:hidden">Inicio *</span>
                       </div>
                     </label>
                     <Input
@@ -151,8 +167,8 @@ export default function ModalCrearTorneo({ isOpen, onClose }: ModalCrearTorneoPr
                     <label className="block text-textSecondary text-xs sm:text-sm font-bold mb-1.5">
                       <div className="flex items-center gap-1.5">
                         <Calendar size={14} />
-                        <span className="hidden sm:inline">Fecha de Fin</span>
-                        <span className="sm:hidden">Fin</span>
+                        <span className="hidden sm:inline">Fecha de Fin *</span>
+                        <span className="sm:hidden">Fin *</span>
                       </div>
                     </label>
                     <Input
@@ -167,7 +183,7 @@ export default function ModalCrearTorneo({ isOpen, onClose }: ModalCrearTorneoPr
                 {/* Categoría */}
                 <div>
                   <label className="block text-textSecondary text-xs sm:text-sm font-bold mb-1.5">
-                    Categoría
+                    Categoría *
                   </label>
                   <div className="grid grid-cols-3 sm:grid-cols-6 gap-1.5 sm:gap-2">
                     {CATEGORIAS.map((cat) => (
@@ -189,93 +205,43 @@ export default function ModalCrearTorneo({ isOpen, onClose }: ModalCrearTorneoPr
                   </div>
                 </div>
 
-                {/* Género */}
-                <div>
-                  <label className="block text-textSecondary text-xs sm:text-sm font-bold mb-1.5">
-                    Género
-                  </label>
-                  <div className="grid grid-cols-3 gap-2">
-                    {GENEROS.map((gen) => (
-                      <motion.button
-                        key={gen.value}
-                        type="button"
-                        whileHover={{ scale: 1.05 }}
-                        whileTap={{ scale: 0.95 }}
-                        onClick={() => setFormData({ ...formData, genero: gen.value })}
-                        className={`py-2 sm:py-2.5 px-3 rounded-lg text-sm font-bold transition-all flex items-center justify-center gap-2 ${
-                          formData.genero === gen.value
-                            ? 'bg-gradient-to-r from-primary to-blue-600 text-white shadow-lg shadow-primary/30'
-                            : 'bg-cardBorder text-textSecondary hover:text-textPrimary'
-                        }`}
-                      >
-                        <span className="text-lg">{gen.icon}</span>
-                        <span>{gen.label}</span>
-                      </motion.button>
-                    ))}
-                  </div>
-                </div>
-
-                {/* Formato */}
-                <div>
-                  <label className="block text-textSecondary text-xs sm:text-sm font-bold mb-1.5">
-                    Formato del Torneo
-                  </label>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                    {FORMATOS.map((formato) => {
-                      const estaDeshabilitado = formato.requiereAutorizacion && !esAdmin;
-                      
-                      return (
-                        <motion.button
-                          key={formato.value}
-                          type="button"
-                          whileHover={!estaDeshabilitado ? { scale: 1.02 } : {}}
-                          whileTap={!estaDeshabilitado ? { scale: 0.98 } : {}}
-                          onClick={() => !estaDeshabilitado && setFormData({ ...formData, formato: formato.value })}
-                          disabled={estaDeshabilitado}
-                          className={`p-2.5 sm:p-3 rounded-lg text-left transition-all border-2 relative ${
-                            formData.formato === formato.value
-                              ? 'border-primary bg-primary/10'
-                              : estaDeshabilitado
-                              ? 'border-cardBorder bg-cardBorder/50 opacity-50 cursor-not-allowed'
-                              : 'border-cardBorder bg-cardBorder hover:border-primary/50'
-                          }`}
-                        >
-                          {estaDeshabilitado && (
-                            <div className="absolute top-2 right-2">
-                              <Lock size={14} className="text-textSecondary" />
-                            </div>
-                          )}
-                          <p className="font-bold text-textPrimary text-sm mb-0.5">{formato.label}</p>
-                          <p className="text-[10px] sm:text-xs text-textSecondary leading-tight">{formato.descripcion}</p>
-                        </motion.button>
-                      );
-                    })}
-                  </div>
-                </div>
-
-                {/* Participantes */}
+                {/* Lugar */}
                 <div>
                   <label className="block text-textSecondary text-xs sm:text-sm font-bold mb-1.5">
                     <div className="flex items-center gap-1.5">
-                      <Users size={14} />
-                      Participantes
+                      <MapPin size={14} />
+                      Lugar (Opcional)
                     </div>
                   </label>
-                  <div className="flex items-center gap-2 sm:gap-3">
+                  <Input
+                    value={formData.lugar}
+                    onChange={(e) => setFormData({ ...formData, lugar: e.target.value })}
+                    placeholder="Ej: Club Central, Cancha 1"
+                  />
+                </div>
+
+                {/* Canchas Disponibles */}
+                <div>
+                  <label className="block text-textSecondary text-xs sm:text-sm font-bold mb-1.5">
+                    Canchas Disponibles *
+                  </label>
+                  <div className="flex items-center gap-3">
                     <Input
                       type="number"
-                      min="4"
-                      max="64"
-                      step="4"
-                      value={formData.participantes}
-                      onChange={(e) => setFormData({ ...formData, participantes: parseInt(e.target.value) })}
+                      min="1"
+                      max="10"
+                      value={formData.canchasDisponibles}
+                      onChange={(e) => setFormData({ ...formData, canchasDisponibles: parseInt(e.target.value) || 1 })}
+                      className="w-24"
                       required
-                      className="w-20 sm:w-24"
                     />
-                    <span className="text-textSecondary text-xs sm:text-sm">
-                      {formData.participantes} jugadores ({formData.participantes / 2} parejas)
+                    <span className="text-textSecondary text-sm">
+                      {formData.canchasDisponibles === 1 ? 'cancha' : 'canchas'} para jugar simultáneamente
                     </span>
                   </div>
+                  <p className="text-xs text-textSecondary mt-1">
+                    Esto ayuda a programar los partidos de forma eficiente
+                  </p>
                 </div>
 
                 {/* Descripción */}
@@ -300,8 +266,9 @@ export default function ModalCrearTorneo({ isOpen, onClose }: ModalCrearTorneoPr
                   <Button
                     type="button"
                     variant="ghost"
-                    onClick={onClose}
+                    onClick={handleClose}
                     className="flex-1 text-sm"
+                    disabled={loading}
                   >
                     Cancelar
                   </Button>
@@ -309,8 +276,9 @@ export default function ModalCrearTorneo({ isOpen, onClose }: ModalCrearTorneoPr
                     type="submit"
                     variant="accent"
                     className="flex-1 text-sm"
+                    disabled={loading}
                   >
-                    Crear Torneo
+                    {loading ? 'Creando...' : 'Crear Torneo'}
                   </Button>
                 </div>
               </form>

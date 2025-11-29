@@ -155,7 +155,7 @@ export default function EditarPerfil() {
       
       console.log('✅ Usuario recargado, navegando a perfil...');
 
-      navigate('/PlayR/perfil');
+      navigate('/perfil');
     } catch (error: any) {
       console.error('Error al actualizar perfil:', error);
       setError(error.response?.data?.detail || 'Error al actualizar perfil');
@@ -394,8 +394,14 @@ export default function EditarPerfil() {
                   <Input
                     type="text"
                     value={formData.dni || ''}
-                    onChange={(e) => setFormData({ ...formData, dni: e.target.value })}
+                    onChange={(e) => {
+                      const value = e.target.value.replace(/\D/g, '');
+                      if (value.length <= 8) {
+                        setFormData({ ...formData, dni: value });
+                      }
+                    }}
                     placeholder="12345678"
+                    maxLength={8}
                   />
                 </div>
 
@@ -406,8 +412,14 @@ export default function EditarPerfil() {
                   <Input
                     type="tel"
                     value={formData.telefono || ''}
-                    onChange={(e) => setFormData({ ...formData, telefono: e.target.value })}
-                    placeholder="+54 9 11 1234-5678"
+                    onChange={(e) => {
+                      const value = e.target.value.replace(/\D/g, '');
+                      if (value.length <= 15) {
+                        setFormData({ ...formData, telefono: value });
+                      }
+                    }}
+                    placeholder="3804565969"
+                    maxLength={15}
                   />
                 </div>
 
@@ -440,7 +452,7 @@ export default function EditarPerfil() {
               <Button
                 type="button"
                 variant="ghost"
-                onClick={() => navigate('/PlayR/perfil')}
+                onClick={() => navigate('/perfil')}
                 className="flex-1"
               >
                 Cancelar

@@ -8,12 +8,14 @@ import { Plus, Filter, Trophy } from 'lucide-react';
 import { useTorneos } from '../context/TorneosContext';
 
 export default function Torneos() {
-  const { torneos } = useTorneos();
+  const { torneos, puedeCrearTorneos, esAdministrador } = useTorneos();
   const [modalCrearOpen, setModalCrearOpen] = useState(false);
   const [filtro, setFiltro] = useState<'todos' | 'activo' | 'programado' | 'finalizado'>('todos');
   const [filtroGenero, setFiltroGenero] = useState<'todos' | 'masculino' | 'femenino' | 'mixto'>('todos');
   const [mostrarTodos, setMostrarTodos] = useState(false);
   const ITEMS_POR_PAGINA = 20;
+  
+  const puedeCrear = puedeCrearTorneos || esAdministrador;
 
   const torneosActivos = torneos.filter(t => t.estado === 'activo');
   const torneosProgramados = torneos.filter(t => t.estado === 'programado');
@@ -49,18 +51,20 @@ export default function Torneos() {
           </div>
           <p className="text-textSecondary text-xs md:text-base ml-10 md:ml-15">Organiza y gestiona competencias</p>
         </div>
-        <motion.div
-          whileHover={{ scale: 1.05 }}
-          whileTap={{ scale: 0.95 }}
-        >
-          <Button variant="accent" onClick={() => setModalCrearOpen(true)} className="text-sm md:text-base">
-            <div className="flex items-center gap-1.5 md:gap-2">
-              <Plus size={18} className="md:w-5 md:h-5" />
-              <span className="hidden sm:inline">Nuevo Torneo</span>
-              <span className="sm:hidden">Nuevo</span>
-            </div>
-          </Button>
-        </motion.div>
+        {puedeCrear && (
+          <motion.div
+            whileHover={{ scale: 1.05 }}
+            whileTap={{ scale: 0.95 }}
+          >
+            <Button variant="accent" onClick={() => setModalCrearOpen(true)} className="text-sm md:text-base">
+              <div className="flex items-center gap-1.5 md:gap-2">
+                <Plus size={18} className="md:w-5 md:h-5" />
+                <span className="hidden sm:inline">Nuevo Torneo</span>
+                <span className="sm:hidden">Nuevo</span>
+              </div>
+            </Button>
+          </motion.div>
+        )}
       </motion.div>
 
       {/* Estadísticas compactas */}
@@ -78,16 +82,16 @@ export default function Torneos() {
             transition={{ delay: index * 0.03 }}
             className="group relative"
           >
-            <div className="bg-cardBg rounded-lg p-2.5 border border-cardBorder group-hover:border-transparent transition-all duration-200 relative overflow-hidden">
+            <div className="bg-cardBg rounded-lg p-2 md:p-2.5 border border-cardBorder group-hover:border-transparent transition-all duration-200 relative overflow-hidden">
               <div className={`absolute -inset-[1px] bg-gradient-to-br ${stat.color} opacity-0 group-hover:opacity-100 transition-opacity duration-200 rounded-lg -z-10 blur-sm`} />
               
-              <div className="flex items-center justify-between mb-1">
-                <span className="text-base">{stat.icon}</span>
-                <p className="text-2xl font-black text-textPrimary tracking-tight">
+              <div className="flex items-center justify-between mb-0.5 md:mb-1">
+                <span className="text-sm md:text-base">{stat.icon}</span>
+                <p className="text-xl md:text-2xl font-black text-textPrimary tracking-tight">
                   {stat.value}
                 </p>
               </div>
-              <p className="text-textSecondary text-[9px] font-bold uppercase tracking-wider">{stat.label}</p>
+              <p className="text-textSecondary text-[8px] md:text-[9px] font-bold uppercase tracking-wider">{stat.label}</p>
             </div>
           </motion.div>
         ))}
@@ -96,17 +100,17 @@ export default function Torneos() {
       {/* Filtros compactos */}
       <div className="space-y-2">
         {/* Filtro por Estado */}
-        <div className="flex items-center gap-2 flex-wrap">
-          <div className="flex items-center gap-1.5 text-textSecondary">
-            <Filter size={14} />
-            <span className="text-xs font-bold">Estado:</span>
+        <div className="flex items-center gap-1.5 md:gap-2 flex-wrap">
+          <div className="flex items-center gap-1 md:gap-1.5 text-textSecondary">
+            <Filter size={12} className="md:w-3.5 md:h-3.5" />
+            <span className="text-[10px] md:text-xs font-bold">Estado:</span>
           </div>
           {(['todos', 'activo', 'programado', 'finalizado'] as const).map((f) => (
             <Button
               key={f}
               variant={filtro === f ? 'accent' : 'secondary'}
               onClick={() => setFiltro(f)}
-              className="text-xs px-2.5 py-1"
+              className="text-[10px] md:text-xs px-2 md:px-2.5 py-0.5 md:py-1"
             >
               {f === 'todos' ? 'Todos' : f === 'activo' ? 'En Curso' : f === 'programado' ? 'Programados' : 'Finalizados'}
             </Button>
@@ -114,10 +118,10 @@ export default function Torneos() {
         </div>
 
         {/* Filtro por Género */}
-        <div className="flex items-center gap-2 flex-wrap">
-          <div className="flex items-center gap-1.5 text-textSecondary">
-            <Filter size={14} />
-            <span className="text-xs font-bold">Género:</span>
+        <div className="flex items-center gap-1.5 md:gap-2 flex-wrap">
+          <div className="flex items-center gap-1 md:gap-1.5 text-textSecondary">
+            <Filter size={12} className="md:w-3.5 md:h-3.5" />
+            <span className="text-[10px] md:text-xs font-bold">Género:</span>
           </div>
           {[
             { value: 'todos', label: 'Todos', icon: '🏆' },
@@ -129,9 +133,9 @@ export default function Torneos() {
               key={g.value}
               variant={filtroGenero === g.value ? 'accent' : 'secondary'}
               onClick={() => setFiltroGenero(g.value as any)}
-              className="text-xs px-2.5 py-1 flex items-center gap-1"
+              className="text-[10px] md:text-xs px-2 md:px-2.5 py-0.5 md:py-1 flex items-center gap-1"
             >
-              <span>{g.icon}</span>
+              <span className="text-xs md:text-sm">{g.icon}</span>
               <span className="hidden sm:inline">{g.label}</span>
             </Button>
           ))}
@@ -151,9 +155,10 @@ export default function Torneos() {
                 : `No hay torneos ${filtro === 'activo' ? 'en curso' : filtro === 'programado' ? 'programados' : 'finalizados'}`}
             </p>
             <p className="text-xs md:text-sm mb-3 md:mb-4">
-              {filtro === 'todos' && 'Crea tu primer torneo para comenzar a organizar competencias'}
+              {filtro === 'todos' && puedeCrear && 'Crea tu primer torneo para comenzar a organizar competencias'}
+              {filtro === 'todos' && !puedeCrear && 'Aún no hay torneos disponibles'}
             </p>
-            {filtro === 'todos' && (
+            {filtro === 'todos' && puedeCrear && (
               <Button variant="accent" onClick={() => setModalCrearOpen(true)} className="text-sm md:text-base">
                 <div className="flex items-center gap-1.5 md:gap-2">
                   <Plus size={18} className="md:w-5 md:h-5" />
@@ -166,7 +171,7 @@ export default function Torneos() {
         </Card>
       ) : (
         <>
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2 md:gap-4">
             <AnimatePresence mode="popLayout">
               {torneosMostrados.map((torneo) => (
                 <TorneoCard

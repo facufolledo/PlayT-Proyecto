@@ -48,6 +48,8 @@ class UserResponse(BaseModel):
     id_categoria: Optional[int]
     posicion_preferida: Optional[str] = None
     mano_dominante: Optional[str] = None
+    puede_crear_torneos: Optional[bool] = False
+    es_administrador: Optional[bool] = False
     foto_perfil: Optional[str] = None
     dni: Optional[str] = None
     fecha_nacimiento: Optional[str] = None

@@ -1,136 +1,375 @@
-import { createContext, useContext, useState, ReactNode } from 'react';
-import { Torneo, Usuario } from '../utils/types';
-import { Bracket, generarBracketEliminacionSimple, avanzarGanador } from '../utils/bracketGenerator';
-import { logger } from '../utils/logger';
+import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import { Torneo } from '../utils/types';
+import torneoService, { TorneoCreate, TorneoBackend, ParejaInscripcion, Pareja } from '../services/torneo.service';
+import { useAuth } from './AuthContext';
 
 interface TorneosContextType {
+  // Estado
   torneos: Torneo[];
-  brackets: Map<string, Bracket>;
-  addTorneo: (torneo: Omit<Torneo, 'id' | 'createdAt'>) => void;
-  updateTorneo: (id: string, torneo: Partial<Torneo>) => void;
-  deleteTorneo: (id: string) => void;
-  getTorneoById: (id: string) => Torneo | undefined;
-  finalizarTorneo: (id: string, ganadorId: string) => void;
-  agregarSalaATorneo: (torneoId: string, salaId: string) => void;
-  inscribirUsuario: (torneoId: string, usuarioId: string) => void;
-  iniciarTorneo: (id: string, participantes: Usuario[]) => void;
-  getBracket: (torneoId: string) => Bracket | undefined;
-  actualizarPartidoBracket: (torneoId: string, partidoId: string, ganador: Usuario, puntos1: number, puntos2: number) => void;
+  torneoActual: Torneo | null;
+  parejas: Pareja[];
+  loading: boolean;
+  error: string | null;
+  
+  // Acciones de torneos
+  cargarTorneos: () => Promise<void>;
+  cargarTorneo: (id: number) => Promise<void>;
+  crearTorneo: (data: TorneoCreate) => Promise<Torneo>;
+  actualizarTorneo: (id: number, data: Partial<TorneoCreate>) => Promise<void>;
+  eliminarTorneo: (id: number) => Promise<void>;
+  cambiarEstadoTorneo: (id: number, estado: string) => Promise<void>;
+  
+  // Acciones de inscripciones
+  cargarParejas: (torneoId: number) => Promise<void>;
+  inscribirPareja: (torneoId: number, data: ParejaInscripcion) => Promise<void>;
+  confirmarPareja: (torneoId: number, parejaId: number) => Promise<void>;
+  rechazarPareja: (torneoId: number, parejaId: number, motivo?: string) => Promise<void>;
+  darBajaPareja: (torneoId: number, parejaId: number, motivo?: string) => Promise<void>;
+  
+  // Permisos
+  puedeCrearTorneos: boolean;
+  esAdministrador: boolean;
+  
+  // Utilidades
+  limpiarError: () => void;
 }
 
 const TorneosContext = createContext<TorneosContextType | undefined>(undefined);
 
 export function TorneosProvider({ children }: { children: ReactNode }) {
   const [torneos, setTorneos] = useState<Torneo[]>([]);
-  const [brackets, setBrackets] = useState<Map<string, Bracket>>(new Map());
+  const [torneoActual, setTorneoActual] = useState<Torneo | null>(null);
+  const [parejas, setParejas] = useState<Pareja[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  
+  const { usuario } = useAuth();
+  
+  // Permisos
+  const puedeCrearTorneos = usuario?.puede_crear_torneos || false;
+  const esAdministrador = usuario?.es_administrador || false;
 
-  const addTorneo = (torneoData: Omit<Torneo, 'id' | 'createdAt'>) => {
-    const newTorneo: Torneo = {
-      ...torneoData,
-      id: crypto.randomUUID(),
-      createdAt: new Date().toISOString(),
+  // ============================================
+  // FUNCIONES AUXILIARES
+  // ============================================
+  
+  const adaptarTorneoBackendAFrontend = (torneoBackend: TorneoBackend): Torneo => {
+    return {
+      id: torneoBackend.id.toString(),
+      nombre: torneoBackend.nombre,
+      descripcion: torneoBackend.descripcion || '',
+      categoria: torneoBackend.categoria,
+      estado: mapearEstadoBackendAFrontend(torneoBackend.estado),
+      fechaInicio: torneoBackend.fecha_inicio,
+      fechaFin: torneoBackend.fecha_fin,
+      lugar: torneoBackend.lugar || '',
+      genero: 'mixto', // Por ahora todos mixtos
+      formato: 'eliminacion-simple', // Por ahora todos eliminación
+      participantes: 0, // Se calculará después
+      salasIds: [],
+      createdAt: torneoBackend.created_at,
     };
-    setTorneos(prev => [newTorneo, ...prev]);
   };
-
-  const updateTorneo = (id: string, torneoData: Partial<Torneo>) => {
-    setTorneos(prev => prev.map(torneo => 
-      torneo.id === id ? { ...torneo, ...torneoData } : torneo
-    ));
-  };
-
-  const deleteTorneo = (id: string) => {
-    setTorneos(prev => prev.filter(torneo => torneo.id !== id));
-  };
-
-  const getTorneoById = (id: string) => {
-    return torneos.find(torneo => torneo.id === id);
-  };
-
-  const finalizarTorneo = (id: string, ganadorId: string) => {
-    setTorneos(prev => prev.map(torneo => {
-      if (torneo.id === id) {
-        return {
-          ...torneo,
-          estado: 'finalizado' as const,
-          ganadorId
-        };
-      }
-      return torneo;
-    }));
-  };
-
-  const agregarSalaATorneo = (torneoId: string, salaId: string) => {
-    setTorneos(prev => prev.map(torneo => {
-      if (torneo.id === torneoId) {
-        return {
-          ...torneo,
-          salasIds: [...torneo.salasIds, salaId]
-        };
-      }
-      return torneo;
-    }));
-  };
-
-  const inscribirUsuario = (torneoId: string, usuarioId: string) => {
-    // TODO: Implementar lógica de inscripción cuando tengamos el modelo extendido
-    logger.log('Usuario inscrito:', usuarioId, 'al torneo:', torneoId);
-  };
-
-  const iniciarTorneo = (id: string, participantes: Usuario[]) => {
-    // Generar bracket según el formato
-    const torneo = getTorneoById(id);
-    if (!torneo) return;
-
-    let bracket: Bracket;
-    if (torneo.formato === 'eliminacion-simple') {
-      bracket = generarBracketEliminacionSimple(participantes);
-    } else {
-      // TODO: Implementar otros formatos
-      bracket = generarBracketEliminacionSimple(participantes);
+  
+  const mapearEstadoBackendAFrontend = (estadoBackend: string): 'programado' | 'activo' | 'finalizado' => {
+    switch (estadoBackend) {
+      case 'INSCRIPCION':
+      case 'ARMANDO_ZONAS':
+        return 'programado';
+      case 'FASE_GRUPOS':
+      case 'FASE_ELIMINACION':
+        return 'activo';
+      case 'FINALIZADO':
+        return 'finalizado';
+      default:
+        return 'programado';
     }
-
-    // Guardar bracket
-    setBrackets(prev => new Map(prev).set(id, bracket));
-
-    // Actualizar estado del torneo
-    setTorneos(prev => prev.map(t => {
-      if (t.id === id) {
-        return {
-          ...t,
-          estado: 'activo' as const
-        };
+  };
+  
+  // ============================================
+  // ACCIONES DE TORNEOS
+  // ============================================
+  
+  const cargarTorneos = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      
+      const torneosData = await torneoService.listarTorneos();
+      const torneosAdaptados = torneosData.map(adaptarTorneoBackendAFrontend);
+      setTorneos(torneosAdaptados);
+    } catch (err: any) {
+      console.error('Error al cargar torneos:', err);
+      setError(err.response?.data?.detail || 'Error al cargar torneos');
+    } finally {
+      setLoading(false);
+    }
+  };
+  
+  const cargarTorneo = async (id: number) => {
+    try {
+      setLoading(true);
+      setError(null);
+      
+      const torneo = await torneoService.obtenerTorneo(id);
+      const torneoAdaptado = adaptarTorneoBackendAFrontend(torneo);
+      setTorneoActual(torneoAdaptado);
+    } catch (err: any) {
+      console.error('Error al cargar torneo:', err);
+      setError(err.response?.data?.detail || 'Error al cargar torneo');
+    } finally {
+      setLoading(false);
+    }
+  };
+  
+  const crearTorneo = async (data: TorneoCreate): Promise<Torneo> => {
+    try {
+      setLoading(true);
+      setError(null);
+      
+      // Validar datos
+      const errores = torneoService.validarDatosTorneo(data);
+      if (errores.length > 0) {
+        throw new Error(errores.join(', '));
       }
-      return t;
-    }));
+      
+      const nuevoTorneo = await torneoService.crearTorneo(data);
+      const torneoAdaptado = adaptarTorneoBackendAFrontend(nuevoTorneo);
+      
+      // Actualizar lista local
+      setTorneos(prev => [torneoAdaptado, ...prev]);
+      
+      return torneoAdaptado;
+    } catch (err: any) {
+      console.error('Error al crear torneo:', err);
+      const errorMsg = err.response?.data?.detail || err.message || 'Error al crear torneo';
+      setError(errorMsg);
+      throw new Error(errorMsg);
+    } finally {
+      setLoading(false);
+    }
   };
-
-  const getBracket = (torneoId: string): Bracket | undefined => {
-    return brackets.get(torneoId);
+  
+  const actualizarTorneo = async (id: number, data: Partial<TorneoCreate>) => {
+    try {
+      setLoading(true);
+      setError(null);
+      
+      const torneoActualizado = await torneoService.actualizarTorneo(id, data);
+      const torneoAdaptado = adaptarTorneoBackendAFrontend(torneoActualizado);
+      
+      // Actualizar lista local
+      setTorneos(prev => prev.map(t => 
+        parseInt(t.id) === id ? torneoAdaptado : t
+      ));
+      
+      // Actualizar torneo actual si es el mismo
+      if (torneoActual && parseInt(torneoActual.id) === id) {
+        setTorneoActual(torneoAdaptado);
+      }
+    } catch (err: any) {
+      console.error('Error al actualizar torneo:', err);
+      setError(err.response?.data?.detail || 'Error al actualizar torneo');
+      throw err;
+    } finally {
+      setLoading(false);
+    }
   };
-
-  const actualizarPartidoBracket = (torneoId: string, partidoId: string, ganador: Usuario, puntos1: number, puntos2: number) => {
-    const bracket = brackets.get(torneoId);
-    if (!bracket) return;
-
-    const nuevoBracket = avanzarGanador(bracket, partidoId, ganador, puntos1, puntos2);
-    setBrackets(prev => new Map(prev).set(torneoId, nuevoBracket));
+  
+  const eliminarTorneo = async (id: number) => {
+    try {
+      setLoading(true);
+      setError(null);
+      
+      await torneoService.eliminarTorneo(id);
+      
+      // Actualizar lista local
+      setTorneos(prev => prev.filter(t => parseInt(t.id) !== id));
+      
+      // Limpiar torneo actual si es el mismo
+      if (torneoActual && parseInt(torneoActual.id) === id) {
+        setTorneoActual(null);
+      }
+    } catch (err: any) {
+      console.error('Error al eliminar torneo:', err);
+      setError(err.response?.data?.detail || 'Error al eliminar torneo');
+      throw err;
+    } finally {
+      setLoading(false);
+    }
   };
+  
+  const cambiarEstadoTorneo = async (id: number, estado: string) => {
+    try {
+      setLoading(true);
+      setError(null);
+      
+      const torneoActualizado = await torneoService.cambiarEstado(id, estado);
+      const torneoAdaptado = adaptarTorneoBackendAFrontend(torneoActualizado);
+      
+      // Actualizar lista local
+      setTorneos(prev => prev.map(t => 
+        parseInt(t.id) === id ? torneoAdaptado : t
+      ));
+      
+      // Actualizar torneo actual si es el mismo
+      if (torneoActual && parseInt(torneoActual.id) === id) {
+        setTorneoActual(torneoAdaptado);
+      }
+    } catch (err: any) {
+      console.error('Error al cambiar estado:', err);
+      setError(err.response?.data?.detail || 'Error al cambiar estado');
+      throw err;
+    } finally {
+      setLoading(false);
+    }
+  };
+  
+  // ============================================
+  // ACCIONES DE INSCRIPCIONES
+  // ============================================
+  
+  const cargarParejas = async (torneoId: number) => {
+    try {
+      setLoading(true);
+      setError(null);
+      
+      const parejasData = await torneoService.listarParejas(torneoId);
+      setParejas(parejasData);
+    } catch (err: any) {
+      console.error('Error al cargar parejas:', err);
+      setError(err.response?.data?.detail || 'Error al cargar parejas');
+    } finally {
+      setLoading(false);
+    }
+  };
+  
+  const inscribirPareja = async (torneoId: number, data: ParejaInscripcion) => {
+    try {
+      setLoading(true);
+      setError(null);
+      
+      // Validar datos
+      const errores = torneoService.validarInscripcionPareja(data);
+      if (errores.length > 0) {
+        throw new Error(errores.join(', '));
+      }
+      
+      const nuevaPareja = await torneoService.inscribirPareja(torneoId, data);
+      
+      // Actualizar lista local
+      setParejas(prev => [nuevaPareja, ...prev]);
+    } catch (err: any) {
+      console.error('Error al inscribir pareja:', err);
+      const errorMsg = err.response?.data?.detail || err.message || 'Error al inscribir pareja';
+      setError(errorMsg);
+      throw new Error(errorMsg);
+    } finally {
+      setLoading(false);
+    }
+  };
+  
+  const confirmarPareja = async (torneoId: number, parejaId: number) => {
+    try {
+      setLoading(true);
+      setError(null);
+      
+      const parejaConfirmada = await torneoService.confirmarPareja(torneoId, parejaId);
+      
+      // Actualizar lista local
+      setParejas(prev => prev.map(p => 
+        p.id === parejaId ? parejaConfirmada : p
+      ));
+    } catch (err: any) {
+      console.error('Error al confirmar pareja:', err);
+      setError(err.response?.data?.detail || 'Error al confirmar pareja');
+      throw err;
+    } finally {
+      setLoading(false);
+    }
+  };
+  
+  const rechazarPareja = async (torneoId: number, parejaId: number, motivo?: string) => {
+    try {
+      setLoading(true);
+      setError(null);
+      
+      await torneoService.rechazarPareja(torneoId, parejaId, motivo);
+      
+      // Remover de lista local
+      setParejas(prev => prev.filter(p => p.id !== parejaId));
+    } catch (err: any) {
+      console.error('Error al rechazar pareja:', err);
+      setError(err.response?.data?.detail || 'Error al rechazar pareja');
+      throw err;
+    } finally {
+      setLoading(false);
+    }
+  };
+  
+  const darBajaPareja = async (torneoId: number, parejaId: number, motivo?: string) => {
+    try {
+      setLoading(true);
+      setError(null);
+      
+      const parejaBaja = await torneoService.darBajaPareja(torneoId, parejaId, motivo);
+      
+      // Actualizar lista local
+      setParejas(prev => prev.map(p => 
+        p.id === parejaId ? parejaBaja : p
+      ));
+    } catch (err: any) {
+      console.error('Error al dar de baja pareja:', err);
+      setError(err.response?.data?.detail || 'Error al dar de baja pareja');
+      throw err;
+    } finally {
+      setLoading(false);
+    }
+  };
+  
+  // ============================================
+  // UTILIDADES
+  // ============================================
+  
+  const limpiarError = () => {
+    setError(null);
+  };
+  
+  // Cargar torneos al montar el componente
+  useEffect(() => {
+    cargarTorneos();
+  }, []);
 
   return (
     <TorneosContext.Provider value={{
+      // Estado
       torneos,
-      brackets,
-      addTorneo,
-      updateTorneo,
-      deleteTorneo,
-      getTorneoById,
-      finalizarTorneo,
-      agregarSalaATorneo,
-      inscribirUsuario,
-      iniciarTorneo,
-      getBracket,
-      actualizarPartidoBracket
+      torneoActual,
+      parejas,
+      loading,
+      error,
+      
+      // Acciones de torneos
+      cargarTorneos,
+      cargarTorneo,
+      crearTorneo,
+      actualizarTorneo,
+      eliminarTorneo,
+      cambiarEstadoTorneo,
+      
+      // Acciones de inscripciones
+      cargarParejas,
+      inscribirPareja,
+      confirmarPareja,
+      rechazarPareja,
+      darBajaPareja,
+      
+      // Permisos
+      puedeCrearTorneos,
+      esAdministrador,
+      
+      // Utilidades
+      limpiarError
     }}>
       {children}
     </TorneosContext.Provider>

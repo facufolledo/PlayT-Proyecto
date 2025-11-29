@@ -138,62 +138,89 @@ async def firebase_auth(
     Autenticar usuario con token de Firebase
     Verifica el token de Firebase y retorna información del usuario
     """
-    # Validar token de Firebase
-    firebase_payload = FirebaseHandler.verify_token(request.firebase_token)
-    
-    if not firebase_payload:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Token de Firebase inválido",
-            headers={"WWW-Authenticate": "Bearer"},
+    try:
+        print(f"🔍 Intentando autenticar con Firebase...")
+        
+        # Validar token de Firebase
+        firebase_payload = FirebaseHandler.verify_token(request.firebase_token)
+        
+        if not firebase_payload:
+            print("❌ Token de Firebase inválido o Firebase no inicializado")
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Token de Firebase inválido o servicio no disponible",
+                headers={"WWW-Authenticate": "Bearer"},
+            )
+        
+        firebase_email = firebase_payload.get("firebase_email")
+        print(f"✅ Token validado para email: {firebase_email}")
+        
+        if not firebase_email:
+            print("❌ Email no encontrado en token de Firebase")
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Token de Firebase inválido: email no encontrado",
+                headers={"WWW-Authenticate": "Bearer"},
+            )
+        
+        # Buscar usuario por email
+        user = db.query(Usuario).filter(Usuario.email == firebase_email).first()
+        
+        if not user:
+            print(f"❌ Usuario no encontrado en BD para email: {firebase_email}")
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Usuario no encontrado. Por favor, completa tu perfil primero.",
+            )
+        
+        print(f"✅ Usuario encontrado: {user.nombre_usuario} (ID: {user.id_usuario})")
+        
+        # Obtener perfil del usuario
+        perfil = db.query(PerfilUsuario).filter(PerfilUsuario.id_usuario == user.id_usuario).first()
+        
+        if not perfil:
+            print(f"❌ Perfil no encontrado para usuario ID: {user.id_usuario}")
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Perfil de usuario no encontrado",
+            )
+        
+        print(f"✅ Perfil encontrado: {perfil.nombre} {perfil.apellido}")
+        
+        return UserResponse(
+            id_usuario=user.id_usuario,
+            nombre_usuario=user.nombre_usuario,
+            email=user.email,
+            nombre=perfil.nombre,
+            apellido=perfil.apellido,
+            sexo=user.sexo,
+            ciudad=perfil.ciudad,
+            pais=perfil.pais,
+            rating=user.rating,
+            partidos_jugados=user.partidos_jugados,
+            id_categoria=user.id_categoria,
+            posicion_preferida=perfil.posicion_preferida,
+            mano_dominante=perfil.mano_habil,
+            foto_perfil=perfil.url_avatar,
+            dni=perfil.dni,
+            fecha_nacimiento=perfil.fecha_nacimiento.isoformat() if perfil.fecha_nacimiento else None,
+            telefono=perfil.telefono,
+            puede_crear_torneos=user.puede_crear_torneos or False,
+            es_administrador=user.es_administrador or False
         )
     
-    firebase_email = firebase_payload.get("firebase_email")
-    
-    if not firebase_email:
+    except HTTPException:
+        # Re-lanzar HTTPException tal cual
+        raise
+    except Exception as e:
+        # Capturar cualquier otro error y loguearlo
+        print(f"❌ Error inesperado en firebase_auth: {str(e)}")
+        import traceback
+        traceback.print_exc()
         raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Token de Firebase inválido: email no encontrado",
-            headers={"WWW-Authenticate": "Bearer"},
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error interno del servidor: {str(e)}"
         )
-    
-    # Buscar usuario por email
-    user = db.query(Usuario).filter(Usuario.email == firebase_email).first()
-    
-    if not user:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Usuario no encontrado. Por favor, completa tu perfil primero.",
-        )
-    
-    # Obtener perfil del usuario
-    perfil = db.query(PerfilUsuario).filter(PerfilUsuario.id_usuario == user.id_usuario).first()
-    
-    if not perfil:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Perfil de usuario no encontrado",
-        )
-    
-    return UserResponse(
-        id_usuario=user.id_usuario,
-        nombre_usuario=user.nombre_usuario,
-        email=user.email,
-        nombre=perfil.nombre,
-        apellido=perfil.apellido,
-        sexo=user.sexo,
-        ciudad=perfil.ciudad,
-        pais=perfil.pais,
-        rating=user.rating,
-        partidos_jugados=user.partidos_jugados,
-        id_categoria=user.id_categoria,
-        posicion_preferida=perfil.posicion_preferida,
-        mano_dominante=perfil.mano_habil,
-        foto_perfil=perfil.url_avatar,
-        dni=perfil.dni,
-        fecha_nacimiento=perfil.fecha_nacimiento.isoformat() if perfil.fecha_nacimiento else None,
-        telefono=perfil.telefono
-    )
 
 @router.get("/me", response_model=UserResponse)
 async def get_current_user_info(current_user: Usuario = Depends(get_current_user), db: Session = Depends(get_db)):
@@ -225,5 +252,7 @@ async def get_current_user_info(current_user: Usuario = Depends(get_current_user
         foto_perfil=perfil.url_avatar,
         dni=perfil.dni,
         fecha_nacimiento=perfil.fecha_nacimiento.isoformat() if perfil.fecha_nacimiento else None,
-        telefono=perfil.telefono
+        telefono=perfil.telefono,
+        puede_crear_torneos=current_user.puede_crear_torneos or False,
+        es_administrador=current_user.es_administrador or False
     )

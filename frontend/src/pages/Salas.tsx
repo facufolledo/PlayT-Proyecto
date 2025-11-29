@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import Card from '../components/Card';
 import Button from '../components/Button';
@@ -15,6 +16,7 @@ import { useAuth } from '../context/AuthContext';
 import { Sala } from '../utils/types';
 
 export default function Salas() {
+  const navigate = useNavigate();
   const { salas, getSalasPendientesConfirmacion, cargarSalas, loading } = useSalas();
   const { usuario } = useAuth();
   const [codigoUrl, setCodigoUrl] = useState<string | null>(null);
@@ -147,8 +149,9 @@ export default function Salas() {
             <Button
               variant="accent"
               onClick={() => {
+                // Abrir el modal de marcador de la sala pendiente
                 setSalaSeleccionada(salasPendientes[0]);
-                setModalConfirmarOpen(true);
+                setModalMarcadorOpen(true);
               }}
               className="text-sm"
             >
