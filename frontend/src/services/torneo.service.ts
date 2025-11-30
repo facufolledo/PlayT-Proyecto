@@ -195,6 +195,63 @@ class TorneoService {
     return response.data;
   }
 
+  // Zonas
+  async generarZonas(torneoId: number, parejasConfirmadas: number[]): Promise<any> {
+    const response = await axios.post(
+      `${API_URL}/torneos/${torneoId}/zonas/generar`,
+      { parejas_confirmadas: parejasConfirmadas },
+      this.getAuthHeaders()
+    );
+    return response.data;
+  }
+
+  async listarZonas(torneoId: number): Promise<any[]> {
+    const response = await axios.get(`${API_URL}/torneos/${torneoId}/zonas`);
+    return response.data;
+  }
+
+  async obtenerTablaPosiciones(torneoId: number, zonaId: number): Promise<any> {
+    const response = await axios.get(`${API_URL}/torneos/${torneoId}/zonas/${zonaId}/tabla`);
+    return response.data;
+  }
+
+  // Fixture
+  async generarFixture(torneoId: number): Promise<any> {
+    const response = await axios.post(
+      `${API_URL}/torneos/${torneoId}/fixture/generar`,
+      {},
+      this.getAuthHeaders()
+    );
+    return response.data;
+  }
+
+  async listarPartidos(torneoId: number, params?: { zona_id?: number; fase?: string }): Promise<any[]> {
+    const response = await axios.get(`${API_URL}/torneos/${torneoId}/partidos`, { params });
+    return response.data;
+  }
+
+  // Resultados
+  async cargarResultado(torneoId: number, partidoId: number, resultado: any): Promise<any> {
+    const response = await axios.post(
+      `${API_URL}/torneos/${torneoId}/partidos/${partidoId}/resultado`,
+      resultado,
+      this.getAuthHeaders()
+    );
+    return response.data;
+  }
+
+  async obtenerClasificados(zonaId: number, numClasificados: number = 2): Promise<any[]> {
+    const response = await axios.get(`${API_URL}/torneos/zonas/${zonaId}/clasificados`, {
+      params: { num_clasificados: numClasificados }
+    });
+    return response.data;
+  }
+
+  async verificarZonaCompleta(zonaId: number): Promise<boolean> {
+    const response = await axios.get(`${API_URL}/torneos/zonas/${zonaId}/completa`);
+    return response.data.completa;
+  }
+
   // Validaciones
   validarDatosTorneo(data: TorneoCreate): string[] {
     const errores: string[] = [];

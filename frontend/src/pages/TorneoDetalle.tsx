@@ -7,12 +7,14 @@ import Card from '../components/Card';
 import Button from '../components/Button';
 import SkeletonLoader from '../components/SkeletonLoader';
 import ModalInscribirTorneo from '../components/ModalInscribirTorneo';
+import TorneoZonas from '../components/TorneoZonas';
+import TorneoFixture from '../components/TorneoFixture';
 
 export default function TorneoDetalle() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { torneoActual, cargarTorneo, cargarParejas, parejas, loading, esAdministrador } = useTorneos();
-  const [tab, setTab] = useState<'info' | 'parejas' | 'partidos'>('info');
+  const [tab, setTab] = useState<'info' | 'parejas' | 'zonas' | 'partidos'>('info');
   const [modalInscripcionOpen, setModalInscripcionOpen] = useState(false);
 
   useEffect(() => {
@@ -22,6 +24,15 @@ export default function TorneoDetalle() {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id]);
+
+  // Escuchar evento para cambiar tab
+  useEffect(() => {
+    const handleCambiarTab = (event: any) => {
+      setTab(event.detail);
+    };
+    window.addEventListener('cambiarTab', handleCambiarTab);
+    return () => window.removeEventListener('cambiarTab', handleCambiarTab);
+  }, []);
 
   if (loading && !torneoActual) {
     return (
@@ -162,10 +173,10 @@ export default function TorneoDetalle() {
       </Card>
 
       {/* Tabs */}
-      <div className="flex gap-2 border-b border-cardBorder">
+      <div className="flex gap-2 border-b border-cardBorder overflow-x-auto">
         <button
           onClick={() => setTab('info')}
-          className={`px-4 py-2 font-bold transition-colors ${
+          className={`px-4 py-2 font-bold transition-colors whitespace-nowrap ${
             tab === 'info'
               ? 'text-primary border-b-2 border-primary'
               : 'text-textSecondary hover:text-textPrimary'
@@ -175,7 +186,7 @@ export default function TorneoDetalle() {
         </button>
         <button
           onClick={() => setTab('parejas')}
-          className={`px-4 py-2 font-bold transition-colors ${
+          className={`px-4 py-2 font-bold transition-colors whitespace-nowrap ${
             tab === 'parejas'
               ? 'text-primary border-b-2 border-primary'
               : 'text-textSecondary hover:text-textPrimary'
@@ -184,14 +195,24 @@ export default function TorneoDetalle() {
           Parejas ({parejas.length})
         </button>
         <button
+          onClick={() => setTab('zonas')}
+          className={`px-4 py-2 font-bold transition-colors whitespace-nowrap ${
+            tab === 'zonas'
+              ? 'text-primary border-b-2 border-primary'
+              : 'text-textSecondary hover:text-textPrimary'
+          }`}
+        >
+          Zonas
+        </button>
+        <button
           onClick={() => setTab('partidos')}
-          className={`px-4 py-2 font-bold transition-colors ${
+          className={`px-4 py-2 font-bold transition-colors whitespace-nowrap ${
             tab === 'partidos'
               ? 'text-primary border-b-2 border-primary'
               : 'text-textSecondary hover:text-textPrimary'
           }`}
         >
-          Partidos
+          Fixture
         </button>
       </div>
 
@@ -228,9 +249,6 @@ export default function TorneoDetalle() {
                       <p className="font-bold text-textPrimary">
                         {pareja.nombre_pareja}
                       </p>
-                      <p className="text-xs text-textSecondary">
-                        Jugadores: {pareja.jugador1_id} / {pareja.jugador2_id}
-                      </p>
                     </div>
                     <div>
                       <span
@@ -255,15 +273,12 @@ export default function TorneoDetalle() {
         </Card>
       )}
 
+      {tab === 'zonas' && (
+        <TorneoZonas torneoId={parseInt(id!)} esOrganizador={esOrganizador} />
+      )}
+
       {tab === 'partidos' && (
-        <Card>
-          <div className="p-6">
-            <div className="text-center py-12">
-              <Trophy size={48} className="mx-auto text-textSecondary mb-4" />
-              <p className="text-textSecondary">Los partidos se generarán cuando comience el torneo</p>
-            </div>
-          </div>
-        </Card>
+        <TorneoFixture torneoId={parseInt(id!)} esOrganizador={esOrganizador} />
       )}
 
       {/* Modal de Inscripción */}

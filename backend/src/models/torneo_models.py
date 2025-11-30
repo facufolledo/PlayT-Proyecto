@@ -211,8 +211,8 @@ class TorneoBloqueoJugador(Base):
     torneo_id = Column(BigInteger, ForeignKey("torneos.id", ondelete="CASCADE"), nullable=False)
     jugador_id = Column(BigInteger, ForeignKey("usuarios.id_usuario", ondelete="CASCADE"), nullable=False)
     fecha = Column(Date, nullable=False)
-    hora_desde = Column(String(8), nullable=False)  # TIME as string "HH:MM:SS"
-    hora_hasta = Column(String(8), nullable=False)
+    hora_desde = Column(String(8), nullable=False)  # TIME en BD, pero usamos String para facilidad
+    hora_hasta = Column(String(8), nullable=False)  # TIME en BD, pero usamos String para facilidad
     motivo = Column(String(255))
     created_at = Column(DateTime, server_default=func.current_timestamp())
     

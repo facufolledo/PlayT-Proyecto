@@ -1,9 +1,12 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, Users, AlertCircle } from 'lucide-react';
+import { X, Users, AlertCircle, Search } from 'lucide-react';
 import Button from './Button';
 import { useTorneos } from '../context/TorneosContext';
 import { useAuth } from '../context/AuthContext';
+import axios from 'axios';
+
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
 
 interface ModalInscribirTorneoProps {
   isOpen: boolean;
@@ -22,11 +25,44 @@ export default function ModalInscribirTorneo({
   const { usuario } = useAuth();
   const [error, setError] = useState('');
   const [success, setSuccess] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [searchResults, setSearchResults] = useState<any[]>([]);
+  const [searching, setSearching] = useState(false);
+  const [selectedCompanero, setSelectedCompanero] = useState<any>(null);
   
   const [formData, setFormData] = useState({
     jugador2_id: '',
     nombre_pareja: '',
   });
+
+  // Buscar usuarios cuando cambia el query
+  useEffect(() => {
+    const buscarUsuarios = async () => {
+      if (searchQuery.length < 2) {
+        setSearchResults([]);
+        return;
+      }
+
+      try {
+        setSearching(true);
+        const response = await axios.get(`${API_URL}/usuarios/buscar`, {
+          params: { q: searchQuery, limit: 5 }
+        });
+        
+        // Filtrar para no mostrar al usuario actual
+        const resultados = response.data.filter((u: any) => u.id_usuario !== usuario?.id_usuario);
+        setSearchResults(resultados);
+      } catch (err) {
+        console.error('Error buscando usuarios:', err);
+        setSearchResults([]);
+      } finally {
+        setSearching(false);
+      }
+    };
+
+    const timeoutId = setTimeout(buscarUsuarios, 300);
+    return () => clearTimeout(timeoutId);
+  }, [searchQuery, usuario]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -141,24 +177,89 @@ export default function ModalInscribirTorneo({
                       </p>
                     </div>
 
-                    {/* ID del compañero */}
+                    {/* Buscar compañero */}
                     <div>
                       <label className="block text-sm font-bold text-textSecondary mb-2">
-                        ID de tu Compañero *
+                        Buscar Compañero *
                       </label>
-                      <input
-                        type="number"
-                        value={formData.jugador2_id}
-                        onChange={(e) =>
-                          setFormData({ ...formData, jugador2_id: e.target.value })
-                        }
-                        placeholder="Ej: 123"
-                        required
-                        disabled={loading}
-                        className="w-full px-4 py-3 bg-background border border-cardBorder rounded-lg text-textPrimary placeholder-textSecondary focus:outline-none focus:border-primary transition-colors disabled:opacity-50"
-                      />
+                      
+                      {selectedCompanero ? (
+                        <div className="bg-primary/10 rounded-lg p-4 flex items-center justify-between">
+                          <div>
+                            <p className="font-bold text-textPrimary">
+                              {selectedCompanero.nombre} {selectedCompanero.apellido}
+                            </p>
+                            <p className="text-xs text-textSecondary">
+                              Rating: {selectedCompanero.rating || 1200}
+                            </p>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setSelectedCompanero(null);
+                              setFormData({ ...formData, jugador2_id: '' });
+                            }}
+                            className="text-textSecondary hover:text-red-500 transition-colors"
+                          >
+                            <X size={20} />
+                          </button>
+                        </div>
+                      ) : (
+                        <div className="relative">
+                          <div className="relative">
+                            <Search size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-textSecondary" />
+                            <input
+                              type="text"
+                              value={searchQuery}
+                              onChange={(e) => setSearchQuery(e.target.value)}
+                              placeholder="Busca por nombre o apellido..."
+                              disabled={loading}
+                              className="w-full pl-10 pr-4 py-3 bg-background border border-cardBorder rounded-lg text-textPrimary placeholder-textSecondary focus:outline-none focus:border-primary transition-colors disabled:opacity-50"
+                            />
+                          </div>
+                          
+                          {/* Resultados de búsqueda */}
+                          {searchQuery.length >= 2 && (
+                            <div className="absolute z-10 w-full mt-2 bg-card border border-cardBorder rounded-lg shadow-lg max-h-60 overflow-y-auto">
+                              {searching ? (
+                                <div className="p-4 text-center text-textSecondary">
+                                  Buscando...
+                                </div>
+                              ) : searchResults.length > 0 ? (
+                                searchResults.map((user) => (
+                                  <button
+                                    key={user.id_usuario}
+                                    type="button"
+                                    onClick={() => {
+                                      setSelectedCompanero(user);
+                                      setFormData({ ...formData, jugador2_id: user.id_usuario.toString() });
+                                      setSearchQuery('');
+                                      setSearchResults([]);
+                                    }}
+                                    className="w-full p-3 text-left hover:bg-background transition-colors border-b border-cardBorder last:border-b-0"
+                                  >
+                                    <p className="font-bold text-textPrimary">
+                                      {user.nombre} {user.apellido}
+                                    </p>
+                                    <p className="text-xs text-textSecondary">
+                                      Rating: {user.rating || 1200} • ID: {user.id_usuario}
+                                    </p>
+                                  </button>
+                                ))
+                              ) : (
+                                <div className="p-4 text-center text-textSecondary">
+                                  No se encontraron usuarios
+                                </div>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      )}
+                      
                       <p className="text-xs text-textSecondary mt-1">
-                        Pídele a tu compañero su ID de usuario
+                        {selectedCompanero 
+                          ? 'Compañero seleccionado' 
+                          : 'Escribe al menos 2 caracteres para buscar'}
                       </p>
                     </div>
 
