@@ -9,12 +9,13 @@ import SkeletonLoader from '../components/SkeletonLoader';
 import ModalInscribirTorneo from '../components/ModalInscribirTorneo';
 import TorneoZonas from '../components/TorneoZonas';
 import TorneoFixture from '../components/TorneoFixture';
+import TorneoPlayoffs from '../components/TorneoPlayoffs';
 
 export default function TorneoDetalle() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { torneoActual, cargarTorneo, cargarParejas, parejas, loading, esAdministrador } = useTorneos();
-  const [tab, setTab] = useState<'info' | 'parejas' | 'zonas' | 'partidos'>('info');
+  const [tab, setTab] = useState<'info' | 'parejas' | 'zonas' | 'partidos' | 'playoffs'>('info');
   const [modalInscripcionOpen, setModalInscripcionOpen] = useState(false);
 
   useEffect(() => {
@@ -214,6 +215,17 @@ export default function TorneoDetalle() {
         >
           Fixture
         </button>
+        <button
+          onClick={() => setTab('playoffs')}
+          className={`px-4 py-2 font-bold transition-colors whitespace-nowrap flex items-center gap-2 ${
+            tab === 'playoffs'
+              ? 'text-accent border-b-2 border-accent'
+              : 'text-textSecondary hover:text-textPrimary'
+          }`}
+        >
+          <Trophy size={16} />
+          Playoffs
+        </button>
       </div>
 
       {/* Contenido de tabs */}
@@ -279,6 +291,10 @@ export default function TorneoDetalle() {
 
       {tab === 'partidos' && (
         <TorneoFixture torneoId={parseInt(id!)} esOrganizador={esOrganizador} />
+      )}
+
+      {tab === 'playoffs' && (
+        <TorneoPlayoffs torneoId={parseInt(id!)} esOrganizador={esOrganizador} />
       )}
 
       {/* Modal de Inscripción */}

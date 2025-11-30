@@ -1,5 +1,6 @@
 import { useState } from 'react';
-import { X, Plus, Minus } from 'lucide-react';
+import { motion } from 'framer-motion';
+import { X, Plus, Minus, Trophy } from 'lucide-react';
 import { torneoService } from '../services/torneo.service';
 import Button from './Button';
 
@@ -141,59 +142,93 @@ export default function ModalCargarResultado({
   };
 
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-      <div className="bg-card rounded-lg max-w-2xl w-full max-h-[90vh] overflow-y-auto">
-        <div className="p-6">
+    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-2 md:p-4">
+      <motion.div
+        initial={{ opacity: 0, scale: 0.95 }}
+        animate={{ opacity: 1, scale: 1 }}
+        exit={{ opacity: 0, scale: 0.95 }}
+        className="bg-card rounded-xl max-w-2xl w-full max-h-[95vh] md:max-h-[90vh] overflow-y-auto shadow-2xl border border-cardBorder"
+      >
+        <div className="p-4 md:p-6">
           {/* Header */}
-          <div className="flex items-center justify-between mb-6">
-            <h2 className="text-2xl font-bold text-textPrimary">Cargar Resultado</h2>
+          <div className="flex items-center justify-between mb-4 md:mb-6 pb-3 md:pb-4 border-b border-cardBorder">
+            <div className="flex items-center gap-2 md:gap-3">
+              <div className="bg-gradient-to-br from-accent to-primary p-1.5 md:p-2 rounded-lg">
+                <Trophy size={16} className="text-white md:w-5 md:h-5" />
+              </div>
+              <h2 className="text-lg md:text-2xl font-bold text-textPrimary">Cargar Resultado</h2>
+            </div>
             <button
               onClick={onClose}
-              className="text-textSecondary hover:text-textPrimary transition-colors"
+              className="text-textSecondary hover:text-red-500 transition-colors p-1.5 md:p-2 hover:bg-red-500/10 rounded-lg"
             >
-              <X size={24} />
+              <X size={20} className="md:w-6 md:h-6" />
             </button>
           </div>
 
-          {/* Parejas */}
-          <div className="mb-6 p-4 bg-background rounded-lg">
-            <div className="flex items-center justify-between mb-2">
-              <span className="font-bold text-textPrimary">
+          {/* Parejas - Marcador */}
+          <div className="mb-4 md:mb-6 p-3 md:p-5 bg-gradient-to-br from-background to-background/50 rounded-xl border border-cardBorder">
+            <div className="flex items-center justify-between mb-2 md:mb-3 p-2 md:p-3 bg-card rounded-lg">
+              <span className="font-bold text-textPrimary text-sm md:text-lg truncate flex-1 mr-2">
                 {partido?.pareja1_nombre || `Pareja ${partido?.pareja1_id || '?'}`}
               </span>
-              <span className="text-2xl font-bold text-primary">
-                {sets.filter(s => s.completado && s.ganador === 'equipoA').length}
-              </span>
+              <div className="bg-primary/10 px-3 md:px-4 py-1 md:py-2 rounded-lg">
+                <span className="text-2xl md:text-3xl font-bold text-primary">
+                  {sets.filter(s => s.completado && s.ganador === 'equipoA').length}
+                </span>
+              </div>
             </div>
-            <div className="flex items-center justify-between">
-              <span className="font-bold text-textPrimary">
+            <div className="flex items-center justify-center my-1.5 md:my-2">
+              <div className="h-px flex-1 bg-cardBorder" />
+              <span className="px-2 md:px-3 text-[10px] md:text-xs font-bold text-textSecondary">VS</span>
+              <div className="h-px flex-1 bg-cardBorder" />
+            </div>
+            <div className="flex items-center justify-between p-2 md:p-3 bg-card rounded-lg">
+              <span className="font-bold text-textPrimary text-sm md:text-lg truncate flex-1 mr-2">
                 {partido?.pareja2_nombre || `Pareja ${partido?.pareja2_id || '?'}`}
               </span>
-              <span className="text-2xl font-bold text-primary">
-                {sets.filter(s => s.completado && s.ganador === 'equipoB').length}
-              </span>
+              <div className="bg-primary/10 px-3 md:px-4 py-1 md:py-2 rounded-lg">
+                <span className="text-2xl md:text-3xl font-bold text-primary">
+                  {sets.filter(s => s.completado && s.ganador === 'equipoB').length}
+                </span>
+              </div>
             </div>
           </div>
 
           {/* Sets */}
-          <div className="space-y-4 mb-6">
+          <div className="space-y-3 md:space-y-4 mb-4 md:mb-6">
             {sets.map((set, index) => (
-              <div key={index} className="p-4 bg-background rounded-lg">
-                <h3 className="font-bold text-textPrimary mb-3">Set {index + 1}</h3>
+              <motion.div
+                key={index}
+                initial={{ opacity: 0, x: -20 }}
+                animate={{ opacity: 1, x: 0 }}
+                transition={{ delay: index * 0.1 }}
+                className="p-3 md:p-4 bg-background rounded-xl border border-cardBorder"
+              >
+                <div className="flex items-center justify-between mb-2 md:mb-3">
+                  <h3 className="font-bold text-textPrimary text-sm md:text-base">Set {index + 1}</h3>
+                  {set.completado && (
+                    <div className="flex items-center gap-1 text-green-500 text-[10px] md:text-xs font-bold">
+                      <Trophy size={10} className="md:w-3 md:h-3" />
+                      <span>Válido</span>
+                    </div>
+                  )}
+                </div>
                 
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-2 gap-2 md:gap-4">
                   {/* Equipo A */}
                   <div>
-                    <label className="text-sm text-textSecondary mb-2 block">
+                    <label className="text-[10px] md:text-sm text-textSecondary mb-1 md:mb-2 block truncate">
                       {partido?.pareja1_nombre || `Pareja ${partido?.pareja1_id || '?'}`}
                     </label>
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-1 md:gap-2">
                       <Button
                         variant="ghost"
                         size="sm"
                         onClick={() => actualizarGames(index, 'A', set.gamesEquipoA - 1)}
+                        className="p-1 md:p-2"
                       >
-                        <Minus size={16} />
+                        <Minus size={14} className="md:w-4 md:h-4" />
                       </Button>
                       <input
                         type="number"
@@ -201,30 +236,32 @@ export default function ModalCargarResultado({
                         max="7"
                         value={set.gamesEquipoA}
                         onChange={(e) => actualizarGames(index, 'A', parseInt(e.target.value) || 0)}
-                        className="w-16 text-center bg-card border border-cardBorder rounded-lg py-2 text-textPrimary font-bold text-xl"
+                        className="w-12 md:w-16 text-center bg-card border border-cardBorder rounded-lg py-1.5 md:py-2 text-textPrimary font-bold text-lg md:text-xl"
                       />
                       <Button
                         variant="ghost"
                         size="sm"
                         onClick={() => actualizarGames(index, 'A', set.gamesEquipoA + 1)}
+                        className="p-1 md:p-2"
                       >
-                        <Plus size={16} />
+                        <Plus size={14} className="md:w-4 md:h-4" />
                       </Button>
                     </div>
                   </div>
 
                   {/* Equipo B */}
                   <div>
-                    <label className="text-sm text-textSecondary mb-2 block">
+                    <label className="text-[10px] md:text-sm text-textSecondary mb-1 md:mb-2 block truncate">
                       {partido?.pareja2_nombre || `Pareja ${partido?.pareja2_id || '?'}`}
                     </label>
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-1 md:gap-2">
                       <Button
                         variant="ghost"
                         size="sm"
                         onClick={() => actualizarGames(index, 'B', set.gamesEquipoB - 1)}
+                        className="p-1 md:p-2"
                       >
-                        <Minus size={16} />
+                        <Minus size={14} className="md:w-4 md:h-4" />
                       </Button>
                       <input
                         type="number"
@@ -232,14 +269,15 @@ export default function ModalCargarResultado({
                         max="7"
                         value={set.gamesEquipoB}
                         onChange={(e) => actualizarGames(index, 'B', parseInt(e.target.value) || 0)}
-                        className="w-16 text-center bg-card border border-cardBorder rounded-lg py-2 text-textPrimary font-bold text-xl"
+                        className="w-12 md:w-16 text-center bg-card border border-cardBorder rounded-lg py-1.5 md:py-2 text-textPrimary font-bold text-lg md:text-xl"
                       />
                       <Button
                         variant="ghost"
                         size="sm"
                         onClick={() => actualizarGames(index, 'B', set.gamesEquipoB + 1)}
+                        className="p-1 md:p-2"
                       >
-                        <Plus size={16} />
+                        <Plus size={14} className="md:w-4 md:h-4" />
                       </Button>
                     </div>
                   </div>
@@ -247,34 +285,41 @@ export default function ModalCargarResultado({
 
                 {/* Estado del set */}
                 {set.completado && (
-                  <div className="mt-3 p-2 bg-green-500/10 rounded text-center">
-                    <span className="text-sm text-green-500 font-bold">
-                      ✓ Set válido - Ganador: {set.ganador === 'equipoA' ? (partido?.pareja1_nombre || `Pareja ${partido?.pareja1_id}`) : (partido?.pareja2_nombre || `Pareja ${partido?.pareja2_id}`)}
-                    </span>
-                  </div>
+                  <motion.div
+                    initial={{ opacity: 0, y: -10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className="mt-2 md:mt-3 p-2 md:p-3 bg-gradient-to-r from-green-500/10 to-green-500/5 rounded-lg border border-green-500/20"
+                  >
+                    <div className="flex items-center justify-center gap-1.5 md:gap-2">
+                      <Trophy size={12} className="text-green-500 flex-shrink-0 md:w-[14px] md:h-[14px]" />
+                      <span className="text-xs md:text-sm text-green-500 font-bold text-center">
+                        Ganador: {set.ganador === 'equipoA' ? (partido?.pareja1_nombre || `Pareja ${partido?.pareja1_id}`) : (partido?.pareja2_nombre || `Pareja ${partido?.pareja2_id}`)}
+                      </span>
+                    </div>
+                  </motion.div>
                 )}
                 {!set.completado && (set.gamesEquipoA > 0 || set.gamesEquipoB > 0) && (
-                  <div className="mt-3 p-2 bg-yellow-500/10 rounded text-center">
-                    <span className="text-sm text-yellow-500">
-                      Resultado inválido para pádel
+                  <div className="mt-2 md:mt-3 p-2 md:p-3 bg-yellow-500/10 rounded-lg border border-yellow-500/20 text-center">
+                    <span className="text-xs md:text-sm text-yellow-500 font-medium">
+                      ⚠ Resultado inválido para pádel
                     </span>
                   </div>
                 )}
-              </div>
+              </motion.div>
             ))}
           </div>
 
           {/* Botones para agregar/quitar sets */}
-          <div className="flex gap-2 mb-6">
+          <div className="flex gap-2 mb-4 md:mb-6">
             {sets.length < 3 && (
-              <Button variant="ghost" onClick={agregarSet} className="flex-1">
-                <Plus size={16} className="mr-2" />
+              <Button variant="ghost" onClick={agregarSet} className="flex-1 text-xs md:text-sm py-2">
+                <Plus size={14} className="mr-1 md:mr-2 md:w-4 md:h-4" />
                 Agregar 3er Set
               </Button>
             )}
             {sets.length > 2 && (
-              <Button variant="ghost" onClick={quitarSet} className="flex-1">
-                <Minus size={16} className="mr-2" />
+              <Button variant="ghost" onClick={quitarSet} className="flex-1 text-xs md:text-sm py-2">
+                <Minus size={14} className="mr-1 md:mr-2 md:w-4 md:h-4" />
                 Quitar 3er Set
               </Button>
             )}
@@ -282,27 +327,48 @@ export default function ModalCargarResultado({
 
           {/* Error */}
           {error && (
-            <div className="mb-4 p-3 bg-red-500/10 border border-red-500/20 rounded-lg">
-              <p className="text-red-500 text-sm">{error}</p>
-            </div>
+            <motion.div
+              initial={{ opacity: 0, y: -10 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="mb-3 md:mb-4 p-3 md:p-4 bg-red-500/10 border border-red-500/20 rounded-lg"
+            >
+              <p className="text-red-500 text-xs md:text-sm font-medium flex items-center gap-2">
+                <span className="text-base md:text-lg flex-shrink-0">⚠</span>
+                <span className="flex-1">{error}</span>
+              </p>
+            </motion.div>
           )}
 
           {/* Acciones */}
-          <div className="flex gap-3">
-            <Button variant="ghost" onClick={onClose} className="flex-1">
+          <div className="flex gap-2 md:gap-3 pt-3 md:pt-4 border-t border-cardBorder">
+            <Button 
+              variant="ghost" 
+              onClick={onClose} 
+              className="flex-1 hover:bg-red-500/10 hover:text-red-500 text-xs md:text-base py-2 md:py-3"
+            >
               Cancelar
             </Button>
             <Button
               variant="accent"
               onClick={handleSubmit}
-              disabled={loading}
-              className="flex-1"
+              disabled={loading || validarResultado() !== null}
+              className="flex-1 gap-1.5 md:gap-2 text-xs md:text-base py-2 md:py-3"
             >
-              {loading ? 'Guardando...' : 'Guardar Resultado'}
+              {loading ? (
+                <>
+                  <div className="w-3 h-3 md:w-4 md:h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                  <span>Guardando...</span>
+                </>
+              ) : (
+                <>
+                  <Trophy size={14} className="md:w-4 md:h-4" />
+                  <span>Guardar</span>
+                </>
+              )}
             </Button>
           </div>
         </div>
-      </div>
+      </motion.div>
     </div>
   );
 }
