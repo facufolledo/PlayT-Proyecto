@@ -95,11 +95,24 @@ class Partido(Base):
     tipo = Column(String(20), default="amistoso", nullable=False)  # amistoso, torneo, ranking
     id_torneo = Column(BigInteger, nullable=True)  # ForeignKey a torneos cuando exista
     id_sala = Column(BigInteger, ForeignKey("salas.id_sala"), nullable=True)
+    zona_id = Column(BigInteger, nullable=True)  # Para partidos de torneo en zonas
     resultado_padel = Column(JSON, nullable=True)  # Resultado completo en formato JSON
     estado_confirmacion = Column(String(30), default="sin_resultado", nullable=False)
     ganador_equipo = Column(SmallInteger, nullable=True)  # 1 o 2
     elo_aplicado = Column(Boolean, default=False, nullable=False)
     creado_por = Column(BigInteger, ForeignKey("usuarios.id_usuario"), nullable=True)
+    
+    # Campos adicionales para torneos
+    fase = Column(String(20), nullable=True)  # zona, 16avos, 8vos, 4tos, semis, final
+    numero_partido = Column(Integer, nullable=True)
+    pareja1_id = Column(BigInteger, nullable=True)  # ID de pareja en torneo
+    pareja2_id = Column(BigInteger, nullable=True)  # ID de pareja en torneo
+    cancha_id = Column(BigInteger, nullable=True)
+    fecha_hora = Column(DateTime(timezone=True), nullable=True)
+    ganador_pareja_id = Column(BigInteger, nullable=True)
+    origen = Column(String(20), nullable=True)  # auto, manual
+    requiere_reprogramacion = Column(Boolean, default=False, nullable=True)
+    observaciones = Column(Text, nullable=True)
     
     # Relaciones
     club = relationship("Club", back_populates="partidos")

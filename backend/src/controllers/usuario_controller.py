@@ -367,3 +367,40 @@ async def registrar_fcm_token(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Error al registrar token FCM: {str(e)}"
         )
+
+
+@router.get("/buscar")
+async def buscar_usuarios(
+    q: str,
+    limit: int = 10,
+    db: Session = Depends(get_db)
+):
+    """
+    Busca usuarios por nombre o apellido
+    
+    Args:
+        q: Query de búsqueda (nombre o apellido)
+        limit: Número máximo de resultados
+    """
+    if len(q) < 2:
+        return []
+    
+    # Buscar por nombre o apellido (case insensitive)
+    query_lower = f"%{q.lower()}%"
+    
+    usuarios = db.query(Usuario).filter(
+        (Usuario.nombre.ilike(query_lower)) | 
+        (Usuario.apellido.ilike(query_lower))
+    ).limit(limit).all()
+    
+    # Retornar información básica
+    return [
+        {
+            "id_usuario": u.id_usuario,
+            "nombre": u.nombre,
+            "apellido": u.apellido,
+            "rating": u.rating,
+            "categoria": u.categoria
+        }
+        for u in usuarios
+    ]
