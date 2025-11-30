@@ -6,18 +6,21 @@ import { useTorneos } from '../context/TorneosContext';
 import Card from '../components/Card';
 import Button from '../components/Button';
 import SkeletonLoader from '../components/SkeletonLoader';
+import ModalInscribirTorneo from '../components/ModalInscribirTorneo';
 
 export default function TorneoDetalle() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const { torneoActual, cargarTorneo, cargarParejas, parejas, loading, esAdministrador, esOrganizadorDe } = useTorneos();
+  const { torneoActual, cargarTorneo, cargarParejas, parejas, loading, esAdministrador } = useTorneos();
   const [tab, setTab] = useState<'info' | 'parejas' | 'partidos'>('info');
+  const [modalInscripcionOpen, setModalInscripcionOpen] = useState(false);
 
   useEffect(() => {
     if (id) {
       cargarTorneo(parseInt(id));
       cargarParejas(parseInt(id));
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id]);
 
   if (loading && !torneoActual) {
@@ -44,8 +47,8 @@ export default function TorneoDetalle() {
     );
   }
 
-  const esOrganizador = esAdministrador || esOrganizadorDe(parseInt(id!));
-  const puedeInscribirse = torneoActual.estado === 'programado' && torneoActual.inscripcionAbierta;
+  const esOrganizador = esAdministrador;
+  const puedeInscribirse = torneoActual.estado === 'programado';
 
   return (
     <div className="space-y-6">
@@ -138,17 +141,19 @@ export default function TorneoDetalle() {
           </div>
 
           {/* Descripción */}
-          {torneoActual.descripcion && (
-            <div className="mb-6">
-              <h3 className="font-bold text-textPrimary mb-2">Descripción</h3>
-              <p className="text-textSecondary">{torneoActual.descripcion}</p>
-            </div>
-          )}
+          <div className="mb-6">
+            <h3 className="font-bold text-textPrimary mb-2">Descripción</h3>
+            <p className="text-textSecondary">{torneoActual.descripcion || 'Sin descripción'}</p>
+          </div>
 
           {/* Botón de inscripción */}
           {puedeInscribirse && !esOrganizador && (
             <div className="border-t border-cardBorder pt-6">
-              <Button variant="accent" className="w-full md:w-auto">
+              <Button
+                variant="accent"
+                onClick={() => setModalInscripcionOpen(true)}
+                className="w-full md:w-auto"
+              >
                 Inscribirse al Torneo
               </Button>
             </div>
@@ -194,13 +199,11 @@ export default function TorneoDetalle() {
       {tab === 'info' && (
         <Card>
           <div className="p-6">
-            <h3 className="font-bold text-textPrimary mb-4">Reglas del Torneo</h3>
+            <h3 className="font-bold text-textPrimary mb-4">Información del Torneo</h3>
             <div className="space-y-2 text-textSecondary">
-              <p>• Sistema de puntuación: {torneoActual.reglas?.puntos_victoria || 3} puntos por victoria</p>
-              <p>• Sets para ganar: {torneoActual.reglas?.sets_para_ganar || 2}</p>
-              {torneoActual.reglas?.canchas_disponibles && (
-                <p>• Canchas disponibles: {torneoActual.reglas.canchas_disponibles}</p>
-              )}
+              <p>• Formato: {torneoActual.formato || 'Eliminación simple'}</p>
+              <p>• Género: {torneoActual.genero || 'Mixto'}</p>
+              <p>• Categoría: {torneoActual.categoria}</p>
             </div>
           </div>
         </Card>
@@ -221,31 +224,13 @@ export default function TorneoDetalle() {
                     key={pareja.id}
                     className="flex items-center justify-between p-4 bg-background rounded-lg"
                   >
-                    <div className="flex items-center gap-4">
-                      <div className="flex -space-x-2">
-                        {pareja.jugador1.foto_perfil && (
-                          <img
-                            src={pareja.jugador1.foto_perfil}
-                            alt={pareja.jugador1.nombre}
-                            className="w-10 h-10 rounded-full border-2 border-cardBg"
-                          />
-                        )}
-                        {pareja.jugador2.foto_perfil && (
-                          <img
-                            src={pareja.jugador2.foto_perfil}
-                            alt={pareja.jugador2.nombre}
-                            className="w-10 h-10 rounded-full border-2 border-cardBg"
-                          />
-                        )}
-                      </div>
-                      <div>
-                        <p className="font-bold text-textPrimary">
-                          {pareja.jugador1.nombre} {pareja.jugador1.apellido} / {pareja.jugador2.nombre} {pareja.jugador2.apellido}
-                        </p>
-                        <p className="text-xs text-textSecondary">
-                          Rating promedio: {Math.round(((pareja.jugador1.rating || 0) + (pareja.jugador2.rating || 0)) / 2)}
-                        </p>
-                      </div>
+                    <div>
+                      <p className="font-bold text-textPrimary">
+                        {pareja.nombre_pareja}
+                      </p>
+                      <p className="text-xs text-textSecondary">
+                        Jugadores: {pareja.jugador1_id} / {pareja.jugador2_id}
+                      </p>
                     </div>
                     <div>
                       <span
@@ -280,6 +265,14 @@ export default function TorneoDetalle() {
           </div>
         </Card>
       )}
+
+      {/* Modal de Inscripción */}
+      <ModalInscribirTorneo
+        isOpen={modalInscripcionOpen}
+        onClose={() => setModalInscripcionOpen(false)}
+        torneoId={parseInt(id!)}
+        torneoNombre={torneoActual?.nombre || ''}
+      />
     </div>
   );
 }
