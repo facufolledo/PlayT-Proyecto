@@ -45,14 +45,14 @@ class TorneoZonaService:
         if torneo.estado != 'inscripcion':
             raise ValueError("Solo se pueden generar zonas cuando el torneo está en inscripción")
         
-        # Obtener parejas confirmadas
+        # Obtener parejas inscritas o confirmadas (excluir bajas)
         parejas = db.query(TorneoPareja).filter(
             TorneoPareja.torneo_id == torneo_id,
-            TorneoPareja.estado == 'confirmada'
+            TorneoPareja.estado.in_(['inscripta', 'confirmada'])
         ).all()
         
         if len(parejas) < 4:
-            raise ValueError("Se necesitan al menos 4 parejas confirmadas para generar zonas")
+            raise ValueError(f"Se necesitan al menos 4 parejas para generar zonas (actualmente hay {len(parejas)})")
         
         # Calcular número óptimo de zonas si no se especificó
         if num_zonas is None:

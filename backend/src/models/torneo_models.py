@@ -66,6 +66,12 @@ class OrganizadorAutorizado(Base):
     # autorizador = relationship("Usuario", foreign_keys=[autorizado_por])
 
 
+class GeneroTorneo(str, enum.Enum):
+    MASCULINO = "masculino"
+    FEMENINO = "femenino"
+    MIXTO = "mixto"
+
+
 class Torneo(Base):
     __tablename__ = "torneos"
     
@@ -74,6 +80,7 @@ class Torneo(Base):
     descripcion = Column(Text)
     tipo = Column(Enum(TipoTorneo), default=TipoTorneo.CLASICO)
     categoria = Column(String(50), nullable=False)
+    genero = Column(String(20), default="masculino")  # masculino, femenino, mixto
     estado = Column(Enum(EstadoTorneo), default=EstadoTorneo.INSCRIPCION)
     fecha_inicio = Column(Date, nullable=False)
     fecha_fin = Column(Date, nullable=False)

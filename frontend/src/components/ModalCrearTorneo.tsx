@@ -11,6 +11,11 @@ interface ModalCrearTorneoProps {
 }
 
 const CATEGORIAS = ['8va', '7ma', '6ta', '5ta', '4ta', 'Libre'];
+const GENEROS = [
+  { value: 'masculino', label: 'Masculino', icon: '♂' },
+  { value: 'femenino', label: 'Femenino', icon: '♀' },
+  { value: 'mixto', label: 'Mixto', icon: '⚥' },
+];
 
 export default function ModalCrearTorneo({ isOpen, onClose }: ModalCrearTorneoProps) {
   const { crearTorneo, loading, error, limpiarError } = useTorneos();
@@ -20,6 +25,7 @@ export default function ModalCrearTorneo({ isOpen, onClose }: ModalCrearTorneoPr
     fechaInicio: '',
     fechaFin: '',
     categoria: '5ta',
+    genero: 'masculino',
     descripcion: '',
     lugar: '',
     canchasDisponibles: 2,
@@ -48,6 +54,7 @@ export default function ModalCrearTorneo({ isOpen, onClose }: ModalCrearTorneoPr
         nombre: formData.nombre.trim(),
         descripcion: formData.descripcion?.trim() || undefined,
         categoria: formData.categoria,
+        genero: formData.genero,
         fecha_inicio: formData.fechaInicio,
         fecha_fin: formData.fechaFin,
         lugar: formData.lugar?.trim() || undefined,
@@ -67,6 +74,7 @@ export default function ModalCrearTorneo({ isOpen, onClose }: ModalCrearTorneoPr
         fechaInicio: '',
         fechaFin: '',
         categoria: '5ta',
+        genero: 'masculino',
         descripcion: '',
         lugar: '',
         canchasDisponibles: 2,
@@ -200,6 +208,32 @@ export default function ModalCrearTorneo({ isOpen, onClose }: ModalCrearTorneoPr
                         }`}
                       >
                         {cat}
+                      </motion.button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Género */}
+                <div>
+                  <label className="block text-textSecondary text-xs sm:text-sm font-bold mb-1.5">
+                    Género *
+                  </label>
+                  <div className="grid grid-cols-3 gap-1.5 sm:gap-2">
+                    {GENEROS.map((gen) => (
+                      <motion.button
+                        key={gen.value}
+                        type="button"
+                        whileHover={{ scale: 1.05 }}
+                        whileTap={{ scale: 0.95 }}
+                        onClick={() => setFormData({ ...formData, genero: gen.value })}
+                        className={`py-1.5 sm:py-2 px-2 sm:px-3 rounded-lg text-sm font-bold transition-all flex items-center justify-center gap-1.5 ${
+                          formData.genero === gen.value
+                            ? 'bg-gradient-to-r from-primary to-blue-600 text-white shadow-lg shadow-primary/30'
+                            : 'bg-cardBorder text-textSecondary hover:text-textPrimary'
+                        }`}
+                      >
+                        <span>{gen.icon}</span>
+                        <span className="hidden sm:inline">{gen.label}</span>
                       </motion.button>
                     ))}
                   </div>

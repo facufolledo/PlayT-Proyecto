@@ -78,16 +78,16 @@ export default function ModalInscribirTorneo({
       return;
     }
 
-    if (!formData.nombre_pareja || formData.nombre_pareja.trim().length < 3) {
-      setError('El nombre de la pareja debe tener al menos 3 caracteres');
-      return;
-    }
+    // Generar nombre de pareja automáticamente
+    const nombrePareja = selectedCompanero 
+      ? `${usuario.apellido} / ${selectedCompanero.apellido}`
+      : '';
 
     try {
       await inscribirPareja(torneoId, {
         jugador1_id: usuario.id_usuario,
         jugador2_id: parseInt(formData.jugador2_id),
-        nombre_pareja: formData.nombre_pareja.trim(),
+        nombre_pareja: nombrePareja,
       });
 
       setSuccess(true);
@@ -263,24 +263,15 @@ export default function ModalInscribirTorneo({
                       </p>
                     </div>
 
-                    {/* Nombre de la pareja */}
-                    <div>
-                      <label className="block text-sm font-bold text-textSecondary mb-2">
-                        Nombre de la Pareja *
-                      </label>
-                      <input
-                        type="text"
-                        value={formData.nombre_pareja}
-                        onChange={(e) =>
-                          setFormData({ ...formData, nombre_pareja: e.target.value })
-                        }
-                        placeholder="Ej: Los Cracks"
-                        required
-                        disabled={loading}
-                        maxLength={50}
-                        className="w-full px-4 py-3 bg-background border border-cardBorder rounded-lg text-textPrimary placeholder-textSecondary focus:outline-none focus:border-primary transition-colors disabled:opacity-50"
-                      />
-                    </div>
+                    {/* Nombre de la pareja - generado automáticamente */}
+                    {selectedCompanero && (
+                      <div className="bg-accent/10 rounded-lg p-4">
+                        <p className="text-xs text-textSecondary mb-1">Nombre de la Pareja</p>
+                        <p className="font-bold text-textPrimary">
+                          {usuario?.apellido} / {selectedCompanero.apellido}
+                        </p>
+                      </div>
+                    )}
 
                     {/* Error */}
                     {error && (

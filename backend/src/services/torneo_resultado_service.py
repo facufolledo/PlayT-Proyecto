@@ -4,6 +4,9 @@ Servicio para gestión de resultados en torneos
 from sqlalchemy.orm import Session
 from typing import Dict, List, Optional
 from datetime import datetime
+import logging
+
+logger = logging.getLogger(__name__)
 
 from ..models.playt_models import Partido
 from ..models.torneo_models import TorneoPareja, TorneoZona
@@ -61,7 +64,88 @@ class TorneoResultadoService:
         db.commit()
         db.refresh(partido)
         
+        # Si es partido de playoffs, avanzar ganador a siguiente fase
+        if partido.fase and partido.fase != 'zona':
+            TorneoResultadoService._avanzar_ganador_playoff(db, partido, ganador_pareja_id)
+        
         return partido
+    
+    @staticmethod
+    def _avanzar_ganador_playoff(
+        db: Session,
+        partido: Partido,
+        ganador_pareja_id: int
+    ) -> Optional[Partido]:
+        """
+        Avanza al ganador de un partido de playoff a la siguiente ronda
+        
+        Args:
+            db: Sesión de base de datos
+            partido: Partido finalizado
+            ganador_pareja_id: ID de la pareja ganadora
+            
+        Returns:
+            Partido de siguiente ronda actualizado, o None si es la final
+        """
+        from ..models.torneo_models import Torneo, EstadoTorneo
+        
+        # Si es la final, marcar torneo como finalizado
+        if partido.fase == 'final':
+            torneo = db.query(Torneo).filter(Torneo.id == partido.id_torneo).first()
+            if torneo:
+                torneo.estado = EstadoTorneo.FINALIZADO
+                db.commit()
+            return None
+        
+        # Determinar siguiente fase
+        fases_orden = ['16avos', '8vos', '4tos', 'semis', 'final']
+        fase_actual = partido.fase
+        if fase_actual == 'semifinal':
+            fase_actual = 'semis'
+        elif fase_actual == 'cuartos':
+            fase_actual = '4tos'
+            
+        try:
+            idx_actual = fases_orden.index(fase_actual)
+            siguiente_fase = fases_orden[idx_actual + 1]
+        except (ValueError, IndexError):
+            return None
+        
+        # Buscar o crear partido de siguiente ronda
+        # Lógica: el ganador del partido N va al partido (N+1)//2 de la siguiente fase
+        numero_partido = partido.numero_partido or 1
+        numero_siguiente = (numero_partido + 1) // 2
+        
+        partido_siguiente = db.query(Partido).filter(
+            Partido.id_torneo == partido.id_torneo,
+            Partido.fase == siguiente_fase,
+            Partido.numero_partido == numero_siguiente
+        ).first()
+        
+        # Si no existe el partido de siguiente fase, crearlo
+        if not partido_siguiente:
+            partido_siguiente = Partido(
+                id_torneo=partido.id_torneo,
+                fase=siguiente_fase,
+                numero_partido=numero_siguiente,
+                estado='pendiente',
+                fecha=partido.fecha,
+                id_creador=partido.id_creador,
+                tipo='torneo'
+            )
+            db.add(partido_siguiente)
+            db.flush()
+        
+        # Asignar ganador a la posición correspondiente
+        if numero_partido % 2 == 1:
+            # Partido impar -> pareja1
+            partido_siguiente.pareja1_id = ganador_pareja_id
+        else:
+            # Partido par -> pareja2
+            partido_siguiente.pareja2_id = ganador_pareja_id
+        
+        db.commit()
+        return partido_siguiente
     
     @staticmethod
     def _validar_resultado(resultado: Dict) -> None:

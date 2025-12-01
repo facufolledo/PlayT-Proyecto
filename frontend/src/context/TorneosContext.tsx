@@ -53,33 +53,37 @@ export function TorneosProvider({ children }: { children: ReactNode }) {
   // FUNCIONES AUXILIARES
   // ============================================
   
-  const adaptarTorneoBackendAFrontend = (torneoBackend: TorneoBackend): Torneo => {
+  const adaptarTorneoBackendAFrontend = (torneoBackend: any): Torneo => {
     return {
-      id: torneoBackend.id.toString(),
-      nombre: torneoBackend.nombre,
+      id: torneoBackend.id?.toString() || '',
+      nombre: torneoBackend.nombre || '',
       descripcion: torneoBackend.descripcion || '',
-      categoria: torneoBackend.categoria,
+      categoria: torneoBackend.categoria || '',
       estado: mapearEstadoBackendAFrontend(torneoBackend.estado),
-      fechaInicio: torneoBackend.fecha_inicio,
-      fechaFin: torneoBackend.fecha_fin,
-      lugar: torneoBackend.lugar || '',
-      genero: 'mixto', // Por ahora todos mixtos
-      formato: 'eliminacion-simple', // Por ahora todos eliminación
-      participantes: 0, // Se calculará después
-      salasIds: [],
-      createdAt: torneoBackend.created_at,
-    };
+      fechaInicio: torneoBackend.fecha_inicio || '',
+      fechaFin: torneoBackend.fecha_fin || '',
+      lugar: torneoBackend.lugar || torneoBackend.ubicacion || '',
+      genero: torneoBackend.genero || 'masculino',
+      formato: torneoBackend.formato || torneoBackend.tipo || 'grupos',
+      participantes: torneoBackend.parejas_inscritas || torneoBackend.total_parejas || 0,
+      salasIds: torneoBackend.salasIds || [],
+      createdAt: torneoBackend.created_at || '',
+      // Guardar estado original y creador para verificaciones
+      estado_original: torneoBackend.estado,
+      creado_por: torneoBackend.creado_por,
+    } as Torneo;
   };
   
   const mapearEstadoBackendAFrontend = (estadoBackend: string): 'programado' | 'activo' | 'finalizado' => {
-    switch (estadoBackend) {
-      case 'INSCRIPCION':
-      case 'ARMANDO_ZONAS':
+    const estado = estadoBackend?.toLowerCase() || '';
+    switch (estado) {
+      case 'inscripcion':
+      case 'armando_zonas':
         return 'programado';
-      case 'FASE_GRUPOS':
-      case 'FASE_ELIMINACION':
+      case 'fase_grupos':
+      case 'fase_eliminacion':
         return 'activo';
-      case 'FINALIZADO':
+      case 'finalizado':
         return 'finalizado';
       default:
         return 'programado';

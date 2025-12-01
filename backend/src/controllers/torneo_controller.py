@@ -40,7 +40,7 @@ def crear_torneo(
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
 
 
-@router.get("/", response_model=List[TorneoResponse])
+@router.get("/")
 def listar_torneos(
     skip: int = 0,
     limit: int = 100,
@@ -56,23 +56,82 @@ def listar_torneos(
     - **estado**: Filtrar por estado (inscripcion, fase_grupos, etc.)
     - **categoria**: Filtrar por categoría
     """
+    from ..models.torneo_models import TorneoPareja
+    
     try:
         torneos = TorneoService.listar_torneos(db, skip, limit, estado, categoria)
-        return torneos
+        
+        # Agregar conteo de parejas a cada torneo
+        resultado = []
+        for torneo in torneos:
+            # Contar parejas inscritas
+            parejas_count = db.query(TorneoPareja).filter(
+                TorneoPareja.torneo_id == torneo.id,
+                TorneoPareja.estado.in_(['inscripta', 'confirmada'])
+            ).count()
+            
+            resultado.append({
+                "id": torneo.id,
+                "nombre": torneo.nombre,
+                "descripcion": torneo.descripcion,
+                "tipo": torneo.tipo.value if hasattr(torneo.tipo, 'value') else str(torneo.tipo),
+                "categoria": torneo.categoria,
+                "genero": torneo.genero or 'masculino',
+                "estado": torneo.estado.value if hasattr(torneo.estado, 'value') else str(torneo.estado),
+                "fecha_inicio": torneo.fecha_inicio.isoformat() if torneo.fecha_inicio else None,
+                "fecha_fin": torneo.fecha_fin.isoformat() if torneo.fecha_fin else None,
+                "lugar": torneo.lugar,
+                "reglas_json": torneo.reglas_json,
+                "creado_por": torneo.creado_por,
+                "created_at": torneo.created_at.isoformat() if torneo.created_at else None,
+                "updated_at": torneo.updated_at.isoformat() if torneo.updated_at else None,
+                "parejas_inscritas": parejas_count,
+                "total_partidos": 0  # TODO: contar partidos
+            })
+        
+        return resultado
     except Exception as e:
+        import traceback
+        traceback.print_exc()
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
 
 
-@router.get("/{torneo_id}", response_model=TorneoResponse)
+@router.get("/{torneo_id}")
 def obtener_torneo(
     torneo_id: int,
     db: Session = Depends(get_db)
 ):
     """Obtiene un torneo por ID"""
+    from ..models.torneo_models import TorneoPareja
+    
     torneo = TorneoService.obtener_torneo(db, torneo_id)
     if not torneo:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Torneo no encontrado")
-    return torneo
+    
+    # Contar parejas inscritas
+    parejas_count = db.query(TorneoPareja).filter(
+        TorneoPareja.torneo_id == torneo.id,
+        TorneoPareja.estado.in_(['inscripta', 'confirmada'])
+    ).count()
+    
+    return {
+        "id": torneo.id,
+        "nombre": torneo.nombre,
+        "descripcion": torneo.descripcion,
+        "tipo": torneo.tipo.value if hasattr(torneo.tipo, 'value') else str(torneo.tipo),
+        "categoria": torneo.categoria,
+        "genero": torneo.genero or 'masculino',
+        "estado": torneo.estado.value if hasattr(torneo.estado, 'value') else str(torneo.estado),
+        "fecha_inicio": torneo.fecha_inicio.isoformat() if torneo.fecha_inicio else None,
+        "fecha_fin": torneo.fecha_fin.isoformat() if torneo.fecha_fin else None,
+        "lugar": torneo.lugar,
+        "reglas_json": torneo.reglas_json,
+        "creado_por": torneo.creado_por,
+        "created_at": torneo.created_at.isoformat() if torneo.created_at else None,
+        "updated_at": torneo.updated_at.isoformat() if torneo.updated_at else None,
+        "parejas_inscritas": parejas_count,
+        "total_partidos": 0
+    }
 
 
 @router.put("/{torneo_id}", response_model=TorneoResponse)
@@ -257,7 +316,7 @@ def obtener_estadisticas(
 # ENDPOINTS DE INSCRIPCIONES
 # ============================================
 
-@router.post("/{torneo_id}/inscribir", response_model=ParejaResponse, status_code=status.HTTP_201_CREATED)
+@router.post("/{torneo_id}/inscribir", status_code=status.HTTP_201_CREATED)
 def inscribir_pareja(
     torneo_id: int,
     pareja_data: ParejaInscripcion,
@@ -274,10 +333,12 @@ def inscribir_pareja(
     try:
         user_id = current_user.id_usuario
         pareja = TorneoInscripcionService.inscribir_pareja(db, torneo_id, pareja_data, user_id)
-        return pareja
+        return _pareja_to_dict(db, pareja)
     except ValueError as e:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
     except Exception as e:
+        import traceback
+        traceback.print_exc()
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
 
 
@@ -331,7 +392,29 @@ def listar_parejas(
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
 
 
-@router.patch("/{torneo_id}/parejas/{pareja_id}/confirmar", response_model=ParejaResponse)
+def _pareja_to_dict(db: Session, pareja) -> dict:
+    """Helper para convertir pareja a dict con nombres de jugadores"""
+    from ..models.playt_models import PerfilUsuario
+    perfil1 = db.query(PerfilUsuario).filter(PerfilUsuario.id_usuario == pareja.jugador1_id).first()
+    perfil2 = db.query(PerfilUsuario).filter(PerfilUsuario.id_usuario == pareja.jugador2_id).first()
+    jugador1_nombre = f"{perfil1.nombre} {perfil1.apellido}" if perfil1 else f"Usuario {pareja.jugador1_id}"
+    jugador2_nombre = f"{perfil2.nombre} {perfil2.apellido}" if perfil2 else f"Usuario {pareja.jugador2_id}"
+    return {
+        "id": pareja.id,
+        "id_pareja": pareja.id,
+        "torneo_id": pareja.torneo_id,
+        "jugador1_id": pareja.jugador1_id,
+        "jugador2_id": pareja.jugador2_id,
+        "jugador1_nombre": jugador1_nombre,
+        "jugador2_nombre": jugador2_nombre,
+        "nombre_pareja": f"{jugador1_nombre} / {jugador2_nombre}",
+        "estado": pareja.estado.value if hasattr(pareja.estado, 'value') else str(pareja.estado),
+        "categoria_asignada": pareja.categoria_asignada,
+        "created_at": pareja.created_at.isoformat() if pareja.created_at else None
+    }
+
+
+@router.patch("/{torneo_id}/parejas/{pareja_id}/confirmar")
 def confirmar_pareja(
     torneo_id: int,
     pareja_id: int,
@@ -348,7 +431,7 @@ def confirmar_pareja(
     try:
         user_id = current_user.id_usuario
         pareja = TorneoInscripcionService.confirmar_pareja(db, pareja_id, user_id)
-        return pareja
+        return _pareja_to_dict(db, pareja)
     except ValueError as e:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(e))
     except Exception as e:
@@ -380,7 +463,7 @@ def rechazar_pareja(
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
 
 
-@router.patch("/{torneo_id}/parejas/{pareja_id}/baja", response_model=ParejaResponse)
+@router.patch("/{torneo_id}/parejas/{pareja_id}/baja")
 def dar_baja_pareja(
     torneo_id: int,
     pareja_id: int,
@@ -398,14 +481,14 @@ def dar_baja_pareja(
     try:
         user_id = current_user.id_usuario
         pareja = TorneoInscripcionService.dar_baja_pareja(db, pareja_id, user_id, motivo)
-        return pareja
+        return _pareja_to_dict(db, pareja)
     except ValueError as e:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(e))
     except Exception as e:
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
 
 
-@router.patch("/{torneo_id}/parejas/{pareja_id}/reemplazar-jugador", response_model=ParejaResponse)
+@router.patch("/{torneo_id}/parejas/{pareja_id}/reemplazar-jugador")
 def reemplazar_jugador(
     torneo_id: int,
     pareja_id: int,
@@ -426,14 +509,14 @@ def reemplazar_jugador(
         pareja = TorneoInscripcionService.reemplazar_jugador(
             db, pareja_id, jugador_saliente_id, jugador_entrante_id, user_id
         )
-        return pareja
+        return _pareja_to_dict(db, pareja)
     except ValueError as e:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(e))
     except Exception as e:
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
 
 
-@router.put("/{torneo_id}/parejas/{pareja_id}", response_model=ParejaResponse)
+@router.put("/{torneo_id}/parejas/{pareja_id}")
 def actualizar_pareja(
     torneo_id: int,
     pareja_id: int,
@@ -451,7 +534,7 @@ def actualizar_pareja(
     try:
         user_id = current_user.id_usuario
         pareja = TorneoInscripcionService.actualizar_pareja(db, pareja_id, pareja_data, user_id)
-        return pareja
+        return _pareja_to_dict(db, pareja)
     except ValueError as e:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(e))
     except Exception as e:
@@ -463,6 +546,7 @@ def actualizar_pareja(
 # ============================================
 
 @router.post("/{torneo_id}/generar-zonas")
+@router.post("/{torneo_id}/zonas/generar")  # Alias para compatibilidad con frontend
 def generar_zonas(
     torneo_id: int,
     num_zonas: Optional[int] = None,
@@ -487,11 +571,13 @@ def generar_zonas(
         )
         return {
             "message": "Zonas generadas exitosamente",
-            "zonas": [{"id": z.id, "nombre": z.nombre, "numero": z.numero} for z in zonas]
+            "zonas": [{"id": z.id, "nombre": z.nombre, "numero": z.numero_orden} for z in zonas]
         }
     except ValueError as e:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
     except Exception as e:
+        import traceback
+        traceback.print_exc()
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
 
 
@@ -844,4 +930,199 @@ def verificar_zona_completa(
             "completa": completa
         }
     except Exception as e:
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
+
+
+# ============================================
+# ENDPOINTS DE PLAYOFFS
+# ============================================
+
+@router.post("/{torneo_id}/generar-playoffs")
+def generar_playoffs(
+    torneo_id: int,
+    clasificados_por_zona: int = 2,
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(get_current_user)
+):
+    """
+    Genera el cuadro de playoffs automáticamente
+    
+    Solo organizadores pueden generar playoffs
+    El torneo debe estar en fase de grupos
+    
+    - **clasificados_por_zona**: Número de clasificados por zona (default: 2)
+    """
+    from ..services.torneo_playoff_service import TorneoPlayoffService
+    
+    try:
+        user_id = current_user.id_usuario
+        partidos = TorneoPlayoffService.generar_playoffs(
+            db, torneo_id, user_id, clasificados_por_zona
+        )
+        return {
+            "message": "Playoffs generados exitosamente",
+            "total_partidos": len(partidos),
+            "partidos": [
+                {
+                    "id": p.id_partido,
+                    "fase": p.fase.value if hasattr(p.fase, 'value') else str(p.fase),
+                    "numero_partido": p.numero_partido,
+                    "pareja1_id": p.pareja1_id,
+                    "pareja2_id": p.pareja2_id
+                }
+                for p in partidos
+            ]
+        }
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
+
+
+@router.get("/{torneo_id}/playoffs")
+def listar_partidos_playoffs(
+    torneo_id: int,
+    db: Session = Depends(get_db)
+):
+    """
+    Lista todos los partidos de playoffs agrupados por fase
+    
+    Returns:
+        Diccionario con partidos por fase:
+        {
+            '16avos': [...],
+            '8vos': [...],
+            '4tos': [...],
+            'semis': [...],
+            'final': [...]
+        }
+    """
+    from ..services.torneo_playoff_service import TorneoPlayoffService
+    from ..models.playt_models import PerfilUsuario
+    from ..models.torneo_models import TorneoPareja
+    
+    try:
+        partidos_por_fase = TorneoPlayoffService.listar_partidos_playoffs(db, torneo_id)
+        
+        # Agregar nombres de parejas a cada partido
+        resultado = {}
+        for fase, partidos in partidos_por_fase.items():
+            resultado[fase] = []
+            for p in partidos:
+                # Obtener información de las parejas
+                pareja1_nombre = None
+                pareja2_nombre = None
+                
+                if p.pareja1_id:
+                    pareja1 = db.query(TorneoPareja).filter(TorneoPareja.id == p.pareja1_id).first()
+                    if pareja1:
+                        perfil1_1 = db.query(PerfilUsuario).filter(PerfilUsuario.id_usuario == pareja1.jugador1_id).first()
+                        perfil1_2 = db.query(PerfilUsuario).filter(PerfilUsuario.id_usuario == pareja1.jugador2_id).first()
+                        nombre1_1 = f"{perfil1_1.nombre} {perfil1_1.apellido}" if perfil1_1 else f"Jugador {pareja1.jugador1_id}"
+                        nombre1_2 = f"{perfil1_2.nombre} {perfil1_2.apellido}" if perfil1_2 else f"Jugador {pareja1.jugador2_id}"
+                        pareja1_nombre = f"{nombre1_1} / {nombre1_2}"
+                
+                if p.pareja2_id:
+                    pareja2 = db.query(TorneoPareja).filter(TorneoPareja.id == p.pareja2_id).first()
+                    if pareja2:
+                        perfil2_1 = db.query(PerfilUsuario).filter(PerfilUsuario.id_usuario == pareja2.jugador1_id).first()
+                        perfil2_2 = db.query(PerfilUsuario).filter(PerfilUsuario.id_usuario == pareja2.jugador2_id).first()
+                        nombre2_1 = f"{perfil2_1.nombre} {perfil2_1.apellido}" if perfil2_1 else f"Jugador {pareja2.jugador1_id}"
+                        nombre2_2 = f"{perfil2_2.nombre} {perfil2_2.apellido}" if perfil2_2 else f"Jugador {pareja2.jugador2_id}"
+                        pareja2_nombre = f"{nombre2_1} / {nombre2_2}"
+                
+                resultado[fase].append({
+                    "id": p.id_partido,
+                    "numero_partido": p.numero_partido,
+                    "pareja1_id": p.pareja1_id,
+                    "pareja2_id": p.pareja2_id,
+                    "pareja1_nombre": pareja1_nombre,
+                    "pareja2_nombre": pareja2_nombre,
+                    "ganador_id": p.ganador_pareja_id,
+                    "resultado": p.resultado_padel,
+                    "fase": fase,
+                    "estado": p.estado.value if hasattr(p.estado, 'value') else str(p.estado)
+                })
+        
+        # Aplanar todos los partidos en una lista para el frontend
+        todos_partidos = []
+        for fase_key, partidos_fase in resultado.items():
+            todos_partidos.extend(partidos_fase)
+        
+        return {
+            "partidos": todos_partidos,
+            "por_fase": resultado
+        }
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
+
+
+@router.get("/{torneo_id}/playoffs/partidos")
+def listar_todos_partidos_playoffs(
+    torneo_id: int,
+    db: Session = Depends(get_db)
+):
+    """
+    Lista todos los partidos de playoffs en una sola lista (sin agrupar)
+    
+    Útil para mostrar el bracket completo
+    """
+    from ..models.torneo_models import TorneoPartido, FasePartido
+    from ..models.playt_models import PerfilUsuario
+    from ..models.torneo_models import TorneoPareja
+    
+    try:
+        partidos = db.query(TorneoPartido).filter(
+            TorneoPartido.torneo_id == torneo_id,
+            TorneoPartido.fase != FasePartido.ZONA
+        ).order_by(TorneoPartido.numero_partido).all()
+        
+        resultado = []
+        for p in partidos:
+            # Obtener información de las parejas
+            pareja1_nombre = None
+            pareja2_nombre = None
+            
+            if p.pareja1_id:
+                pareja1 = db.query(TorneoPareja).filter(TorneoPareja.id == p.pareja1_id).first()
+                if pareja1:
+                    perfil1_1 = db.query(PerfilUsuario).filter(PerfilUsuario.id_usuario == pareja1.jugador1_id).first()
+                    perfil1_2 = db.query(PerfilUsuario).filter(PerfilUsuario.id_usuario == pareja1.jugador2_id).first()
+                    nombre1_1 = f"{perfil1_1.nombre} {perfil1_1.apellido}" if perfil1_1 else f"Jugador {pareja1.jugador1_id}"
+                    nombre1_2 = f"{perfil1_2.nombre} {perfil1_2.apellido}" if perfil1_2 else f"Jugador {pareja1.jugador2_id}"
+                    pareja1_nombre = f"{nombre1_1} / {nombre1_2}"
+            
+            if p.pareja2_id:
+                pareja2 = db.query(TorneoPareja).filter(TorneoPareja.id == p.pareja2_id).first()
+                if pareja2:
+                    perfil2_1 = db.query(PerfilUsuario).filter(PerfilUsuario.id_usuario == pareja2.jugador1_id).first()
+                    perfil2_2 = db.query(PerfilUsuario).filter(PerfilUsuario.id_usuario == pareja2.jugador2_id).first()
+                    nombre2_1 = f"{perfil2_1.nombre} {perfil2_1.apellido}" if perfil2_1 else f"Jugador {pareja2.jugador1_id}"
+                    nombre2_2 = f"{perfil2_2.nombre} {perfil2_2.apellido}" if perfil2_2 else f"Jugador {pareja2.jugador2_id}"
+                    pareja2_nombre = f"{nombre2_1} / {nombre2_2}"
+            
+            resultado.append({
+                "id": p.id,
+                "numero_partido": p.numero_partido,
+                "pareja1_id": p.pareja1_id,
+                "pareja2_id": p.pareja2_id,
+                "pareja1_nombre": pareja1_nombre,
+                "pareja2_nombre": pareja2_nombre,
+                "ganador_id": p.ganador_pareja_id,
+                "resultado": p.resultado_padel,
+                "fase": p.fase.value if hasattr(p.fase, 'value') else str(p.fase),
+                "estado": p.estado.value if hasattr(p.estado, 'value') else str(p.estado)
+            })
+        
+        return {
+            "total": len(resultado),
+            "partidos": resultado
+        }
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))

@@ -26,11 +26,21 @@ class TorneoService:
     @staticmethod
     def es_organizador_torneo(db: Session, torneo_id: int, user_id: int) -> bool:
         """Verifica si un usuario es organizador de un torneo específico"""
-        org = db.query(TorneoOrganizador).filter(
-            TorneoOrganizador.torneo_id == torneo_id,
-            TorneoOrganizador.user_id == user_id
-        ).first()
-        return org is not None
+        # Primero verificar si es el creador del torneo
+        torneo = db.query(Torneo).filter(Torneo.id == torneo_id).first()
+        if torneo and torneo.creado_por == user_id:
+            return True
+        
+        # Luego verificar en la tabla de organizadores (si existe)
+        try:
+            org = db.query(TorneoOrganizador).filter(
+                TorneoOrganizador.torneo_id == torneo_id,
+                TorneoOrganizador.user_id == user_id
+            ).first()
+            return org is not None
+        except Exception:
+            # Si la tabla no existe o hay error, solo verificar creador
+            return False
     
     @staticmethod
     def es_owner_torneo(db: Session, torneo_id: int, user_id: int) -> bool:
@@ -66,11 +76,15 @@ class TorneoService:
         if torneo_data.fecha_fin < torneo_data.fecha_inicio:
             raise ValueError("La fecha de fin debe ser posterior a la fecha de inicio")
         
+        # Validar género
+        genero = torneo_data.genero if torneo_data.genero in ['masculino', 'femenino', 'mixto'] else 'masculino'
+        
         # Crear torneo
         torneo = Torneo(
             nombre=torneo_data.nombre,
             descripcion=torneo_data.descripcion,
             categoria=torneo_data.categoria,
+            genero=genero,
             fecha_inicio=torneo_data.fecha_inicio,
             fecha_fin=torneo_data.fecha_fin,
             lugar=torneo_data.lugar,

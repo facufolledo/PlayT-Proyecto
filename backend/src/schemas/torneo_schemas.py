@@ -44,6 +44,7 @@ class TorneoCreate(BaseModel):
     nombre: str = Field(..., min_length=3, max_length=255)
     descripcion: Optional[str] = None
     categoria: str = Field(..., min_length=2, max_length=50)
+    genero: Optional[str] = Field(default="masculino")  # masculino, femenino, mixto
     fecha_inicio: date
     fecha_fin: date
     lugar: Optional[str] = None
@@ -85,6 +86,8 @@ class TorneoResponse(BaseModel):
     creado_por: int
     created_at: datetime
     updated_at: datetime
+    parejas_inscritas: Optional[int] = 0
+    total_partidos: Optional[int] = 0
     
     class Config:
         from_attributes = True
@@ -94,6 +97,7 @@ class TorneoResponse(BaseModel):
 class ParejaInscripcion(BaseModel):
     jugador1_id: int
     jugador2_id: int
+    nombre_pareja: Optional[str] = None
     observaciones: Optional[str] = None
     
     @validator('jugador2_id')
