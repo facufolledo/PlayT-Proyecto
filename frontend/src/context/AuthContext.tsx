@@ -153,6 +153,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setFirebaseUser(user);
       console.log('🔥 Firebase user:', user.email);
 
+      // Recargar el usuario para obtener el estado actualizado de emailVerified
+      await user.reload();
+      
       // Verificar que el email esté verificado
       if (!user.emailVerified) {
         setNeedsProfileCompletion(true);
@@ -160,9 +163,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         throw new Error('Debes verificar tu correo electrónico antes de continuar. Revisa tu bandeja de entrada.');
       }
 
-      // Obtener token de Firebase
-      const firebaseToken = await user.getIdToken();
-      console.log('🔑 Firebase token obtenido');
+      // Obtener token de Firebase (forzar refresh para obtener claims actualizados)
+      const firebaseToken = await user.getIdToken(true);
+      console.log('🔑 Firebase token obtenido (refreshed)');
 
       try {
         // Intentar autenticar con el backend usando el token de Firebase

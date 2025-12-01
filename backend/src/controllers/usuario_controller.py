@@ -82,6 +82,9 @@ async def completar_perfil(
                 detail="Debes verificar tu correo electrónico antes de continuar. Revisa tu bandeja de entrada.",
             )
         
+        # Mapear género a formato de base de datos
+        sexo = 'M' if datos.genero == 'masculino' else 'F'
+        
         # Buscar o crear usuario
         current_user = db.query(Usuario).filter(Usuario.email == firebase_email).first()
         
@@ -100,12 +103,11 @@ async def completar_perfil(
                 email=firebase_email,
                 password_hash="",  # No se usa para usuarios de Firebase
                 rating=1000,  # Se actualizará según categoría
-                partidos_jugados=0
+                partidos_jugados=0,
+                sexo=sexo  # Asignar sexo al crear
             )
             db.add(current_user)
             db.flush()  # Para obtener el ID
-        # Mapear género a formato de base de datos
-        sexo = 'M' if datos.genero == 'masculino' else 'F'
         
         # Buscar categoría por nombre
         categoria = db.query(Categoria).filter(Categoria.nombre == datos.categoria_inicial).first()
@@ -385,22 +387,26 @@ async def buscar_usuarios(
     if len(q) < 2:
         return []
     
-    # Buscar por nombre o apellido (case insensitive)
+    # Buscar en perfil_usuarios por nombre o apellido (case insensitive)
     query_lower = f"%{q.lower()}%"
     
-    usuarios = db.query(Usuario).filter(
-        (Usuario.nombre.ilike(query_lower)) | 
-        (Usuario.apellido.ilike(query_lower))
+    # Join con perfil_usuarios para buscar por nombre real
+    perfiles = db.query(PerfilUsuario).filter(
+        (PerfilUsuario.nombre.ilike(query_lower)) | 
+        (PerfilUsuario.apellido.ilike(query_lower))
     ).limit(limit).all()
     
-    # Retornar información básica
-    return [
-        {
-            "id_usuario": u.id_usuario,
-            "nombre": u.nombre,
-            "apellido": u.apellido,
-            "rating": u.rating,
-            "categoria": u.categoria
-        }
-        for u in usuarios
-    ]
+    # Retornar información básica con datos del usuario
+    resultado = []
+    for perfil in perfiles:
+        usuario = db.query(Usuario).filter(Usuario.id_usuario == perfil.id_usuario).first()
+        if usuario:
+            resultado.append({
+                "id_usuario": usuario.id_usuario,
+                "nombre": perfil.nombre,
+                "apellido": perfil.apellido,
+                "rating": usuario.rating or 1200,
+                "categoria": usuario.id_categoria
+            })
+    
+    return resultado

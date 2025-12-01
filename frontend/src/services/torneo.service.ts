@@ -5,14 +5,16 @@ const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
 // Tipos para crear/actualizar torneos
 export interface TorneoCreate {
   nombre: string;
-  descripcion: string;
+  descripcion?: string;
   fecha_inicio: string;
   fecha_fin: string;
   lugar?: string;
   ubicacion?: string; // Alias para compatibilidad
   categoria: string;
-  max_parejas: number;
+  genero?: string;
+  max_parejas?: number;
   premio?: string;
+  reglas_json?: any;
 }
 
 // Tipo del backend
@@ -218,7 +220,7 @@ class TorneoService {
   // Fixture
   async generarFixture(torneoId: number): Promise<any> {
     const response = await axios.post(
-      `${API_URL}/torneos/${torneoId}/fixture/generar`,
+      `${API_URL}/torneos/${torneoId}/generar-fixture`,
       {},
       this.getAuthHeaders()
     );
@@ -252,16 +254,53 @@ class TorneoService {
     return response.data.completa;
   }
 
+  // Playoffs
+  async generarPlayoffs(torneoId: number, clasificadosPorZona: number = 2): Promise<any> {
+    const response = await axios.post(
+      `${API_URL}/torneos/${torneoId}/generar-playoffs`,
+      {},
+      {
+        ...this.getAuthHeaders(),
+        params: { clasificados_por_zona: clasificadosPorZona }
+      }
+    );
+    return response.data;
+  }
+
+  async listarPlayoffs(torneoId: number): Promise<any> {
+    const response = await axios.get(`${API_URL}/torneos/${torneoId}/playoffs`);
+    return response.data;
+  }
+
+  async listarPartidosPlayoffs(torneoId: number): Promise<any> {
+    const response = await axios.get(`${API_URL}/torneos/${torneoId}/playoffs/partidos`);
+    return response.data;
+  }
+
+  async cargarResultadoPlayoff(torneoId: number, partidoId: number, resultado: any): Promise<any> {
+    const response = await axios.post(
+      `${API_URL}/torneos/${torneoId}/partidos/${partidoId}/resultado`,
+      resultado,
+      this.getAuthHeaders()
+    );
+    return response.data;
+  }
+
+  async corregirResultado(torneoId: number, partidoId: number, resultado: any): Promise<any> {
+    const response = await axios.put(
+      `${API_URL}/torneos/${torneoId}/partidos/${partidoId}/resultado`,
+      resultado,
+      this.getAuthHeaders()
+    );
+    return response.data;
+  }
+
   // Validaciones
   validarDatosTorneo(data: TorneoCreate): string[] {
     const errores: string[] = [];
     
     if (!data.nombre || data.nombre.trim().length < 3) {
       errores.push('El nombre debe tener al menos 3 caracteres');
-    }
-    
-    if (!data.descripcion || data.descripcion.trim().length < 10) {
-      errores.push('La descripción debe tener al menos 10 caracteres');
     }
     
     if (!data.fecha_inicio) {
@@ -274,10 +313,6 @@ class TorneoService {
     
     if (data.fecha_inicio && data.fecha_fin && new Date(data.fecha_inicio) > new Date(data.fecha_fin)) {
       errores.push('La fecha de inicio debe ser anterior a la fecha de fin');
-    }
-    
-    if (!data.max_parejas || data.max_parejas < 2) {
-      errores.push('Debe haber al menos 2 parejas');
     }
     
     return errores;

@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
-import { Calendar, Trophy } from 'lucide-react';
+import { Calendar, Trophy, AlertCircle, X } from 'lucide-react';
 import { torneoService } from '../services/torneo.service';
 import Card from './Card';
 import Button from './Button';
@@ -20,6 +20,7 @@ export default function TorneoFixture({ torneoId, esOrganizador }: TorneoFixture
   const [modalResultadoOpen, setModalResultadoOpen] = useState(false);
   const [filtroZona, setFiltroZona] = useState<string>('todas');
   const [zonas, setZonas] = useState<any[]>([]);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     cargarDatos();
@@ -48,11 +49,12 @@ export default function TorneoFixture({ torneoId, esOrganizador }: TorneoFixture
   const generarFixture = async () => {
     try {
       setGenerando(true);
+      setError(null);
       await torneoService.generarFixture(torneoId);
       await cargarDatos();
     } catch (error: any) {
       console.error('Error al generar fixture:', error);
-      alert(error.response?.data?.detail || 'Error al generar fixture');
+      setError(error.response?.data?.detail || 'Error al generar fixture');
     } finally {
       setGenerando(false);
     }
@@ -90,6 +92,27 @@ export default function TorneoFixture({ torneoId, esOrganizador }: TorneoFixture
           <p className="text-textSecondary mb-6">
             El fixture se genera después de crear las zonas
           </p>
+          
+          {/* Mensaje de error */}
+          {error && (
+            <motion.div
+              initial={{ opacity: 0, y: -10 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="mb-4 p-4 bg-red-500/10 border border-red-500/30 rounded-lg flex items-start gap-3"
+            >
+              <AlertCircle size={20} className="text-red-500 flex-shrink-0 mt-0.5" />
+              <div className="flex-1 text-left">
+                <p className="text-red-500 font-medium text-sm">{error}</p>
+              </div>
+              <button
+                onClick={() => setError(null)}
+                className="text-red-500/70 hover:text-red-500 transition-colors"
+              >
+                <X size={18} />
+              </button>
+            </motion.div>
+          )}
+          
           {esOrganizador && (
             <Button
               onClick={generarFixture}
@@ -116,9 +139,26 @@ export default function TorneoFixture({ torneoId, esOrganizador }: TorneoFixture
 
   const zonasConPartidos = Object.keys(partidosPorZona).map(zonaId => {
     const zona = zonas.find(z => z.id === parseInt(zonaId));
+    // Si no hay zona, mostrar la fase del partido (playoffs)
+    let nombre = zona?.nombre || 'Sin zona';
+    if (!zona && partidosPorZona[zonaId]?.length > 0) {
+      const fase = partidosPorZona[zonaId][0]?.fase;
+      if (fase) {
+        const fasesNombres: Record<string, string> = {
+          'semifinal': 'Semifinales',
+          'semis': 'Semifinales',
+          'final': 'Final',
+          'cuartos': 'Cuartos de Final',
+          '4tos': 'Cuartos de Final',
+          '8vos': 'Octavos de Final',
+          '16avos': 'Dieciseisavos de Final'
+        };
+        nombre = fasesNombres[fase] || fase.charAt(0).toUpperCase() + fase.slice(1);
+      }
+    }
     return {
       id: zonaId,
-      nombre: zona?.nombre || 'Sin zona',
+      nombre,
       partidos: partidosPorZona[zonaId]
     };
   });

@@ -3,6 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { ArrowLeft, Calendar, MapPin, Trophy, Users, Settings } from 'lucide-react';
 import { useTorneos } from '../context/TorneosContext';
+import { useAuth } from '../context/AuthContext';
 import Card from '../components/Card';
 import Button from '../components/Button';
 import SkeletonLoader from '../components/SkeletonLoader';
@@ -10,11 +11,13 @@ import ModalInscribirTorneo from '../components/ModalInscribirTorneo';
 import TorneoZonas from '../components/TorneoZonas';
 import TorneoFixture from '../components/TorneoFixture';
 import TorneoPlayoffs from '../components/TorneoPlayoffs';
+import TorneoParejas from '../components/TorneoParejas';
 
 export default function TorneoDetalle() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const { torneoActual, cargarTorneo, cargarParejas, parejas, loading, esAdministrador } = useTorneos();
+  const { torneoActual, cargarTorneo, cargarParejas, parejas, loading } = useTorneos();
+  const { usuario } = useAuth();
   const [tab, setTab] = useState<'info' | 'parejas' | 'zonas' | 'partidos' | 'playoffs'>('info');
   const [modalInscripcionOpen, setModalInscripcionOpen] = useState(false);
 
@@ -59,8 +62,17 @@ export default function TorneoDetalle() {
     );
   }
 
-  const esOrganizador = esAdministrador;
-  const puedeInscribirse = torneoActual.estado === 'programado';
+  // Verificar si el usuario es el creador del torneo
+  const esCreadorTorneo = usuario?.id_usuario === (torneoActual as any).creado_por;
+  // El organizador es quien creó el torneo
+  const esOrganizador = esCreadorTorneo;
+  
+  // Permitir inscripción:
+  // - Usuarios normales: solo cuando está en inscripción
+  // - Creador del torneo: siempre (puede agregar parejas en cualquier momento)
+  const torneoEnInscripcion = torneoActual.estado === 'programado' || 
+                              (torneoActual as any).estado_original === 'inscripcion';
+  const puedeInscribirse = torneoEnInscripcion || esCreadorTorneo;
 
   return (
     <div className="space-y-6">
@@ -158,15 +170,15 @@ export default function TorneoDetalle() {
             <p className="text-textSecondary">{torneoActual.descripcion || 'Sin descripción'}</p>
           </div>
 
-          {/* Botón de inscripción */}
-          {puedeInscribirse && !esOrganizador && (
+          {/* Botón de inscripción - visible para todos cuando está en inscripción */}
+          {puedeInscribirse && (
             <div className="border-t border-cardBorder pt-6">
               <Button
                 variant="accent"
                 onClick={() => setModalInscripcionOpen(true)}
                 className="w-full md:w-auto"
               >
-                Inscribirse al Torneo
+                Inscribir Pareja
               </Button>
             </div>
           )}
@@ -243,46 +255,12 @@ export default function TorneoDetalle() {
       )}
 
       {tab === 'parejas' && (
-        <Card>
-          <div className="p-6">
-            {parejas.length === 0 ? (
-              <div className="text-center py-12">
-                <Users size={48} className="mx-auto text-textSecondary mb-4" />
-                <p className="text-textSecondary">Aún no hay parejas inscritas</p>
-              </div>
-            ) : (
-              <div className="space-y-3">
-                {parejas.map((pareja) => (
-                  <div
-                    key={pareja.id}
-                    className="flex items-center justify-between p-4 bg-background rounded-lg"
-                  >
-                    <div>
-                      <p className="font-bold text-textPrimary">
-                        {pareja.nombre_pareja}
-                      </p>
-                    </div>
-                    <div>
-                      <span
-                        className={`px-3 py-1 rounded-full text-xs font-bold ${
-                          pareja.estado === 'confirmada'
-                            ? 'bg-green-500/10 text-green-500'
-                            : pareja.estado === 'inscripta'
-                            ? 'bg-yellow-500/10 text-yellow-500'
-                            : 'bg-red-500/10 text-red-500'
-                        }`}
-                      >
-                        {pareja.estado === 'confirmada' && 'Confirmada'}
-                        {pareja.estado === 'inscripta' && 'Pendiente'}
-                        {pareja.estado === 'baja' && 'Baja'}
-                      </span>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-        </Card>
+        <TorneoParejas 
+          torneoId={parseInt(id!)} 
+          parejas={parejas} 
+          esOrganizador={esOrganizador}
+          onUpdate={() => cargarParejas(parseInt(id!))}
+        />
       )}
 
       {tab === 'zonas' && (

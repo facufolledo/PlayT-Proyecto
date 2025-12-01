@@ -1,3 +1,4 @@
+import { forwardRef } from 'react';
 import { motion, useReducedMotion } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
 import { Trophy, Calendar, Users, Play, CheckCircle, Clock } from 'lucide-react';
@@ -8,7 +9,7 @@ interface TorneoCardProps {
   torneo: Torneo;
 }
 
-const FORMATO_LABELS = {
+const FORMATO_LABELS: Record<string, string> = {
   'eliminacion-simple': 'Eliminación Simple',
   'eliminacion-doble': 'Eliminación Doble',
   'round-robin': 'Round Robin',
@@ -16,13 +17,13 @@ const FORMATO_LABELS = {
   'por-puntos': 'Por Puntos',
 };
 
-const GENERO_LABELS = {
+const GENERO_LABELS: Record<string, { label: string; icon: string; color: string }> = {
   'masculino': { label: 'Masculino', icon: '♂', color: 'from-blue-500 to-blue-600' },
   'femenino': { label: 'Femenino', icon: '♀', color: 'from-pink-500 to-pink-600' },
   'mixto': { label: 'Mixto', icon: '⚥', color: 'from-purple-500 to-purple-600' },
 };
 
-export default function TorneoCard({ torneo }: TorneoCardProps) {
+const TorneoCard = forwardRef<HTMLDivElement, TorneoCardProps>(({ torneo }, ref) => {
   const navigate = useNavigate();
   const shouldReduceMotion = useReducedMotion();
   
@@ -52,6 +53,7 @@ export default function TorneoCard({ torneo }: TorneoCardProps) {
 
   return (
     <motion.div
+      ref={ref}
       initial={shouldReduceMotion ? false : { opacity: 0, scale: 0.95 }}
       animate={{ opacity: 1, scale: 1 }}
       whileHover={shouldReduceMotion ? {} : { y: -2 }}
@@ -100,28 +102,32 @@ export default function TorneoCard({ torneo }: TorneoCardProps) {
             <div className="flex items-center gap-1 md:gap-2 text-textSecondary">
               <Users size={10} className="flex-shrink-0 md:w-4 md:h-4" />
               <span className="text-[9px] md:text-sm">
-                {torneo.participantes} jugadores
+                {torneo.participantes || 0} parejas
               </span>
             </div>
 
             {/* Categoría y Género */}
             <div className="flex items-center gap-1 md:gap-2 flex-wrap">
               <span className="px-1.5 md:px-3 py-0.5 md:py-1 rounded-full bg-primary/10 text-primary text-[8px] md:text-xs font-bold">
-                {torneo.categoria}
+                {torneo.categoria || 'Sin categoría'}
               </span>
-              <span className={`px-1.5 md:px-3 py-0.5 md:py-1 rounded-full bg-gradient-to-r ${GENERO_LABELS[torneo.genero].color} text-white text-[8px] md:text-xs font-bold`}>
-                {GENERO_LABELS[torneo.genero].icon}
-              </span>
-              <span className="text-[8px] md:text-xs text-textSecondary truncate">
-                {FORMATO_LABELS[torneo.formato]}
-              </span>
+              {torneo.genero && GENERO_LABELS[torneo.genero] && (
+                <span className={`px-1.5 md:px-3 py-0.5 md:py-1 rounded-full bg-gradient-to-r ${GENERO_LABELS[torneo.genero].color} text-white text-[8px] md:text-xs font-bold`}>
+                  {GENERO_LABELS[torneo.genero].icon}
+                </span>
+              )}
+              {torneo.formato && FORMATO_LABELS[torneo.formato] && (
+                <span className="text-[8px] md:text-xs text-textSecondary truncate">
+                  {FORMATO_LABELS[torneo.formato]}
+                </span>
+              )}
             </div>
           </div>
 
           {/* Footer */}
           <div className="flex items-center justify-between pt-1.5 md:pt-3 border-t border-cardBorder mt-auto">
             <div className="text-textSecondary text-[9px] md:text-sm">
-              {torneo.salasIds.length} {torneo.salasIds.length === 1 ? 'partido' : 'partidos'}
+              {torneo.salasIds?.length || 0} {(torneo.salasIds?.length || 0) === 1 ? 'partido' : 'partidos'}
             </div>
             <Button
               variant="primary"
@@ -139,4 +145,8 @@ export default function TorneoCard({ torneo }: TorneoCardProps) {
       </div>
     </motion.div>
   );
-}
+});
+
+TorneoCard.displayName = 'TorneoCard';
+
+export default TorneoCard;

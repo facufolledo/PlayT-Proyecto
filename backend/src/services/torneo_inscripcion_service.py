@@ -62,11 +62,18 @@ class TorneoInscripcionService:
             TorneoPareja.estado != EstadoPareja.BAJA
         ).all()
         
+        # Obtener nombres de los jugadores para mensajes de error
+        from ..models.playt_models import PerfilUsuario
+        perfil1 = db.query(PerfilUsuario).filter(PerfilUsuario.id_usuario == pareja_data.jugador1_id).first()
+        perfil2 = db.query(PerfilUsuario).filter(PerfilUsuario.id_usuario == pareja_data.jugador2_id).first()
+        nombre1 = f"{perfil1.nombre} {perfil1.apellido}" if perfil1 else f"Jugador {pareja_data.jugador1_id}"
+        nombre2 = f"{perfil2.nombre} {perfil2.apellido}" if perfil2 else f"Jugador {pareja_data.jugador2_id}"
+        
         for pareja in parejas_existentes:
             if pareja_data.jugador1_id in [pareja.jugador1_id, pareja.jugador2_id]:
-                raise ValueError(f"El jugador {pareja_data.jugador1_id} ya está inscrito en este torneo")
+                raise ValueError(f"{nombre1} ya está inscrito en este torneo")
             if pareja_data.jugador2_id in [pareja.jugador1_id, pareja.jugador2_id]:
-                raise ValueError(f"El jugador {pareja_data.jugador2_id} ya está inscrito en este torneo")
+                raise ValueError(f"{nombre2} ya está inscrito en este torneo")
         
         # Crear pareja
         pareja = TorneoPareja(
