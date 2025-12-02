@@ -309,7 +309,12 @@ class TorneoPlayoffService:
         """
         Genera bracket con byes (número de clasificados no es potencia de 2)
         
-        Los mejores seeds reciben byes y pasan directamente a la siguiente ronda
+        Los mejores seeds reciben byes y pasan directamente a la siguiente ronda.
+        
+        Ejemplo con 6 clasificados (potencia 8):
+        - 2 byes (seeds 1 y 2)
+        - 4 parejas juegan primera ronda (4tos): 3vs6, 4vs5
+        - Semis: seed1 vs ganador(4vs5), seed2 vs ganador(3vs6)
         """
         num_clasificados = len(clasificados)
         num_byes = potencia - num_clasificados
@@ -318,57 +323,112 @@ class TorneoPlayoffService:
         clasificados_con_bye = clasificados[:num_byes]
         clasificados_sin_bye = clasificados[num_byes:]
         
-        # Determinar fase inicial
-        if potencia == 4:
-            fase_inicial = 'semis'
-            fase_con_bye = 'final'
-        elif potencia == 8:
-            fase_inicial = '4tos'
-            fase_con_bye = 'semis'
-        elif potencia == 16:
-            fase_inicial = '8vos'
-            fase_con_bye = '4tos'
-        else:
-            fase_inicial = '16avos'
-            fase_con_bye = '8vos'
+        # Determinar fases
+        fase_map = {4: 'semis', 8: '4tos', 16: '8vos', 32: '16avos'}
+        siguiente_fase_map = {'16avos': '8vos', '8vos': '4tos', '4tos': 'semis', 'semis': 'final'}
         
-        # Generar partidos de primera ronda (sin byes)
+        fase_inicial = fase_map.get(potencia, '4tos')
+        fase_con_bye = siguiente_fase_map.get(fase_inicial, 'semis')
+        
         partidos = []
-        num_partidos_primera_ronda = len(clasificados_sin_bye) // 2
         
-        for i in range(num_partidos_primera_ronda):
-            c1 = clasificados_sin_bye[i * 2]
-            c2 = clasificados_sin_bye[i * 2 + 1]
+        # Calcular número de partidos en cada fase
+        num_partidos_fase_inicial = potencia // 2
+        num_partidos_siguiente_fase = potencia // 4
+        
+        # Crear TODOS los partidos de la fase inicial (algunos serán byes)
+        # Usamos el sistema de bracket estándar donde:
+        # - Partido 1: seed 1 vs seed 8 (o bye)
+        # - Partido 2: seed 4 vs seed 5
+        # - Partido 3: seed 2 vs seed 7 (o bye)
+        # - Partido 4: seed 3 vs seed 6
+        
+        emparejamientos = TorneoPlayoffService._calcular_emparejamientos(potencia)
+        clasificados_dict = {c['seed']: c for c in clasificados}
+        
+        partidos_primera_ronda = []
+        ganadores_bye = []  # Parejas que avanzan automáticamente
+        
+        for i, (seed1, seed2) in enumerate(emparejamientos):
+            c1 = clasificados_dict.get(seed1)
+            c2 = clasificados_dict.get(seed2)
             
-            partido = Partido(
+            # Si ambos existen, crear partido normal
+            if c1 and c2:
+                partido = Partido(
+                    id_torneo=torneo_id,
+                    pareja1_id=c1['pareja_id'],
+                    pareja2_id=c2['pareja_id'],
+                    fase=fase_inicial,
+                    numero_partido=i + 1,
+                    estado='pendiente',
+                    fecha=datetime.now(),
+                    id_creador=user_id,
+                    tipo='torneo'
+                )
+                db.add(partido)
+                partidos.append(partido)
+                partidos_primera_ronda.append({
+                    'numero': i + 1,
+                    'tipo': 'normal',
+                    'partido': partido
+                })
+            elif c1:
+                # c2 es bye, c1 avanza automáticamente
+                ganadores_bye.append({
+                    'pareja_id': c1['pareja_id'],
+                    'numero_partido_origen': i + 1,
+                    'seed': seed1
+                })
+                partidos_primera_ronda.append({
+                    'numero': i + 1,
+                    'tipo': 'bye',
+                    'ganador': c1['pareja_id']
+                })
+            elif c2:
+                # c1 es bye, c2 avanza automáticamente
+                ganadores_bye.append({
+                    'pareja_id': c2['pareja_id'],
+                    'numero_partido_origen': i + 1,
+                    'seed': seed2
+                })
+                partidos_primera_ronda.append({
+                    'numero': i + 1,
+                    'tipo': 'bye',
+                    'ganador': c2['pareja_id']
+                })
+        
+        db.flush()
+        
+        # Crear partidos de siguiente fase
+        # Cada partido de siguiente fase recibe ganadores de 2 partidos consecutivos
+        for i in range(num_partidos_siguiente_fase):
+            partido_origen_1 = i * 2 + 1  # Partido impar
+            partido_origen_2 = i * 2 + 2  # Partido par
+            
+            # Buscar si alguno de los partidos origen es bye
+            pareja1_id = None
+            pareja2_id = None
+            
+            for pr in partidos_primera_ronda:
+                if pr['numero'] == partido_origen_1 and pr['tipo'] == 'bye':
+                    pareja1_id = pr['ganador']
+                elif pr['numero'] == partido_origen_2 and pr['tipo'] == 'bye':
+                    pareja2_id = pr['ganador']
+            
+            partido_siguiente = Partido(
                 id_torneo=torneo_id,
-                pareja1_id=c1['pareja_id'],
-                pareja2_id=c2['pareja_id'],
-                fase=fase_inicial,
+                pareja1_id=pareja1_id,  # None si viene de partido normal, ID si es bye
+                pareja2_id=pareja2_id,  # None si viene de partido normal, ID si es bye
+                fase=fase_con_bye,
                 numero_partido=i + 1,
                 estado='pendiente',
                 fecha=datetime.now(),
                 id_creador=user_id,
                 tipo='torneo'
             )
-            db.add(partido)
-            partidos.append(partido)
-        
-        # Generar partidos de siguiente ronda con byes (TBD vs clasificado con bye)
-        for i, c_bye in enumerate(clasificados_con_bye):
-            partido = Partido(
-                id_torneo=torneo_id,
-                pareja1_id=None,  # TBD - ganador de partido anterior
-                pareja2_id=c_bye['pareja_id'],
-                fase=fase_con_bye,
-                numero_partido=num_partidos_primera_ronda + i + 1,
-                estado='pendiente',
-                fecha=datetime.now(),
-                id_creador=user_id,
-                tipo='torneo'
-            )
-            db.add(partido)
-            partidos.append(partido)
+            db.add(partido_siguiente)
+            partidos.append(partido_siguiente)
         
         db.commit()
         return partidos

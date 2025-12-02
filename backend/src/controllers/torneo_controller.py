@@ -830,7 +830,8 @@ def cargar_resultado_partido(
         return {
             "message": "Resultado cargado exitosamente",
             "partido_id": partido.id_partido,
-            "ganador_pareja_id": partido.ganador_pareja_id
+            "ganador_pareja_id": partido.ganador_pareja_id,
+            "elo_aplicado": partido.elo_aplicado
         }
     except ValueError as e:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
@@ -1071,15 +1072,15 @@ def listar_todos_partidos_playoffs(
     
     Útil para mostrar el bracket completo
     """
-    from ..models.torneo_models import TorneoPartido, FasePartido
-    from ..models.playt_models import PerfilUsuario
+    from ..models.torneo_models import FasePartido
+    from ..models.playt_models import Partido, PerfilUsuario
     from ..models.torneo_models import TorneoPareja
     
     try:
-        partidos = db.query(TorneoPartido).filter(
-            TorneoPartido.torneo_id == torneo_id,
-            TorneoPartido.fase != FasePartido.ZONA
-        ).order_by(TorneoPartido.numero_partido).all()
+        partidos = db.query(Partido).filter(
+            Partido.id_torneo == torneo_id,
+            Partido.fase != FasePartido.ZONA.value
+        ).order_by(Partido.numero_partido).all()
         
         resultado = []
         for p in partidos:
@@ -1106,7 +1107,7 @@ def listar_todos_partidos_playoffs(
                     pareja2_nombre = f"{nombre2_1} / {nombre2_2}"
             
             resultado.append({
-                "id": p.id,
+                "id": p.id_partido,
                 "numero_partido": p.numero_partido,
                 "pareja1_id": p.pareja1_id,
                 "pareja2_id": p.pareja2_id,
@@ -1114,8 +1115,8 @@ def listar_todos_partidos_playoffs(
                 "pareja2_nombre": pareja2_nombre,
                 "ganador_id": p.ganador_pareja_id,
                 "resultado": p.resultado_padel,
-                "fase": p.fase.value if hasattr(p.fase, 'value') else str(p.fase),
-                "estado": p.estado.value if hasattr(p.estado, 'value') else str(p.estado)
+                "fase": p.fase if p.fase else None,
+                "estado": p.estado if p.estado else None
             })
         
         return {
@@ -1126,3 +1127,605 @@ def listar_todos_partidos_playoffs(
         import traceback
         traceback.print_exc()
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
+
+
+# ============================================
+# ENDPOINTS DE CANCHAS Y PROGRAMACIÓN
+# ============================================
+
+@router.post("/{torneo_id}/canchas")
+def crear_cancha(
+    torneo_id: int,
+    nombre: str,
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(get_current_user)
+):
+    """
+    Crea una cancha para el torneo
+    
+    Solo organizadores pueden crear canchas
+    """
+    from ..models.torneo_models import TorneoCancha
+    from ..services.torneo_zona_service import TorneoZonaService
+    
+    try:
+        if not TorneoZonaService._es_organizador(db, torneo_id, current_user.id_usuario):
+            raise HTTPException(status_code=403, detail="No tienes permisos")
+        
+        cancha = TorneoCancha(
+            torneo_id=torneo_id,
+            nombre=nombre,
+            activa=True
+        )
+        db.add(cancha)
+        db.commit()
+        db.refresh(cancha)
+        
+        return {
+            "id": cancha.id,
+            "torneo_id": cancha.torneo_id,
+            "nombre": cancha.nombre,
+            "activa": cancha.activa
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/{torneo_id}/canchas")
+def listar_canchas(
+    torneo_id: int,
+    db: Session = Depends(get_db)
+):
+    """Lista todas las canchas del torneo"""
+    from ..models.torneo_models import TorneoCancha
+    
+    canchas = db.query(TorneoCancha).filter(
+        TorneoCancha.torneo_id == torneo_id,
+        TorneoCancha.activa == True
+    ).all()
+    
+    return [
+        {
+            "id": c.id,
+            "nombre": c.nombre,
+            "activa": c.activa
+        }
+        for c in canchas
+    ]
+
+
+@router.delete("/{torneo_id}/canchas/{cancha_id}")
+def eliminar_cancha(
+    torneo_id: int,
+    cancha_id: int,
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(get_current_user)
+):
+    """Desactiva una cancha"""
+    from ..models.torneo_models import TorneoCancha
+    from ..services.torneo_zona_service import TorneoZonaService
+    
+    if not TorneoZonaService._es_organizador(db, torneo_id, current_user.id_usuario):
+        raise HTTPException(status_code=403, detail="No tienes permisos")
+    
+    cancha = db.query(TorneoCancha).filter(
+        TorneoCancha.id == cancha_id,
+        TorneoCancha.torneo_id == torneo_id
+    ).first()
+    
+    if not cancha:
+        raise HTTPException(status_code=404, detail="Cancha no encontrada")
+    
+    cancha.activa = False
+    db.commit()
+    
+    return {"message": "Cancha eliminada"}
+
+
+@router.post("/{torneo_id}/slots")
+def crear_slots(
+    torneo_id: int,
+    fecha: str,
+    hora_inicio: str,
+    hora_fin: str,
+    duracion_minutos: int = 90,
+    cancha_ids: Optional[List[int]] = None,
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(get_current_user)
+):
+    """
+    Crea slots de horarios para un día
+    
+    - **fecha**: Fecha en formato YYYY-MM-DD
+    - **hora_inicio**: Hora de inicio (ej: "09:00")
+    - **hora_fin**: Hora de fin (ej: "21:00")
+    - **duracion_minutos**: Duración de cada slot (default 90 min)
+    - **cancha_ids**: Lista de canchas (opcional, si no se especifica usa todas)
+    """
+    from ..models.torneo_models import TorneoCancha, TorneoSlot
+    from ..services.torneo_zona_service import TorneoZonaService
+    from datetime import datetime, timedelta
+    
+    try:
+        if not TorneoZonaService._es_organizador(db, torneo_id, current_user.id_usuario):
+            raise HTTPException(status_code=403, detail="No tienes permisos")
+        
+        # Parsear fecha y horas
+        fecha_dt = datetime.strptime(fecha, "%Y-%m-%d").date()
+        hora_inicio_parts = hora_inicio.split(":")
+        hora_fin_parts = hora_fin.split(":")
+        
+        hora_actual = datetime.combine(
+            fecha_dt,
+            datetime.strptime(hora_inicio, "%H:%M").time()
+        )
+        hora_limite = datetime.combine(
+            fecha_dt,
+            datetime.strptime(hora_fin, "%H:%M").time()
+        )
+        
+        # Obtener canchas
+        if cancha_ids:
+            canchas = db.query(TorneoCancha).filter(
+                TorneoCancha.id.in_(cancha_ids),
+                TorneoCancha.torneo_id == torneo_id,
+                TorneoCancha.activa == True
+            ).all()
+        else:
+            canchas = db.query(TorneoCancha).filter(
+                TorneoCancha.torneo_id == torneo_id,
+                TorneoCancha.activa == True
+            ).all()
+        
+        if not canchas:
+            raise HTTPException(status_code=400, detail="No hay canchas disponibles")
+        
+        # Crear slots
+        slots_creados = 0
+        while hora_actual + timedelta(minutes=duracion_minutos) <= hora_limite:
+            for cancha in canchas:
+                # Verificar si ya existe el slot
+                existe = db.query(TorneoSlot).filter(
+                    TorneoSlot.torneo_id == torneo_id,
+                    TorneoSlot.cancha_id == cancha.id,
+                    TorneoSlot.fecha_hora_inicio == hora_actual
+                ).first()
+                
+                if not existe:
+                    slot = TorneoSlot(
+                        torneo_id=torneo_id,
+                        cancha_id=cancha.id,
+                        fecha_hora_inicio=hora_actual,
+                        fecha_hora_fin=hora_actual + timedelta(minutes=duracion_minutos),
+                        ocupado=False
+                    )
+                    db.add(slot)
+                    slots_creados += 1
+            
+            hora_actual += timedelta(minutes=duracion_minutos)
+        
+        db.commit()
+        
+        return {
+            "message": f"Se crearon {slots_creados} slots",
+            "fecha": fecha,
+            "canchas": len(canchas),
+            "slots_por_cancha": slots_creados // len(canchas) if canchas else 0
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/{torneo_id}/slots")
+def listar_slots(
+    torneo_id: int,
+    fecha: Optional[str] = None,
+    solo_disponibles: bool = False,
+    db: Session = Depends(get_db)
+):
+    """
+    Lista slots de horarios
+    
+    - **fecha**: Filtrar por fecha (YYYY-MM-DD)
+    - **solo_disponibles**: Solo mostrar slots no ocupados
+    """
+    from ..models.torneo_models import TorneoSlot, TorneoCancha
+    from datetime import datetime
+    
+    query = db.query(TorneoSlot).filter(TorneoSlot.torneo_id == torneo_id)
+    
+    if fecha:
+        fecha_dt = datetime.strptime(fecha, "%Y-%m-%d").date()
+        query = query.filter(
+            TorneoSlot.fecha_hora_inicio >= datetime.combine(fecha_dt, datetime.min.time()),
+            TorneoSlot.fecha_hora_inicio < datetime.combine(fecha_dt, datetime.max.time())
+        )
+    
+    if solo_disponibles:
+        query = query.filter(TorneoSlot.ocupado == False)
+    
+    slots = query.order_by(TorneoSlot.fecha_hora_inicio, TorneoSlot.cancha_id).all()
+    
+    resultado = []
+    for s in slots:
+        cancha = db.query(TorneoCancha).filter(TorneoCancha.id == s.cancha_id).first()
+        resultado.append({
+            "id": s.id,
+            "cancha_id": s.cancha_id,
+            "cancha_nombre": cancha.nombre if cancha else None,
+            "fecha_hora_inicio": s.fecha_hora_inicio.isoformat() if s.fecha_hora_inicio else None,
+            "fecha_hora_fin": s.fecha_hora_fin.isoformat() if s.fecha_hora_fin else None,
+            "ocupado": s.ocupado,
+            "partido_id": s.partido_id
+        })
+    
+    return resultado
+
+
+@router.post("/{torneo_id}/programar-partidos")
+def programar_partidos_automatico(
+    torneo_id: int,
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(get_current_user)
+):
+    """
+    Programa automáticamente todos los partidos pendientes en los slots disponibles
+    
+    Considera:
+    - Disponibilidad de slots
+    - Bloqueos horarios de jugadores
+    - Que una pareja no juegue dos partidos seguidos
+    """
+    from ..models.torneo_models import TorneoSlot, TorneoCancha, TorneoBloqueoJugador, TorneoPareja
+    from ..models.playt_models import Partido
+    from ..services.torneo_zona_service import TorneoZonaService
+    from datetime import datetime, timedelta
+    
+    try:
+        if not TorneoZonaService._es_organizador(db, torneo_id, current_user.id_usuario):
+            raise HTTPException(status_code=403, detail="No tienes permisos")
+        
+        # Obtener partidos pendientes sin programar
+        partidos = db.query(Partido).filter(
+            Partido.id_torneo == torneo_id,
+            Partido.estado == 'pendiente',
+            Partido.cancha_id == None
+        ).all()
+        
+        if not partidos:
+            return {"message": "No hay partidos pendientes para programar", "programados": 0}
+        
+        # Obtener slots disponibles ordenados por fecha
+        slots = db.query(TorneoSlot).filter(
+            TorneoSlot.torneo_id == torneo_id,
+            TorneoSlot.ocupado == False
+        ).order_by(TorneoSlot.fecha_hora_inicio).all()
+        
+        if not slots:
+            raise HTTPException(status_code=400, detail="No hay slots disponibles. Crea slots primero.")
+        
+        # Obtener bloqueos de jugadores
+        bloqueos = db.query(TorneoBloqueoJugador).filter(
+            TorneoBloqueoJugador.torneo_id == torneo_id
+        ).all()
+        
+        # Crear diccionario de bloqueos por jugador
+        bloqueos_por_jugador = {}
+        for b in bloqueos:
+            if b.jugador_id not in bloqueos_por_jugador:
+                bloqueos_por_jugador[b.jugador_id] = []
+            bloqueos_por_jugador[b.jugador_id].append({
+                "fecha": b.fecha,
+                "hora_desde": b.hora_desde,
+                "hora_hasta": b.hora_hasta
+            })
+        
+        # Tracking de último partido por pareja (para evitar partidos seguidos)
+        ultimo_partido_pareja = {}
+        
+        partidos_programados = 0
+        partidos_no_programados = []
+        
+        for partido in partidos:
+            programado = False
+            
+            for slot in slots:
+                if slot.ocupado:
+                    continue
+                
+                # Verificar que las parejas no tengan bloqueo en ese horario
+                pareja1 = db.query(TorneoPareja).filter(TorneoPareja.id == partido.pareja1_id).first()
+                pareja2 = db.query(TorneoPareja).filter(TorneoPareja.id == partido.pareja2_id).first()
+                
+                if not pareja1 or not pareja2:
+                    continue
+                
+                # Verificar bloqueos de los 4 jugadores
+                jugadores = [pareja1.jugador1_id, pareja1.jugador2_id, pareja2.jugador1_id, pareja2.jugador2_id]
+                tiene_bloqueo = False
+                
+                for jugador_id in jugadores:
+                    if _jugador_tiene_bloqueo(bloqueos_por_jugador, jugador_id, slot):
+                        tiene_bloqueo = True
+                        break
+                
+                if tiene_bloqueo:
+                    continue
+                
+                # Verificar que ninguna pareja jugó en el slot anterior
+                slot_inicio = slot.fecha_hora_inicio
+                for pareja_id in [partido.pareja1_id, partido.pareja2_id]:
+                    if pareja_id in ultimo_partido_pareja:
+                        ultimo_fin = ultimo_partido_pareja[pareja_id]
+                        # Dar al menos 30 minutos de descanso
+                        if slot_inicio < ultimo_fin + timedelta(minutes=30):
+                            tiene_bloqueo = True
+                            break
+                
+                if tiene_bloqueo:
+                    continue
+                
+                # Asignar slot al partido
+                partido.cancha_id = slot.cancha_id
+                partido.fecha_hora = slot.fecha_hora_inicio
+                slot.ocupado = True
+                slot.partido_id = partido.id_partido
+                
+                # Actualizar tracking
+                ultimo_partido_pareja[partido.pareja1_id] = slot.fecha_hora_fin
+                ultimo_partido_pareja[partido.pareja2_id] = slot.fecha_hora_fin
+                
+                partidos_programados += 1
+                programado = True
+                break
+            
+            if not programado:
+                partidos_no_programados.append(partido.id_partido)
+        
+        db.commit()
+        
+        return {
+            "message": f"Se programaron {partidos_programados} partidos",
+            "programados": partidos_programados,
+            "sin_programar": len(partidos_no_programados),
+            "partidos_sin_slot": partidos_no_programados[:10]  # Mostrar solo los primeros 10
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+def _jugador_tiene_bloqueo(bloqueos_por_jugador, jugador_id, slot):
+    """Verifica si un jugador tiene bloqueo en el horario del slot"""
+    from datetime import datetime, time
+    
+    if jugador_id not in bloqueos_por_jugador:
+        return False
+    
+    slot_fecha = slot.fecha_hora_inicio.date()
+    slot_hora_inicio = slot.fecha_hora_inicio.time()
+    slot_hora_fin = slot.fecha_hora_fin.time()
+    
+    for bloqueo in bloqueos_por_jugador[jugador_id]:
+        if bloqueo["fecha"] != slot_fecha:
+            continue
+        
+        # Parsear horas del bloqueo
+        def parse_time(t):
+            if isinstance(t, time):
+                return t
+            parts = t.split(":")
+            return time(int(parts[0]), int(parts[1]))
+        
+        bloqueo_desde = parse_time(bloqueo["hora_desde"])
+        bloqueo_hasta = parse_time(bloqueo["hora_hasta"])
+        
+        # Verificar solapamiento
+        if not (slot_hora_fin <= bloqueo_desde or slot_hora_inicio >= bloqueo_hasta):
+            return True
+    
+    return False
+
+
+@router.post("/{torneo_id}/partidos/{partido_id}/reprogramar")
+def reprogramar_partido(
+    torneo_id: int,
+    partido_id: int,
+    slot_id: int,
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(get_current_user)
+):
+    """
+    Reprograma un partido a un slot específico
+    """
+    from ..models.torneo_models import TorneoSlot
+    from ..models.playt_models import Partido
+    from ..services.torneo_zona_service import TorneoZonaService
+    
+    try:
+        if not TorneoZonaService._es_organizador(db, torneo_id, current_user.id_usuario):
+            raise HTTPException(status_code=403, detail="No tienes permisos")
+        
+        partido = db.query(Partido).filter(
+            Partido.id_partido == partido_id,
+            Partido.id_torneo == torneo_id
+        ).first()
+        
+        if not partido:
+            raise HTTPException(status_code=404, detail="Partido no encontrado")
+        
+        nuevo_slot = db.query(TorneoSlot).filter(
+            TorneoSlot.id == slot_id,
+            TorneoSlot.torneo_id == torneo_id
+        ).first()
+        
+        if not nuevo_slot:
+            raise HTTPException(status_code=404, detail="Slot no encontrado")
+        
+        if nuevo_slot.ocupado and nuevo_slot.partido_id != partido_id:
+            raise HTTPException(status_code=400, detail="El slot ya está ocupado")
+        
+        # Liberar slot anterior si existe
+        if partido.cancha_id:
+            slot_anterior = db.query(TorneoSlot).filter(
+                TorneoSlot.partido_id == partido_id
+            ).first()
+            if slot_anterior:
+                slot_anterior.ocupado = False
+                slot_anterior.partido_id = None
+        
+        # Asignar nuevo slot
+        partido.cancha_id = nuevo_slot.cancha_id
+        partido.fecha_hora = nuevo_slot.fecha_hora_inicio
+        nuevo_slot.ocupado = True
+        nuevo_slot.partido_id = partido_id
+        
+        db.commit()
+        
+        return {
+            "message": "Partido reprogramado",
+            "partido_id": partido_id,
+            "nueva_fecha": nuevo_slot.fecha_hora_inicio.isoformat(),
+            "cancha_id": nuevo_slot.cancha_id
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/{torneo_id}/bloqueos")
+def crear_bloqueo_jugador(
+    torneo_id: int,
+    jugador_id: int,
+    fecha: str,
+    hora_desde: str,
+    hora_hasta: str,
+    motivo: Optional[str] = None,
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(get_current_user)
+):
+    """
+    Crea un bloqueo horario para un jugador
+    
+    Puede ser creado por el propio jugador o por un organizador
+    """
+    from ..models.torneo_models import TorneoBloqueoJugador, TorneoPareja
+    from ..services.torneo_zona_service import TorneoZonaService
+    from datetime import datetime
+    
+    try:
+        # Verificar que el usuario es el jugador o es organizador
+        es_organizador = TorneoZonaService._es_organizador(db, torneo_id, current_user.id_usuario)
+        es_jugador = current_user.id_usuario == jugador_id
+        
+        if not es_organizador and not es_jugador:
+            raise HTTPException(status_code=403, detail="No tienes permisos")
+        
+        # Verificar que el jugador está inscrito en el torneo
+        pareja = db.query(TorneoPareja).filter(
+            TorneoPareja.torneo_id == torneo_id,
+            (TorneoPareja.jugador1_id == jugador_id) | (TorneoPareja.jugador2_id == jugador_id)
+        ).first()
+        
+        if not pareja:
+            raise HTTPException(status_code=400, detail="El jugador no está inscrito en este torneo")
+        
+        fecha_dt = datetime.strptime(fecha, "%Y-%m-%d").date()
+        
+        bloqueo = TorneoBloqueoJugador(
+            torneo_id=torneo_id,
+            jugador_id=jugador_id,
+            fecha=fecha_dt,
+            hora_desde=hora_desde,
+            hora_hasta=hora_hasta,
+            motivo=motivo
+        )
+        db.add(bloqueo)
+        db.commit()
+        db.refresh(bloqueo)
+        
+        return {
+            "id": bloqueo.id,
+            "jugador_id": bloqueo.jugador_id,
+            "fecha": fecha,
+            "hora_desde": hora_desde,
+            "hora_hasta": hora_hasta,
+            "motivo": motivo
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/{torneo_id}/bloqueos")
+def listar_bloqueos(
+    torneo_id: int,
+    jugador_id: Optional[int] = None,
+    db: Session = Depends(get_db)
+):
+    """Lista bloqueos horarios del torneo"""
+    from ..models.torneo_models import TorneoBloqueoJugador
+    
+    query = db.query(TorneoBloqueoJugador).filter(
+        TorneoBloqueoJugador.torneo_id == torneo_id
+    )
+    
+    if jugador_id:
+        query = query.filter(TorneoBloqueoJugador.jugador_id == jugador_id)
+    
+    bloqueos = query.order_by(TorneoBloqueoJugador.fecha, TorneoBloqueoJugador.hora_desde).all()
+    
+    return [
+        {
+            "id": b.id,
+            "jugador_id": b.jugador_id,
+            "fecha": b.fecha.isoformat() if b.fecha else None,
+            "hora_desde": b.hora_desde,
+            "hora_hasta": b.hora_hasta,
+            "motivo": b.motivo
+        }
+        for b in bloqueos
+    ]
+
+
+@router.delete("/{torneo_id}/bloqueos/{bloqueo_id}")
+def eliminar_bloqueo(
+    torneo_id: int,
+    bloqueo_id: int,
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(get_current_user)
+):
+    """Elimina un bloqueo horario"""
+    from ..models.torneo_models import TorneoBloqueoJugador
+    from ..services.torneo_zona_service import TorneoZonaService
+    
+    bloqueo = db.query(TorneoBloqueoJugador).filter(
+        TorneoBloqueoJugador.id == bloqueo_id,
+        TorneoBloqueoJugador.torneo_id == torneo_id
+    ).first()
+    
+    if not bloqueo:
+        raise HTTPException(status_code=404, detail="Bloqueo no encontrado")
+    
+    # Verificar permisos
+    es_organizador = TorneoZonaService._es_organizador(db, torneo_id, current_user.id_usuario)
+    es_jugador = current_user.id_usuario == bloqueo.jugador_id
+    
+    if not es_organizador and not es_jugador:
+        raise HTTPException(status_code=403, detail="No tienes permisos")
+    
+    db.delete(bloqueo)
+    db.commit()
+    
+    return {"message": "Bloqueo eliminado"}

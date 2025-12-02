@@ -22,9 +22,7 @@ const SalasContext = createContext<SalasContextType | undefined>(undefined);
 
 // Función para convertir SalaCompleta del backend a Sala del frontend
 function convertirSalaBackendAFrontend(salaBackend: SalaCompleta): Sala {
-  console.log('🔍 Convirtiendo sala:', salaBackend);
   const jugadores = salaBackend.jugadores || [];
-  console.log('👥 Jugadores:', jugadores);
   
   // Separar jugadores por equipo (solo si tienen equipo asignado)
   const equipoA = jugadores.filter(j => j.equipo === 1);
@@ -38,20 +36,20 @@ function convertirSalaBackendAFrontend(salaBackend: SalaCompleta): Sala {
     estado: salaBackend.estado as any,
     codigoInvitacion: salaBackend.codigo_invitacion,
     jugadores: jugadores.map(j => ({
-      id: (j.id || j.id_usuario)?.toString() || '',
+      id: j.id_usuario?.toString() || '',
       nombre: j.nombre || j.nombre_usuario || `${j.nombre} ${j.apellido}`.trim() || 'Usuario',
       rating: j.rating || 1500,
-      esCreador: j.esCreador || (j.id_usuario === salaBackend.id_creador) || (j.id === salaBackend.id_creador?.toString())
+      esCreador: j.id_usuario === salaBackend.id_creador
     })),
     equiposAsignados: hayEquiposAsignados,
     equipoA: {
       jugador1: equipoA[0] ? {
-        id: (equipoA[0].id || equipoA[0].id_usuario)?.toString() || '',
+        id: equipoA[0].id_usuario?.toString() || '',
         nombre: equipoA[0].nombre || equipoA[0].nombre_usuario || `${equipoA[0].nombre} ${equipoA[0].apellido}` || 'Usuario',
         rating: equipoA[0].rating || 1500
       } : { id: '', nombre: '' },
       jugador2: equipoA[1] ? {
-        id: (equipoA[1].id || equipoA[1].id_usuario)?.toString() || '',
+        id: equipoA[1].id_usuario?.toString() || '',
         nombre: equipoA[1].nombre || equipoA[1].nombre_usuario || `${equipoA[1].nombre} ${equipoA[1].apellido}` || 'Usuario',
         rating: equipoA[1].rating || 1500
       } : { id: '', nombre: '' },
@@ -60,12 +58,12 @@ function convertirSalaBackendAFrontend(salaBackend: SalaCompleta): Sala {
     },
     equipoB: {
       jugador1: equipoB[0] ? {
-        id: (equipoB[0].id || equipoB[0].id_usuario)?.toString() || '',
+        id: equipoB[0].id_usuario?.toString() || '',
         nombre: equipoB[0].nombre || equipoB[0].nombre_usuario || `${equipoB[0].nombre} ${equipoB[0].apellido}` || 'Usuario',
         rating: equipoB[0].rating || 1500
       } : { id: '', nombre: '' },
       jugador2: equipoB[1] ? {
-        id: (equipoB[1].id || equipoB[1].id_usuario)?.toString() || '',
+        id: equipoB[1].id_usuario?.toString() || '',
         nombre: equipoB[1].nombre || equipoB[1].nombre_usuario || `${equipoB[1].nombre} ${equipoB[1].apellido}` || 'Usuario',
         rating: equipoB[1].rating || 1500
       } : { id: '', nombre: '' },
@@ -177,7 +175,7 @@ export function SalasProvider({ children }: { children: ReactNode }) {
   const confirmarResultado = async (id: string, equipo: 'equipoA' | 'equipoB', jugadorId: string) => {
     try {
       // Llamar al backend para confirmar
-      await salaService.confirmarResultado(id);
+      await salaService.confirmarResultado(parseInt(id));
       
       // Actualizar estado local
       setSalas(prev => prev.map(sala => {
@@ -225,7 +223,7 @@ export function SalasProvider({ children }: { children: ReactNode }) {
 
   const getSalasPendientesConfirmacion = (jugadorId: string) => {
     return salas.filter(sala => {
-      // Solo salas con resultado pendiente de confirmación
+      // Solo salas con estado pendiente_confirmacion
       if (sala.estadoConfirmacion !== 'pendiente_confirmacion') return false;
       
       // Verificar si el jugador está en la sala
@@ -235,8 +233,18 @@ export function SalasProvider({ children }: { children: ReactNode }) {
       // Verificar que no sea el creador (el creador no confirma su propio resultado)
       if (sala.creador_id?.toString() === jugadorId) return false;
       
-      // TODO: Verificar si ya confirmó consultando al backend
-      // Por ahora, si cumple las condiciones anteriores, se considera pendiente
+      // Verificar si el equipo del jugador ya confirmó
+      const jugador = sala.jugadores?.find(j => j.id === jugadorId);
+      if (jugador) {
+        // Determinar en qué equipo está el jugador
+        const enEquipoA = sala.equipoA?.jugador1?.id === jugadorId || sala.equipoA?.jugador2?.id === jugadorId;
+        const enEquipoB = sala.equipoB?.jugador1?.id === jugadorId || sala.equipoB?.jugador2?.id === jugadorId;
+        
+        // Si su equipo ya confirmó, no mostrar como pendiente
+        if (enEquipoA && sala.equipoA?.confirmado) return false;
+        if (enEquipoB && sala.equipoB?.confirmado) return false;
+      }
+      
       return true;
     });
   };

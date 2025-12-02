@@ -42,7 +42,9 @@ const PageLoader = () => (
 // El usuario decide cuándo entrar a la app
 
 function App() {
-  const basename = import.meta.env.PROD ? '/PlayR' : '/';
+  // En producción (kioskito.click) no necesitamos basename
+  // Solo usar basename si está en un subdirectorio
+  const basename = '/';
   
   return (
     <ErrorBoundary>

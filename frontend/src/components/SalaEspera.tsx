@@ -62,6 +62,8 @@ export default function SalaEspera({ isOpen, onClose, sala, onIniciarPartido }: 
     }
   };
 
+  const [mensajeExito, setMensajeExito] = useState<string | null>(null);
+
   const handleAsignarEquipos = async (equipos: { [key: string]: number }) => {
     if (!esCreador) return;
 
@@ -70,16 +72,16 @@ export default function SalaEspera({ isOpen, onClose, sala, onIniciarPartido }: 
       await salaService.asignarEquipos(parseInt(sala.id), equipos);
       setMostrarAsignacion(false);
       
-      // Recargar solo esta sala específica en lugar de todas
-      const salaActualizada = await salaService.obtenerSala(parseInt(sala.id));
+      // Mostrar mensaje de éxito
+      setMensajeExito('¡Equipos asignados correctamente!');
       
-      // Actualizar la sala en el contexto sin recargar todas
-      if (onClose) {
-        onClose(); // Cerrar el modal
-      }
+      // Recargar salas para actualizar la vista
+      await cargarSalas();
       
-      // Recargar todas las salas en segundo plano (sin bloquear la UI)
-      cargarSalas().catch(err => console.error('Error al recargar salas:', err));
+      // Ocultar mensaje después de 2 segundos
+      setTimeout(() => {
+        setMensajeExito(null);
+      }, 2000);
     } catch (error: any) {
       console.error('Error al asignar equipos:', error);
       alert(error.message || 'Error al asignar equipos');
@@ -92,10 +94,17 @@ export default function SalaEspera({ isOpen, onClose, sala, onIniciarPartido }: 
     if (!esCreador || !puedeIniciar) return;
 
     try {
+      setMensajeExito('Iniciando partido...');
       const resultado = await salaService.iniciarPartido(parseInt(sala.id));
-      console.log('Partido iniciado:', resultado);
-      await cargarSalas();
+      
+      // Mostrar éxito y abrir marcador inmediatamente
+      setMensajeExito('¡Partido iniciado!');
+      
+      // Abrir marcador sin esperar a que se recarguen las salas
       onIniciarPartido();
+      
+      // Recargar salas en segundo plano
+      cargarSalas().catch(err => console.error('Error al recargar:', err));
     } catch (error: any) {
       console.error('Error completo al iniciar partido:', error);
       
@@ -150,6 +159,17 @@ export default function SalaEspera({ isOpen, onClose, sala, onIniciarPartido }: 
             <X size={20} className="md:w-6 md:h-6" />
           </motion.button>
         </div>
+
+        {/* Mensaje de éxito */}
+        {mensajeExito && (
+          <motion.div
+            initial={{ opacity: 0, y: -10 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="bg-green-500/10 border border-green-500/30 rounded-xl p-3 mb-4 text-center"
+          >
+            <p className="text-green-500 font-bold text-sm">✓ {mensajeExito}</p>
+          </motion.div>
+        )}
 
         {/* Código de invitación - Solo visible para participantes */}
         {esParticipante ? (

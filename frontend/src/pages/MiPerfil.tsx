@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useAuth } from '../context/AuthContext';
-import { Trophy, MapPin, Calendar, ChevronDown, ChevronUp, Target, Hand } from 'lucide-react';
+import { Trophy, MapPin, Calendar, ChevronDown, ChevronUp, Target, Hand, TrendingUp, TrendingDown, Flame, Award, Zap } from 'lucide-react';
 import Button from '../components/Button';
 import { PartidoCardSkeleton } from '../components/SkeletonLoader';
 import axios from 'axios';
@@ -188,13 +188,131 @@ export default function MiPerfil() {
   const partidosMostrados = mostrarTodos ? partidosFiltrados : partidosFiltrados.slice(0, 10);
 
   // Contar totales por tipo
-  const totalPartidos = partidos.filter(p => p.resultado).length;
+  const totalPartidos = partidos.filter(p => p.resultado || p.historial_rating).length;
   const partidosTorneos = partidos.filter(p => p.tipo === 'torneo').length;
-  const partidosAmistosos = partidos.filter(p => p.tipo === 'amistoso').length;
+  const partidosAmistosos = partidos.filter(p => p.tipo === 'amistoso' || !p.tipo).length;
   
-  const victorias = partidos.filter(p => p.resultado && esVictoria(p)).length;
+  const victorias = partidos.filter(p => (p.resultado || p.historial_rating) && esVictoria(p)).length;
   const derrotas = totalPartidos - victorias;
   const winrate = totalPartidos > 0 ? Math.round((victorias / totalPartidos) * 100) : 0;
+
+  // Estadísticas avanzadas
+  const calcularEstadisticasAvanzadas = () => {
+    // Victorias/Derrotas por tipo
+    const torneos = partidos.filter(p => p.tipo === 'torneo');
+    const amistosos = partidos.filter(p => p.tipo === 'amistoso' || !p.tipo);
+    
+    const victoriasTorneos = torneos.filter(p => (p.resultado || p.historial_rating) && esVictoria(p)).length;
+    const victoriaAmistosos = amistosos.filter(p => (p.resultado || p.historial_rating) && esVictoria(p)).length;
+    
+    const winrateTorneos = torneos.length > 0 ? Math.round((victoriasTorneos / torneos.length) * 100) : 0;
+    const winrateAmistosos = amistosos.length > 0 ? Math.round((victoriaAmistosos / amistosos.length) * 100) : 0;
+
+    // Racha actual
+    let rachaActual = 0;
+    let rachaVictorias = true;
+    const partidosOrdenados = [...partidos].sort((a, b) => 
+      new Date(b.fecha).getTime() - new Date(a.fecha).getTime()
+    );
+    
+    for (const partido of partidosOrdenados) {
+      if (!partido.resultado && !partido.historial_rating) continue;
+      const victoria = esVictoria(partido);
+      if (rachaActual === 0) {
+        rachaVictorias = victoria;
+        rachaActual = 1;
+      } else if (victoria === rachaVictorias) {
+        rachaActual++;
+      } else {
+        break;
+      }
+    }
+
+    // Mejor racha de victorias
+    let mejorRacha = 0;
+    let rachaTemp = 0;
+    for (const partido of partidosOrdenados.reverse()) {
+      if (!partido.resultado && !partido.historial_rating) continue;
+      if (esVictoria(partido)) {
+        rachaTemp++;
+        mejorRacha = Math.max(mejorRacha, rachaTemp);
+      } else {
+        rachaTemp = 0;
+      }
+    }
+
+    // Cambio de rating total
+    const cambioRatingTotal = partidos.reduce((acc, p) => {
+      return acc + (p.historial_rating?.delta || 0);
+    }, 0);
+
+    // Rating máximo y mínimo alcanzado
+    let ratingMax = usuario?.rating || 1200;
+    let ratingMin = usuario?.rating || 1200;
+    let ratingActual = usuario?.rating || 1200;
+    
+    // Reconstruir historial de rating
+    for (const partido of partidosOrdenados.reverse()) {
+      if (partido.historial_rating) {
+        ratingActual = partido.historial_rating.rating_despues;
+        ratingMax = Math.max(ratingMax, ratingActual);
+        ratingMin = Math.min(ratingMin, ratingActual);
+      }
+    }
+
+    // Sets ganados/perdidos
+    let setsGanados = 0;
+    let setsPerdidos = 0;
+    let gamesGanados = 0;
+    let gamesPerdidos = 0;
+
+    for (const partido of partidos) {
+      if (!partido.resultado) continue;
+      const miEquipo = partido.jugadores.find(j => j.id_usuario === usuario?.id_usuario)?.equipo;
+      
+      if (miEquipo === 1) {
+        setsGanados += partido.resultado.sets_eq1;
+        setsPerdidos += partido.resultado.sets_eq2;
+      } else {
+        setsGanados += partido.resultado.sets_eq2;
+        setsPerdidos += partido.resultado.sets_eq1;
+      }
+
+      // Games
+      if (partido.resultado.detalle_sets) {
+        for (const set of partido.resultado.detalle_sets) {
+          if (miEquipo === 1) {
+            gamesGanados += set.juegos_eq1;
+            gamesPerdidos += set.juegos_eq2;
+          } else {
+            gamesGanados += set.juegos_eq2;
+            gamesPerdidos += set.juegos_eq1;
+          }
+        }
+      }
+    }
+
+    return {
+      winrateTorneos,
+      winrateAmistosos,
+      victoriasTorneos,
+      victoriaAmistosos,
+      derrotasTorneos: torneos.length - victoriasTorneos,
+      derrotasAmistosos: amistosos.length - victoriaAmistosos,
+      rachaActual,
+      rachaVictorias,
+      mejorRacha,
+      cambioRatingTotal,
+      ratingMax,
+      ratingMin,
+      setsGanados,
+      setsPerdidos,
+      gamesGanados,
+      gamesPerdidos
+    };
+  };
+
+  const stats = calcularEstadisticasAvanzadas();
 
   return (
     <div className="min-h-screen p-4 md:p-6">
@@ -299,8 +417,124 @@ export default function MiPerfil() {
               </div>
 
               <div className="mt-2 bg-accent/20 rounded-lg p-2 text-center">
-                <p className="text-[9px] md:text-xs text-textSecondary mb-0.5">Winrate</p>
+                <p className="text-[9px] md:text-xs text-textSecondary mb-0.5">Winrate General</p>
                 <p className="text-2xl md:text-3xl font-black text-accent">{winrate}%</p>
+              </div>
+            </motion.div>
+
+            {/* Card de Estadísticas Avanzadas */}
+            <motion.div
+              initial={{ opacity: 0, x: -20 }}
+              animate={{ opacity: 1, x: 0 }}
+              transition={{ delay: 0.3 }}
+              className="bg-cardBg rounded-xl p-3 md:p-6 border border-cardBorder"
+            >
+              <h3 className="text-sm md:text-lg font-bold text-textPrimary mb-3 md:mb-4 flex items-center gap-2">
+                <Zap size={16} className="text-accent" />
+                Estadísticas Avanzadas
+              </h3>
+              
+              {/* Winrate por tipo */}
+              <div className="space-y-3 mb-4">
+                <div>
+                  <div className="flex justify-between items-center mb-1">
+                    <span className="text-[10px] md:text-xs text-textSecondary flex items-center gap-1">
+                      <Award size={12} className="text-accent" />
+                      Torneos
+                    </span>
+                    <span className="text-[10px] md:text-xs font-bold text-accent">{stats.winrateTorneos}%</span>
+                  </div>
+                  <div className="h-2 bg-cardBorder rounded-full overflow-hidden">
+                    <div 
+                      className="h-full bg-gradient-to-r from-accent to-accent/60 rounded-full transition-all duration-500"
+                      style={{ width: `${stats.winrateTorneos}%` }}
+                    />
+                  </div>
+                  <p className="text-[9px] text-textSecondary mt-0.5">{stats.victoriasTorneos}V - {stats.derrotasTorneos}D</p>
+                </div>
+
+                <div>
+                  <div className="flex justify-between items-center mb-1">
+                    <span className="text-[10px] md:text-xs text-textSecondary flex items-center gap-1">
+                      <Target size={12} className="text-primary" />
+                      Amistosos
+                    </span>
+                    <span className="text-[10px] md:text-xs font-bold text-primary">{stats.winrateAmistosos}%</span>
+                  </div>
+                  <div className="h-2 bg-cardBorder rounded-full overflow-hidden">
+                    <div 
+                      className="h-full bg-gradient-to-r from-primary to-primary/60 rounded-full transition-all duration-500"
+                      style={{ width: `${stats.winrateAmistosos}%` }}
+                    />
+                  </div>
+                  <p className="text-[9px] text-textSecondary mt-0.5">{stats.victoriaAmistosos}V - {stats.derrotasAmistosos}D</p>
+                </div>
+              </div>
+
+              {/* Racha y Rating */}
+              <div className="grid grid-cols-2 gap-2 mb-3">
+                <div className={`rounded-lg p-2 text-center ${stats.rachaVictorias ? 'bg-green-500/20' : 'bg-red-500/20'}`}>
+                  <Flame size={14} className={`mx-auto mb-1 ${stats.rachaVictorias ? 'text-green-400' : 'text-red-400'}`} />
+                  <p className={`text-lg md:text-xl font-black ${stats.rachaVictorias ? 'text-green-400' : 'text-red-400'}`}>
+                    {stats.rachaActual}
+                  </p>
+                  <p className="text-[9px] md:text-xs text-textSecondary">
+                    Racha {stats.rachaVictorias ? 'Victorias' : 'Derrotas'}
+                  </p>
+                </div>
+                <div className="bg-yellow-500/20 rounded-lg p-2 text-center">
+                  <Trophy size={14} className="text-yellow-400 mx-auto mb-1" />
+                  <p className="text-lg md:text-xl font-black text-yellow-400">{stats.mejorRacha}</p>
+                  <p className="text-[9px] md:text-xs text-textSecondary">Mejor Racha</p>
+                </div>
+              </div>
+
+              {/* Rating histórico */}
+              <div className="grid grid-cols-3 gap-1.5 mb-3">
+                <div className="bg-cardBorder/30 rounded-lg p-1.5 text-center">
+                  <TrendingUp size={12} className="text-green-400 mx-auto mb-0.5" />
+                  <p className="text-sm md:text-base font-bold text-green-400">{stats.ratingMax}</p>
+                  <p className="text-[8px] md:text-[10px] text-textSecondary">Máximo</p>
+                </div>
+                <div className="bg-cardBorder/30 rounded-lg p-1.5 text-center">
+                  <TrendingDown size={12} className="text-red-400 mx-auto mb-0.5" />
+                  <p className="text-sm md:text-base font-bold text-red-400">{stats.ratingMin}</p>
+                  <p className="text-[8px] md:text-[10px] text-textSecondary">Mínimo</p>
+                </div>
+                <div className={`rounded-lg p-1.5 text-center ${stats.cambioRatingTotal >= 0 ? 'bg-green-500/10' : 'bg-red-500/10'}`}>
+                  {stats.cambioRatingTotal >= 0 ? (
+                    <TrendingUp size={12} className="text-green-400 mx-auto mb-0.5" />
+                  ) : (
+                    <TrendingDown size={12} className="text-red-400 mx-auto mb-0.5" />
+                  )}
+                  <p className={`text-sm md:text-base font-bold ${stats.cambioRatingTotal >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                    {stats.cambioRatingTotal >= 0 ? '+' : ''}{stats.cambioRatingTotal}
+                  </p>
+                  <p className="text-[8px] md:text-[10px] text-textSecondary">Cambio Total</p>
+                </div>
+              </div>
+
+              {/* Sets y Games */}
+              <div className="border-t border-cardBorder pt-3">
+                <p className="text-[10px] md:text-xs text-textSecondary mb-2">Rendimiento en Sets/Games</p>
+                <div className="grid grid-cols-2 gap-2">
+                  <div className="text-center">
+                    <p className="text-[9px] text-textSecondary">Sets</p>
+                    <p className="text-sm font-bold">
+                      <span className="text-green-400">{stats.setsGanados}</span>
+                      <span className="text-textSecondary mx-1">-</span>
+                      <span className="text-red-400">{stats.setsPerdidos}</span>
+                    </p>
+                  </div>
+                  <div className="text-center">
+                    <p className="text-[9px] text-textSecondary">Games</p>
+                    <p className="text-sm font-bold">
+                      <span className="text-green-400">{stats.gamesGanados}</span>
+                      <span className="text-textSecondary mx-1">-</span>
+                      <span className="text-red-400">{stats.gamesPerdidos}</span>
+                    </p>
+                  </div>
+                </div>
               </div>
             </motion.div>
           </div>

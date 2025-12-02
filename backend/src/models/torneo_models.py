@@ -78,10 +78,10 @@ class Torneo(Base):
     id = Column(BigInteger, primary_key=True, autoincrement=True)
     nombre = Column(String(255), nullable=False)
     descripcion = Column(Text)
-    tipo = Column(Enum(TipoTorneo), default=TipoTorneo.CLASICO)
+    tipo = Column(String(20), default="clasico")  # Cambiado de Enum a String
     categoria = Column(String(50), nullable=False)
     genero = Column(String(20), default="masculino")  # masculino, femenino, mixto
-    estado = Column(Enum(EstadoTorneo), default=EstadoTorneo.INSCRIPCION)
+    estado = Column(String(30), default="inscripcion")  # Cambiado de Enum a String
     fecha_inicio = Column(Date, nullable=False)
     fecha_fin = Column(Date, nullable=False)
     lugar = Column(String(255))
@@ -110,7 +110,7 @@ class TorneoOrganizador(Base):
     id = Column(BigInteger, primary_key=True, autoincrement=True)
     torneo_id = Column(BigInteger, ForeignKey("torneos.id", ondelete="CASCADE"), nullable=False)
     user_id = Column(BigInteger, ForeignKey("usuarios.id_usuario", ondelete="CASCADE"), nullable=False)
-    rol = Column(Enum(RolOrganizador), default=RolOrganizador.COLABORADOR)
+    rol = Column(String(20), default="colaborador")  # Cambiado de Enum a String
     created_at = Column(DateTime, server_default=func.current_timestamp())
     
     # Relationships - Comentados temporalmente
@@ -125,7 +125,7 @@ class TorneoPareja(Base):
     torneo_id = Column(BigInteger, ForeignKey("torneos.id", ondelete="CASCADE"), nullable=False)
     jugador1_id = Column(BigInteger, ForeignKey("usuarios.id_usuario"), nullable=False)
     jugador2_id = Column(BigInteger, ForeignKey("usuarios.id_usuario"), nullable=False)
-    estado = Column(Enum(EstadoPareja), default=EstadoPareja.INSCRIPTA)
+    estado = Column(String(20), default="inscripta")  # Cambiado de Enum a String
     categoria_asignada = Column(String(50))
     observaciones = Column(Text)
     created_at = Column(DateTime, server_default=func.current_timestamp())

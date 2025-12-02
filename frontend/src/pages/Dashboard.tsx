@@ -1,49 +1,125 @@
 import { motion, useReducedMotion } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
+import { useState, useEffect, useMemo } from 'react';
 import Card from '../components/Card';
 import Button from '../components/Button';
 import { Trophy, Users, Calendar, Zap, Target, TrendingUp } from 'lucide-react';
 import { useSalas } from '../context/SalasContext';
 import { useTorneos } from '../context/TorneosContext';
+import { useAuth } from '../context/AuthContext';
 import { LineChart, Line, BarChart, Bar, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
+import axios from 'axios';
+
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+
+interface PartidoHistorial {
+  id_partido: number;
+  fecha: string;
+  tipo: string;
+  jugadores: { id_usuario: number; equipo: number; nombre: string; apellido: string }[];
+  resultado?: { sets_eq1: number; sets_eq2: number };
+  historial_rating?: { delta: number };
+}
 
 export default function Dashboard() {
   const { salas } = useSalas();
   const { torneos } = useTorneos();
+  const { usuario } = useAuth();
   const navigate = useNavigate();
   const shouldReduceMotion = useReducedMotion();
+  const [partidos, setPartidos] = useState<PartidoHistorial[]>([]);
 
-  const partidosJugados = salas.filter(s => s.estado === 'finalizada').length;
-  const proximosPartidos = salas.filter(s => s.estado === 'programada').length;
-  const partidosActivos = salas.filter(s => s.estado === 'activa').length;
-  const torneosActivos = torneos.filter(t => t.estado === 'activo').length;
+  // Cargar partidos del usuario
+  useEffect(() => {
+    const cargarPartidos = async () => {
+      if (!usuario?.id_usuario) return;
+      try {
+        const token = localStorage.getItem('token');
+        const response = await axios.get(
+          `${API_URL}/partidos/usuario/${usuario.id_usuario}`,
+          { headers: { Authorization: `Bearer ${token}` }, params: { limit: 100 } }
+        );
+        setPartidos(response.data);
+      } catch (error) {
+        console.error('Error cargando partidos:', error);
+      }
+    };
+    cargarPartidos();
+  }, [usuario]);
 
-  const ultimosPartidos = salas
-    .filter(s => s.estado === 'finalizada')
-    .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+  // Calcular estadísticas reales
+  const estadisticas = useMemo(() => {
+    const esVictoria = (p: PartidoHistorial) => {
+      if (p.historial_rating) return p.historial_rating.delta > 0;
+      if (!p.resultado) return false;
+      const miEquipo = p.jugadores.find(j => j.id_usuario === usuario?.id_usuario)?.equipo;
+      return miEquipo === 1 ? p.resultado.sets_eq1 > p.resultado.sets_eq2 : p.resultado.sets_eq2 > p.resultado.sets_eq1;
+    };
+
+    const partidosConResultado = partidos.filter(p => p.resultado || p.historial_rating);
+    const victorias = partidosConResultado.filter(esVictoria).length;
+    const derrotas = partidosConResultado.length - victorias;
+
+    // Actividad semanal (últimos 7 días)
+    const hoy = new Date();
+    const dias = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'];
+    const actividadSemanal = [];
+    
+    for (let i = 6; i >= 0; i--) {
+      const fecha = new Date(hoy);
+      fecha.setDate(hoy.getDate() - i);
+      const diaStr = dias[fecha.getDay()];
+      
+      const partidosDia = partidos.filter(p => {
+        const fechaPartido = new Date(p.fecha);
+        return fechaPartido.toDateString() === fecha.toDateString();
+      });
+      
+      const victoriasDia = partidosDia.filter(esVictoria).length;
+      
+      actividadSemanal.push({
+        dia: diaStr,
+        partidos: partidosDia.length,
+        victorias: victoriasDia
+      });
+    }
+
+    // Distribución por tipo
+    const torneoPartidos = partidos.filter(p => p.tipo === 'torneo');
+    const amistososPartidos = partidos.filter(p => p.tipo === 'amistoso' || !p.tipo);
+    
+    const victoriasTorneo = torneoPartidos.filter(esVictoria).length;
+    const victoriasAmistoso = amistososPartidos.filter(esVictoria).length;
+
+    const rendimientoPorTipo = [
+      { tipo: 'Torneos', partidos: torneoPartidos.length, victorias: victoriasTorneo },
+      { tipo: 'Amistosos', partidos: amistososPartidos.length, victorias: victoriasAmistoso },
+    ];
+
+    return { victorias, derrotas, actividadSemanal, rendimientoPorTipo, totalPartidos: partidosConResultado.length };
+  }, [partidos, usuario]);
+
+  const partidosJugados = estadisticas.totalPartidos;
+  const proximosPartidos = salas.filter(s => s.estado === 'programada' || s.estado === 'esperando').length;
+  const partidosActivos = salas.filter(s => s.estado === 'activa' || s.estado === 'en_juego').length;
+  const torneosActivos = torneos.filter(t => 
+    t.estado === 'activo' || t.estado === 'programado' || 
+    (t.estado as string) === 'inscripcion' || (t.estado as string) === 'fase_grupos' || (t.estado as string) === 'fase_eliminacion'
+  ).length;
+
+  // Últimos partidos desde el endpoint real
+  const ultimosPartidos = partidos
+    .filter(p => p.resultado || p.historial_rating)
+    .sort((a, b) => new Date(b.fecha).getTime() - new Date(a.fecha).getTime())
     .slice(0, 5);
 
-  // Datos para gráficos
-  const actividadSemanal = [
-    { dia: 'Lun', partidos: 3, victorias: 2 },
-    { dia: 'Mar', partidos: 5, victorias: 3 },
-    { dia: 'Mié', partidos: 2, victorias: 1 },
-    { dia: 'Jue', partidos: 4, victorias: 3 },
-    { dia: 'Vie', partidos: 6, victorias: 4 },
-    { dia: 'Sáb', partidos: 8, victorias: 5 },
-    { dia: 'Dom', partidos: 4, victorias: 2 },
-  ];
-
-  const rendimientoPorCategoria = [
-    { categoria: '8va', partidos: 5, victorias: 3 },
-    { categoria: '7ma', partidos: 8, victorias: 5 },
-    { categoria: '6ta', partidos: 12, victorias: 8 },
-    { categoria: '5ta', partidos: 6, victorias: 4 },
-  ];
+  // Datos para gráficos - ahora con datos reales
+  const actividadSemanal = estadisticas.actividadSemanal;
+  const rendimientoPorTipo = estadisticas.rendimientoPorTipo;
 
   const distribucionResultados = [
-    { name: 'Victorias', value: partidosJugados > 0 ? Math.floor(partidosJugados * 0.6) : 0, color: '#FF006E' },
-    { name: 'Derrotas', value: partidosJugados > 0 ? Math.floor(partidosJugados * 0.4) : 0, color: '#94A3B8' },
+    { name: 'Victorias', value: estadisticas.victorias, color: '#FF006E' },
+    { name: 'Derrotas', value: estadisticas.derrotas, color: '#94A3B8' },
   ];
 
   const stats = [
@@ -176,43 +252,70 @@ export default function Dashboard() {
             </motion.div>
           ) : (
             <div className="space-y-3">
-              {ultimosPartidos.map((sala, index) => (
-                <motion.div
-                  key={sala.id}
-                  initial={{ opacity: 0, x: -20 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  transition={{ delay: index * 0.1 }}
-                  whileHover={{ scale: 1.02, x: 5 }}
-                  className="bg-gradient-to-r from-background to-cardBg rounded-xl p-4 border border-cardBorder hover:border-primary/50 transition-all cursor-pointer group"
-                  onClick={() => navigate('/salas')}
-                >
-                  <div className="flex items-center justify-between mb-3">
-                    <p className="text-textPrimary font-bold group-hover:text-primary transition-colors">{sala.nombre}</p>
-                    <p className="text-textSecondary text-xs bg-cardBorder px-2 py-1 rounded-full">
-                      {new Date(sala.fecha).toLocaleDateString('es-ES', { day: 'numeric', month: 'short' })}
-                    </p>
-                  </div>
-                  <div className="flex items-center justify-between text-sm">
-                    <div className="flex items-center gap-2 flex-1">
-                      <span className={`${sala.ganador === 'equipoA' ? 'text-primary font-black' : 'text-textSecondary'} truncate`}>
-                        {sala.equipoA.jugador1.nombre} / {sala.equipoA.jugador2.nombre}
-                      </span>
-                      <span className={`${sala.ganador === 'equipoA' ? 'text-primary' : 'text-textPrimary'} font-bold text-lg`}>
-                        {sala.equipoA.puntos}
-                      </span>
+              {ultimosPartidos.map((partido, index) => {
+                const miEquipo = partido.jugadores.find(j => j.id_usuario === usuario?.id_usuario)?.equipo;
+                const equipoA = partido.jugadores.filter(j => j.equipo === 1);
+                const equipoB = partido.jugadores.filter(j => j.equipo === 2);
+                const setsA = partido.resultado?.sets_eq1 || 0;
+                const setsB = partido.resultado?.sets_eq2 || 0;
+                const esVictoria = partido.historial_rating ? partido.historial_rating.delta > 0 : 
+                  (miEquipo === 1 ? setsA > setsB : setsB > setsA);
+                const ganadorEquipo = setsA > setsB ? 1 : 2;
+
+                return (
+                  <motion.div
+                    key={partido.id_partido}
+                    initial={{ opacity: 0, x: -20 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    transition={{ delay: index * 0.1 }}
+                    whileHover={{ scale: 1.02, x: 5 }}
+                    className={`bg-gradient-to-r ${esVictoria ? 'from-green-500/10' : 'from-red-500/10'} to-cardBg rounded-xl p-4 border ${esVictoria ? 'border-green-500/30' : 'border-red-500/30'} hover:border-primary/50 transition-all cursor-pointer group`}
+                    onClick={() => navigate('/perfil')}
+                  >
+                    <div className="flex items-center justify-between mb-3">
+                      <div className="flex items-center gap-2">
+                        <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                          partido.tipo === 'torneo' ? 'bg-accent/20 text-accent' : 'bg-primary/20 text-primary'
+                        }`}>
+                          {partido.tipo === 'torneo' ? 'TORNEO' : 'AMISTOSO'}
+                        </span>
+                        {partido.historial_rating && (
+                          <span className={`text-sm font-bold ${esVictoria ? 'text-green-400' : 'text-red-400'}`}>
+                            {partido.historial_rating.delta > 0 ? '+' : ''}{partido.historial_rating.delta}
+                          </span>
+                        )}
+                      </div>
+                      <p className="text-textSecondary text-xs bg-cardBorder px-2 py-1 rounded-full">
+                        {new Date(partido.fecha).toLocaleDateString('es-ES', { day: 'numeric', month: 'short' })}
+                      </p>
                     </div>
-                    <span className="text-textSecondary mx-3 font-bold">VS</span>
-                    <div className="flex items-center gap-2 flex-1 justify-end">
-                      <span className={`${sala.ganador === 'equipoB' ? 'text-secondary' : 'text-textPrimary'} font-bold text-lg`}>
-                        {sala.equipoB.puntos}
-                      </span>
-                      <span className={`${sala.ganador === 'equipoB' ? 'text-secondary font-black' : 'text-textSecondary'} truncate text-right`}>
-                        {sala.equipoB.jugador1.nombre} / {sala.equipoB.jugador2.nombre}
-                      </span>
+                    <div className="grid grid-cols-7 items-center text-sm gap-2">
+                      {/* Equipo A - nombres */}
+                      <div className="col-span-2 text-left">
+                        <span className={`${ganadorEquipo === 1 ? 'text-green-400 font-black' : 'text-red-400'} truncate block`}>
+                          {equipoA.map(j => j.nombre || j.apellido).join(' / ') || 'Equipo A'}
+                        </span>
+                      </div>
+                      {/* Resultado centrado */}
+                      <div className="col-span-3 flex items-center justify-center gap-2">
+                        <span className={`${ganadorEquipo === 1 ? 'text-green-400' : 'text-red-400'} font-black text-2xl`}>
+                          {setsA}
+                        </span>
+                        <span className="text-textSecondary font-bold text-lg">-</span>
+                        <span className={`${ganadorEquipo === 2 ? 'text-green-400' : 'text-red-400'} font-black text-2xl`}>
+                          {setsB}
+                        </span>
+                      </div>
+                      {/* Equipo B - nombres */}
+                      <div className="col-span-2 text-right">
+                        <span className={`${ganadorEquipo === 2 ? 'text-green-400 font-black' : 'text-red-400'} truncate block`}>
+                          {equipoB.map(j => j.nombre || j.apellido).join(' / ') || 'Equipo B'}
+                        </span>
+                      </div>
                     </div>
-                  </div>
-                </motion.div>
-              ))}
+                  </motion.div>
+                );
+              })}
             </div>
           )}
         </Card>
@@ -313,16 +416,16 @@ export default function Dashboard() {
         </Card>
       </div>
 
-      {/* Gráfico de Rendimiento por Categoría */}
+      {/* Gráfico de Rendimiento por Tipo */}
       <Card gradient>
         <div className="flex items-center gap-2 mb-6">
           <Target className="text-accent" size={28} />
-          <h2 className="text-2xl font-bold text-textPrimary">Rendimiento por Categoría</h2>
+          <h2 className="text-2xl font-bold text-textPrimary">Rendimiento por Tipo de Partido</h2>
         </div>
         <ResponsiveContainer width="100%" height={300}>
-          <BarChart data={rendimientoPorCategoria}>
+          <BarChart data={rendimientoPorTipo}>
             <CartesianGrid strokeDasharray="3 3" stroke="#3A4558" />
-            <XAxis dataKey="categoria" stroke="#94A3B8" />
+            <XAxis dataKey="tipo" stroke="#94A3B8" />
             <YAxis stroke="#94A3B8" />
             <Tooltip 
               contentStyle={{ 

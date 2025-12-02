@@ -97,11 +97,19 @@ class SalaService {
   async unirseASala(codigo: string): Promise<SalaCompleta> {
     try {
       const headers = await this.getHeaders();
+      
+      // Timeout de 30 segundos
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 30000);
+      
       const response = await fetch(`${API_URL}/salas/unirse`, {
         method: 'POST',
         headers,
         body: JSON.stringify({ codigo_invitacion: codigo.toUpperCase() }),
+        signal: controller.signal,
       });
+
+      clearTimeout(timeoutId);
 
       if (!response.ok) {
         const error = await response.json();
@@ -109,10 +117,16 @@ class SalaService {
       }
 
       const data = await response.json();
-      logger.log('Unido a sala:', data);
       return data;
     } catch (error: any) {
       logger.error('Error al unirse a sala:', error);
+      // Mejorar mensaje de error para el usuario
+      if (error.name === 'AbortError') {
+        throw new Error('El servidor tardó demasiado en responder. Intenta de nuevo.');
+      }
+      if (error.message === 'Failed to fetch') {
+        throw new Error('No se pudo conectar al servidor. Verifica tu conexión.');
+      }
       throw new Error(error.message || 'Error al unirse a la sala');
     }
   }
@@ -193,11 +207,19 @@ class SalaService {
   async asignarEquipos(salaId: number, equipos: AsignarEquiposDTO): Promise<void> {
     try {
       const headers = await this.getHeaders();
+      
+      // Timeout de 30 segundos
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 30000);
+      
       const response = await fetch(`${API_URL}/salas/${salaId}/asignar-equipos`, {
         method: 'POST',
         headers,
         body: JSON.stringify(equipos),
+        signal: controller.signal,
       });
+
+      clearTimeout(timeoutId);
 
       if (!response.ok) {
         const error = await response.json();
@@ -215,14 +237,21 @@ class SalaService {
   async iniciarPartido(salaId: number): Promise<{ id_partido: number }> {
     try {
       const headers = await this.getHeaders();
+      
+      // Timeout de 30 segundos
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 30000);
+      
       const response = await fetch(`${API_URL}/salas/${salaId}/iniciar`, {
         method: 'POST',
         headers,
+        signal: controller.signal,
       });
+
+      clearTimeout(timeoutId);
 
       if (!response.ok) {
         const errorData = await response.json();
-        console.error('Error del servidor:', errorData);
         
         // Si el error tiene estructura compleja (anti-trampa)
         if (typeof errorData.detail === 'object') {
@@ -233,10 +262,15 @@ class SalaService {
       }
 
       const data = await response.json();
-      logger.log('Partido iniciado:', data);
       return data;
     } catch (error: any) {
       logger.error('Error al iniciar partido:', error);
+      if (error.name === 'AbortError') {
+        throw new Error('El servidor tardó demasiado. Intenta de nuevo.');
+      }
+      if (error.message === 'Failed to fetch') {
+        throw new Error('No se pudo conectar al servidor.');
+      }
       throw error;
     }
   }

@@ -6,19 +6,20 @@ import { useTorneos } from '../context/TorneosContext';
 import { useAuth } from '../context/AuthContext';
 import Card from '../components/Card';
 import Button from '../components/Button';
-import SkeletonLoader from '../components/SkeletonLoader';
+import { TorneoDetalleSkeleton } from '../components/SkeletonLoader';
 import ModalInscribirTorneo from '../components/ModalInscribirTorneo';
 import TorneoZonas from '../components/TorneoZonas';
 import TorneoFixture from '../components/TorneoFixture';
 import TorneoPlayoffs from '../components/TorneoPlayoffs';
 import TorneoParejas from '../components/TorneoParejas';
+import TorneoProgramacion from '../components/TorneoProgramacion';
 
 export default function TorneoDetalle() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { torneoActual, cargarTorneo, cargarParejas, parejas, loading } = useTorneos();
   const { usuario } = useAuth();
-  const [tab, setTab] = useState<'info' | 'parejas' | 'zonas' | 'partidos' | 'playoffs'>('info');
+  const [tab, setTab] = useState<'info' | 'parejas' | 'zonas' | 'partidos' | 'playoffs' | 'programacion'>('info');
   const [modalInscripcionOpen, setModalInscripcionOpen] = useState(false);
 
   useEffect(() => {
@@ -39,12 +40,7 @@ export default function TorneoDetalle() {
   }, []);
 
   if (loading && !torneoActual) {
-    return (
-      <div className="space-y-4">
-        <SkeletonLoader height="200px" />
-        <SkeletonLoader height="400px" />
-      </div>
-    );
+    return <TorneoDetalleSkeleton />;
   }
 
   if (!torneoActual) {
@@ -238,6 +234,19 @@ export default function TorneoDetalle() {
           <Trophy size={16} />
           Playoffs
         </button>
+        {esOrganizador && (
+          <button
+            onClick={() => setTab('programacion')}
+            className={`px-4 py-2 font-bold transition-colors whitespace-nowrap flex items-center gap-2 ${
+              tab === 'programacion'
+                ? 'text-primary border-b-2 border-primary'
+                : 'text-textSecondary hover:text-textPrimary'
+            }`}
+          >
+            <Settings size={16} />
+            Programación
+          </button>
+        )}
       </div>
 
       {/* Contenido de tabs */}
@@ -273,6 +282,10 @@ export default function TorneoDetalle() {
 
       {tab === 'playoffs' && (
         <TorneoPlayoffs torneoId={parseInt(id!)} esOrganizador={esOrganizador} />
+      )}
+
+      {tab === 'programacion' && esOrganizador && (
+        <TorneoProgramacion torneoId={parseInt(id!)} esOrganizador={esOrganizador} />
       )}
 
       {/* Modal de Inscripción */}

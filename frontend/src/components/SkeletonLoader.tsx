@@ -117,3 +117,142 @@ export function RankingItemSkeleton() {
     </div>
   );
 }
+
+
+// Skeleton para tarjeta de torneo
+export function TorneoCardSkeleton() {
+  return (
+    <div className="bg-card rounded-xl p-4 border border-cardBorder">
+      <div className="flex items-center gap-3 mb-3">
+        <SkeletonLoader variant="circular" width="48px" height="48px" />
+        <div className="flex-1 space-y-2">
+          <SkeletonLoader variant="text" width="70%" height="20px" />
+          <SkeletonLoader variant="text" width="40%" height="16px" />
+        </div>
+      </div>
+      <div className="flex gap-2 mb-3">
+        <SkeletonLoader variant="rectangular" width="80px" height="24px" />
+        <SkeletonLoader variant="rectangular" width="100px" height="24px" />
+      </div>
+      <div className="grid grid-cols-3 gap-2">
+        <SkeletonLoader variant="rectangular" height="50px" />
+        <SkeletonLoader variant="rectangular" height="50px" />
+        <SkeletonLoader variant="rectangular" height="50px" />
+      </div>
+    </div>
+  );
+}
+
+// Skeleton para lista de parejas de torneo
+export function TorneoParejaSkeleton() {
+  return (
+    <div className="flex items-center gap-3 p-3 bg-background rounded-lg border border-cardBorder">
+      <SkeletonLoader variant="text" width="30px" height="24px" />
+      <div className="flex-1 space-y-1">
+        <SkeletonLoader variant="text" width="80%" height="18px" />
+        <SkeletonLoader variant="text" width="50%" height="14px" />
+      </div>
+      <SkeletonLoader variant="rectangular" width="70px" height="28px" />
+    </div>
+  );
+}
+
+// Skeleton para zona de torneo
+export function TorneoZonaSkeleton() {
+  return (
+    <div className="bg-card rounded-xl p-4 border border-cardBorder">
+      <SkeletonLoader variant="text" width="120px" height="24px" className="mb-4" />
+      <div className="space-y-2">
+        <TorneoParejaSkeleton />
+        <TorneoParejaSkeleton />
+        <TorneoParejaSkeleton />
+      </div>
+    </div>
+  );
+}
+
+// Skeleton para fixture de torneo
+export function TorneoFixtureSkeleton() {
+  return (
+    <div className="space-y-3">
+      {[1, 2, 3].map((i) => (
+        <div key={i} className="bg-card rounded-xl p-4 border border-cardBorder">
+          <div className="flex items-center justify-between mb-3">
+            <SkeletonLoader variant="text" width="100px" height="20px" />
+            <SkeletonLoader variant="rectangular" width="80px" height="24px" />
+          </div>
+          <div className="flex items-center justify-between">
+            <div className="flex-1 space-y-1">
+              <SkeletonLoader variant="text" width="70%" height="16px" />
+            </div>
+            <SkeletonLoader variant="text" width="50px" height="24px" />
+            <div className="flex-1 space-y-1 text-right">
+              <SkeletonLoader variant="text" width="70%" height="16px" className="ml-auto" />
+            </div>
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+// Skeleton para bracket de playoffs
+export function TorneoPlayoffsSkeleton() {
+  return (
+    <div className="bg-card rounded-xl p-6 border border-cardBorder">
+      <div className="flex items-center gap-2 mb-6">
+        <SkeletonLoader variant="circular" width="32px" height="32px" />
+        <SkeletonLoader variant="text" width="180px" height="24px" />
+      </div>
+      <div className="flex gap-8 overflow-x-auto pb-4">
+        {[1, 2, 3, 4].map((col) => (
+          <div key={col} className="flex flex-col gap-4 min-w-[200px]">
+            <SkeletonLoader variant="text" width="80px" height="20px" className="mb-2" />
+            {[1, 2].map((match) => (
+              <div key={match} className="bg-background rounded-lg p-3 border border-cardBorder">
+                <SkeletonLoader variant="text" width="90%" height="16px" className="mb-2" />
+                <SkeletonLoader variant="text" width="90%" height="16px" />
+              </div>
+            ))}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// Skeleton para detalle de torneo completo
+export function TorneoDetalleSkeleton() {
+  return (
+    <div className="space-y-6">
+      {/* Header */}
+      <div className="bg-card rounded-xl p-6 border border-cardBorder">
+        <div className="flex items-center gap-4 mb-4">
+          <SkeletonLoader variant="circular" width="64px" height="64px" />
+          <div className="flex-1 space-y-2">
+            <SkeletonLoader variant="text" width="60%" height="28px" />
+            <SkeletonLoader variant="text" width="40%" height="20px" />
+          </div>
+        </div>
+        <div className="grid grid-cols-3 gap-4">
+          <SkeletonLoader variant="rectangular" height="70px" />
+          <SkeletonLoader variant="rectangular" height="70px" />
+          <SkeletonLoader variant="rectangular" height="70px" />
+        </div>
+      </div>
+      
+      {/* Tabs */}
+      <div className="flex gap-2">
+        {[1, 2, 3, 4, 5].map((i) => (
+          <SkeletonLoader key={i} variant="rectangular" width="100px" height="36px" />
+        ))}
+      </div>
+      
+      {/* Content */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <TorneoZonaSkeleton />
+        <TorneoZonaSkeleton />
+      </div>
+    </div>
+  );
+}

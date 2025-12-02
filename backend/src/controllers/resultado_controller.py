@@ -61,7 +61,8 @@ async def confirmar_resultado(
     """
     try:
         # Obtener la sala y su partido
-        from ..models.playt_models import Sala, Partido
+        from ..models.sala import Sala
+        from ..models.playt_models import Partido
         sala = db.query(Sala).filter(Sala.id_sala == id_sala).first()
         
         if not sala or not sala.id_partido:
@@ -127,7 +128,8 @@ async def obtener_estado_confirmaciones(
     """
     try:
         # Obtener la sala y su partido
-        from ..models.playt_models import Sala, Partido
+        from ..models.sala import Sala
+        from ..models.playt_models import Partido
         sala = db.query(Sala).filter(Sala.id_sala == id_sala).first()
         
         if not sala or not sala.id_partido:
