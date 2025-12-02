@@ -267,13 +267,31 @@ class TorneoService {
     return response.data;
   }
 
-  async listarPartidosPlayoffs(torneoId: number): Promise<any> {
+  async listarPlayoffs(torneoId: number): Promise<any> {
     const response = await axios.get(`${API_URL}/torneos/${torneoId}/playoffs`);
     return response.data;
   }
 
-  async listarTodosPartidosPlayoffs(torneoId: number): Promise<any> {
+  async listarPartidosPlayoffs(torneoId: number): Promise<any> {
     const response = await axios.get(`${API_URL}/torneos/${torneoId}/playoffs/partidos`);
+    return response.data;
+  }
+
+  async cargarResultadoPlayoff(torneoId: number, partidoId: number, resultado: any): Promise<any> {
+    const response = await axios.post(
+      `${API_URL}/torneos/${torneoId}/partidos/${partidoId}/resultado`,
+      resultado,
+      this.getAuthHeaders()
+    );
+    return response.data;
+  }
+
+  async corregirResultado(torneoId: number, partidoId: number, resultado: any): Promise<any> {
+    const response = await axios.put(
+      `${API_URL}/torneos/${torneoId}/partidos/${partidoId}/resultado`,
+      resultado,
+      this.getAuthHeaders()
+    );
     return response.data;
   }
 

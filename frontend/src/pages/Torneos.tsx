@@ -4,11 +4,12 @@ import Card from '../components/Card';
 import Button from '../components/Button';
 import ModalCrearTorneo from '../components/ModalCrearTorneo';
 import TorneoCard from '../components/TorneoCard';
+import SkeletonLoader from '../components/SkeletonLoader';
 import { Plus, Filter, Trophy } from 'lucide-react';
 import { useTorneos } from '../context/TorneosContext';
 
 export default function Torneos() {
-  const { torneos, puedeCrearTorneos, esAdministrador } = useTorneos();
+  const { torneos, puedeCrearTorneos, esAdministrador, loading } = useTorneos();
   const [modalCrearOpen, setModalCrearOpen] = useState(false);
   const [filtro, setFiltro] = useState<'todos' | 'activo' | 'programado' | 'finalizado'>('todos');
   const [filtroGenero, setFiltroGenero] = useState<'todos' | 'masculino' | 'femenino' | 'mixto'>('todos');
@@ -143,7 +144,13 @@ export default function Torneos() {
       </div>
 
       {/* Lista de torneos */}
-      {torneosFiltrados.length === 0 ? (
+      {loading ? (
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2 md:gap-4">
+          {[...Array(6)].map((_, i) => (
+            <SkeletonLoader key={i} height="280px" />
+          ))}
+        </div>
+      ) : torneosFiltrados.length === 0 ? (
         <Card>
           <div className="text-center py-8 md:py-12 text-textSecondary px-4">
             <div className="bg-accent/10 rounded-full w-16 h-16 md:w-20 md:h-20 flex items-center justify-center mx-auto mb-3 md:mb-4">

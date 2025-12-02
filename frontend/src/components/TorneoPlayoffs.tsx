@@ -40,8 +40,11 @@ export default function TorneoPlayoffs({ torneoId, esOrganizador }: TorneoPlayof
     try {
       setLoading(true);
       const data = await torneoService.listarPartidosPlayoffs(torneoId);
-      if (data && data.partidos && data.partidos.length > 0) {
-        setPartidos(data.partidos);
+      // El endpoint puede retornar un array directamente o un objeto con partidos
+      const partidosData = Array.isArray(data) ? data : (data as any)?.partidos || [];
+      
+      if (partidosData.length > 0) {
+        setPartidos(partidosData);
         setPlayoffsGenerados(true);
       } else {
         setPartidos([]);
@@ -49,6 +52,7 @@ export default function TorneoPlayoffs({ torneoId, esOrganizador }: TorneoPlayof
       }
     } catch (error: any) {
       // Si el endpoint no existe o no hay playoffs, mostrar estado vacío
+      console.error('Error al cargar playoffs:', error);
       setPartidos([]);
       setPlayoffsGenerados(false);
     } finally {
@@ -59,7 +63,7 @@ export default function TorneoPlayoffs({ torneoId, esOrganizador }: TorneoPlayof
   const generarPlayoffs = async () => {
     try {
       setGenerando(true);
-      await torneoService.generarPlayoffs(torneoId, 2);
+      await torneoService.generarPlayoffs(torneoId);
       await cargarPlayoffs();
     } catch (error: any) {
       console.error('Error al generar playoffs:', error);

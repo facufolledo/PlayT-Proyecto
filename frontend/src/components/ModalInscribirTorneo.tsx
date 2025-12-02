@@ -95,9 +95,20 @@ export default function ModalInscribirTorneo({
         onClose();
         setSuccess(false);
         setFormData({ jugador2_id: '', nombre_pareja: '' });
+        setSelectedCompanero(null);
       }, 2000);
     } catch (err: any) {
-      setError(err.message || 'Error al inscribir pareja');
+      console.error('Error al inscribir:', err);
+      const errorMsg = err.response?.data?.detail || err.response?.data?.message || err.message || 'Error al inscribir pareja';
+      
+      // Si es error de autenticación, mostrar mensaje específico
+      if (err.response?.status === 401 || errorMsg.toLowerCase().includes('token') || errorMsg.toLowerCase().includes('inválido')) {
+        setError('Tu sesión ha expirado. Por favor, vuelve a iniciar sesión.');
+      } else if (err.response?.status === 405) {
+        setError('Método no permitido. El endpoint puede estar mal configurado.');
+      } else {
+        setError(errorMsg);
+      }
     }
   };
 
