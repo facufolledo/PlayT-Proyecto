@@ -11,6 +11,7 @@ import ModalInscribirTorneo from '../components/ModalInscribirTorneo';
 import TorneoZonas from '../components/TorneoZonas';
 import TorneoFixture from '../components/TorneoFixture';
 import TorneoPlayoffs from '../components/TorneoPlayoffs';
+import TorneoProgramacion from '../components/TorneoProgramacion';
 import TorneoParejas from '../components/TorneoParejas';
 
 export default function TorneoDetalle() {
@@ -18,7 +19,7 @@ export default function TorneoDetalle() {
   const navigate = useNavigate();
   const { torneoActual, cargarTorneo, cargarParejas, parejas, loading } = useTorneos();
   const { usuario } = useAuth();
-  const [tab, setTab] = useState<'info' | 'parejas' | 'zonas' | 'partidos' | 'playoffs'>('info');
+  const [tab, setTab] = useState<'info' | 'parejas' | 'zonas' | 'partidos' | 'playoffs' | 'programacion'>('info');
   const [modalInscripcionOpen, setModalInscripcionOpen] = useState(false);
 
   useEffect(() => {
@@ -228,6 +229,17 @@ export default function TorneoDetalle() {
           Fixture
         </button>
         <button
+          onClick={() => setTab('programacion')}
+          className={`px-4 py-2 font-bold transition-colors whitespace-nowrap flex items-center gap-2 ${
+            tab === 'programacion'
+              ? 'text-primary border-b-2 border-primary'
+              : 'text-textSecondary hover:text-textPrimary'
+          }`}
+        >
+          <Calendar size={16} />
+          Programación
+        </button>
+        <button
           onClick={() => setTab('playoffs')}
           className={`px-4 py-2 font-bold transition-colors whitespace-nowrap flex items-center gap-2 ${
             tab === 'playoffs'
@@ -269,6 +281,10 @@ export default function TorneoDetalle() {
 
       {tab === 'partidos' && (
         <TorneoFixture torneoId={parseInt(id!)} esOrganizador={esOrganizador} />
+      )}
+
+      {tab === 'programacion' && (
+        <TorneoProgramacion torneoId={parseInt(id!)} esOrganizador={esOrganizador} />
       )}
 
       {tab === 'playoffs' && (

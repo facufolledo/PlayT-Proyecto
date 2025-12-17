@@ -54,7 +54,7 @@ self.addEventListener('fetch', (event) => {
   if (!url.protocol.startsWith('http')) return;
 
   // API Requests - Network First, fallback to cache
-  if (url.pathname.startsWith('/api') || url.origin.includes('localhost:8000')) {
+  if (url.pathname.startsWith('/api') || url.origin.includes('playt-backend.onrender.com') || url.origin.includes('localhost:8000')) {
     event.respondWith(
       fetch(request)
         .then((response) => {

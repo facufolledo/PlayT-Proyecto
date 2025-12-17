@@ -1,6 +1,7 @@
 // Servicio de API para comunicación con el backend
 import axios, { AxiosInstance } from 'axios';
 import { logger } from '../utils/logger';
+import { parseError } from '../utils/errorHandler';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
 
@@ -90,6 +91,10 @@ class ApiService {
             window.location.href = '/login';
           }
         }
+        
+        // Procesar el error con nuestro manejador
+        const errorInfo = parseError(error);
+        logger.error('API Error:', errorInfo);
         
         return Promise.reject(error);
       }

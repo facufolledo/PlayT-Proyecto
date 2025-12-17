@@ -67,42 +67,43 @@ export default function TorneosNuevo() {
       <motion.div
         initial={{ opacity: 0, y: -20 }}
         animate={{ opacity: 1, y: 0 }}
-        className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4"
+        className="flex flex-col md:flex-row items-start md:items-center justify-between gap-3 md:gap-4"
       >
         <div>
-          <div className="flex items-center gap-3 mb-2">
-            <div className="h-1 w-12 bg-gradient-to-r from-accent to-yellow-500 rounded-full" />
-            <h1 className="text-4xl md:text-5xl font-black text-textPrimary">Torneos</h1>
+          <div className="flex items-center gap-2 md:gap-3 mb-1 md:mb-2">
+            <div className="h-0.5 md:h-1 w-8 md:w-12 bg-gradient-to-r from-accent to-yellow-500 rounded-full" />
+            <h1 className="text-2xl md:text-5xl font-black text-textPrimary">Torneos</h1>
           </div>
-          <p className="text-textSecondary ml-15">Competiciones oficiales de pádel</p>
+          <p className="text-textSecondary text-xs md:text-base ml-10 md:ml-15">Competiciones oficiales de pádel</p>
         </div>
 
         <Button
           variant="primary"
           onClick={() => navigate('/torneos/crear')}
-          className="flex items-center gap-2"
+          className="flex items-center gap-1.5 md:gap-2 text-xs md:text-sm px-3 md:px-4 py-2 md:py-2.5"
         >
-          <Plus size={20} />
-          Crear Torneo
+          <Plus size={16} className="md:w-5 md:h-5" />
+          <span className="hidden sm:inline">Crear Torneo</span>
+          <span className="sm:hidden">Crear</span>
         </Button>
       </motion.div>
 
       {/* Filtros */}
       <Card>
-        <div className="p-4 space-y-4">
+        <div className="p-2 md:p-4 space-y-3 md:space-y-4">
           {/* Filtro por Estado */}
           <div>
-            <div className="flex items-center gap-2 mb-3">
-              <Filter size={18} className="text-textSecondary" />
-              <span className="text-sm font-bold text-textSecondary">Estado:</span>
+            <div className="flex items-center gap-1.5 md:gap-2 mb-2 md:mb-3">
+              <Filter size={14} className="text-textSecondary md:w-[18px] md:h-[18px]" />
+              <span className="text-xs md:text-sm font-bold text-textSecondary">Estado:</span>
             </div>
-            <div className="flex flex-wrap gap-2">
+            <div className="flex flex-wrap gap-1 md:gap-2">
               {['todos', 'inscripcion', 'fase_grupos', 'fase_eliminacion', 'finalizado'].map((estado) => (
                 <Button
                   key={estado}
                   variant={filtroEstado === estado ? 'primary' : 'secondary'}
-                  size="sm"
                   onClick={() => setFiltroEstado(estado)}
+                  className="text-[10px] md:text-sm px-2 md:px-3 py-1 md:py-1.5"
                 >
                   {estado === 'todos' ? 'Todos' : estado.replace('_', ' ')}
                 </Button>
@@ -112,17 +113,17 @@ export default function TorneosNuevo() {
 
           {/* Filtro por Categoría */}
           <div>
-            <div className="flex items-center gap-2 mb-3">
-              <Award size={18} className="text-textSecondary" />
-              <span className="text-sm font-bold text-textSecondary">Categoría:</span>
+            <div className="flex items-center gap-1.5 md:gap-2 mb-2 md:mb-3">
+              <Award size={14} className="text-textSecondary md:w-[18px] md:h-[18px]" />
+              <span className="text-xs md:text-sm font-bold text-textSecondary">Categoría:</span>
             </div>
-            <div className="flex flex-wrap gap-2">
-              {['todos', '8va', '7ma', '6ta', '5ta', '4ta', 'Libre'].map((cat) => (
+            <div className="flex flex-wrap gap-1 md:gap-2">
+              {['todos', 'Principiantes', '8va', '7ma', '6ta', '5ta', '4ta', 'Libre'].map((cat) => (
                 <Button
                   key={cat}
                   variant={filtroCategoria === cat ? 'primary' : 'secondary'}
-                  size="sm"
                   onClick={() => setFiltroCategoria(cat)}
+                  className="text-[10px] md:text-sm px-2 md:px-3 py-1 md:py-1.5"
                 >
                   {cat === 'todos' ? 'Todas' : cat}
                 </Button>
@@ -154,61 +155,62 @@ export default function TorneosNuevo() {
           </div>
         </Card>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2 md:gap-4">
           {torneos.map((torneo, index) => (
             <motion.div
               key={torneo.id_torneo}
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: index * 0.05 }}
+              onClick={() => navigate(`/torneos/${torneo.id_torneo}`)}
+              className="cursor-pointer"
             >
               <Card
-                className="hover:border-primary/50 transition-all cursor-pointer h-full"
-                onClick={() => navigate(`/torneos/${torneo.id_torneo}`)}
+                className="hover:border-primary/50 transition-all h-full"
               >
-                <div className="p-4 space-y-3">
+                <div className="p-2 md:p-4 space-y-2 md:space-y-3">
                   {/* Header */}
                   <div className="flex items-start justify-between gap-2">
                     <div className="flex-1 min-w-0">
-                      <h3 className="text-lg font-bold text-textPrimary truncate">
+                      <h3 className="text-sm md:text-lg font-bold text-textPrimary truncate">
                         {torneo.nombre}
                       </h3>
-                      <p className="text-xs text-textSecondary line-clamp-2">
+                      <p className="text-[10px] md:text-xs text-textSecondary line-clamp-2">
                         {torneo.descripcion}
                       </p>
                     </div>
-                    <Trophy size={24} className="text-accent flex-shrink-0" />
+                    <Trophy size={18} className="text-accent flex-shrink-0 md:w-6 md:h-6" />
                   </div>
 
                   {/* Estado */}
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-1 md:gap-2 flex-wrap">
                     <span
-                      className={`px-3 py-1 rounded-full text-xs font-bold ${
+                      className={`px-2 md:px-3 py-0.5 md:py-1 rounded-full text-[9px] md:text-xs font-bold ${
                         getEstadoBadge(torneo.estado).color
                       }`}
                     >
                       {getEstadoBadge(torneo.estado).text}
                     </span>
-                    <span className="px-3 py-1 rounded-full text-xs font-bold bg-primary/20 text-primary">
+                    <span className="px-2 md:px-3 py-0.5 md:py-1 rounded-full text-[9px] md:text-xs font-bold bg-primary/20 text-primary">
                       {torneo.categoria}
                     </span>
                   </div>
 
                   {/* Info */}
-                  <div className="space-y-2 text-sm">
-                    <div className="flex items-center gap-2 text-textSecondary">
-                      <Calendar size={16} />
-                      <span>
+                  <div className="space-y-1 md:space-y-2 text-xs md:text-sm">
+                    <div className="flex items-center gap-1.5 md:gap-2 text-textSecondary">
+                      <Calendar size={12} className="flex-shrink-0 md:w-4 md:h-4" />
+                      <span className="truncate text-[10px] md:text-sm">
                         {formatearFecha(torneo.fecha_inicio)} - {formatearFecha(torneo.fecha_fin)}
                       </span>
                     </div>
-                    <div className="flex items-center gap-2 text-textSecondary">
-                      <MapPin size={16} />
-                      <span className="truncate">{torneo.ubicacion}</span>
+                    <div className="flex items-center gap-1.5 md:gap-2 text-textSecondary">
+                      <MapPin size={12} className="flex-shrink-0 md:w-4 md:h-4" />
+                      <span className="truncate text-[10px] md:text-sm">{torneo.ubicacion}</span>
                     </div>
-                    <div className="flex items-center gap-2 text-textSecondary">
-                      <Users size={16} />
-                      <span>
+                    <div className="flex items-center gap-1.5 md:gap-2 text-textSecondary">
+                      <Users size={12} className="flex-shrink-0 md:w-4 md:h-4" />
+                      <span className="text-[10px] md:text-sm">
                         {torneo.parejas_inscritas || 0} / {torneo.max_parejas} parejas
                       </span>
                     </div>
@@ -216,15 +218,15 @@ export default function TorneosNuevo() {
 
                   {/* Premio */}
                   {torneo.premio && (
-                    <div className="pt-3 border-t border-cardBorder">
-                      <p className="text-xs text-textSecondary">Premio</p>
-                      <p className="text-lg font-black text-accent">${torneo.premio}</p>
+                    <div className="pt-2 md:pt-3 border-t border-cardBorder">
+                      <p className="text-[9px] md:text-xs text-textSecondary">Premio</p>
+                      <p className="text-base md:text-lg font-black text-accent">${torneo.premio}</p>
                     </div>
                   )}
 
                   {/* Progreso */}
-                  <div className="pt-2">
-                    <div className="h-2 bg-background rounded-full overflow-hidden">
+                  <div className="pt-1 md:pt-2">
+                    <div className="h-1.5 md:h-2 bg-background rounded-full overflow-hidden">
                       <div
                         className="h-full bg-gradient-to-r from-primary to-accent transition-all"
                         style={{

@@ -5,6 +5,7 @@ import { Trophy, MapPin, Calendar, ChevronDown, ChevronUp, Target, Hand } from '
 import Button from '../components/Button';
 import { PartidoCardSkeleton } from '../components/SkeletonLoader';
 import axios from 'axios';
+import { parseError } from '../utils/errorHandler';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
 

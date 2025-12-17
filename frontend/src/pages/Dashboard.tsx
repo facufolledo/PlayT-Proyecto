@@ -1,56 +1,131 @@
+import { useState, useEffect } from 'react';
 import { motion, useReducedMotion } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
 import Card from '../components/Card';
 import Button from '../components/Button';
-import { Trophy, Users, Calendar, Zap, Target, TrendingUp } from 'lucide-react';
+import { Trophy, Users, Zap, Target, TrendingUp } from 'lucide-react';
 import { useSalas } from '../context/SalasContext';
 import { useTorneos } from '../context/TorneosContext';
+import { useAuth } from '../context/AuthContext';
 import { LineChart, Line, BarChart, Bar, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
+import axios from 'axios';
+import { parseError } from '../utils/errorHandler';
+
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+
+interface EstadisticasUsuario {
+  partidos_jugados: number;
+  partidos_ganados: number;
+  partidos_perdidos: number;
+  rating_actual: number;
+  rating_maximo: number;
+  actividad_semanal: Array<{
+    dia: string;
+    partidos: number;
+    victorias: number;
+  }>;
+  rendimiento_por_categoria: Array<{
+    categoria: string;
+    partidos: number;
+    victorias: number;
+  }>;
+}
 
 export default function Dashboard() {
   const { salas } = useSalas();
   const { torneos } = useTorneos();
+  const { usuario } = useAuth();
   const navigate = useNavigate();
   const shouldReduceMotion = useReducedMotion();
+  
+  const [estadisticas, setEstadisticas] = useState<EstadisticasUsuario | null>(null);
+  const [loading, setLoading] = useState(true);
 
-  const partidosJugados = salas.filter(s => s.estado === 'finalizada').length;
-  const proximosPartidos = salas.filter(s => s.estado === 'programada').length;
-  const partidosActivos = salas.filter(s => s.estado === 'activa').length;
-  const torneosActivos = torneos.filter(t => t.estado === 'activo').length;
+  // Cargar estadísticas del usuario
+  useEffect(() => {
+    const cargarEstadisticas = async () => {
+      if (!usuario?.id_usuario) return;
+      
+      try {
+        setLoading(true);
+        const token = localStorage.getItem('firebase_token');
+        
+        const response = await axios.get(
+          `${API_URL}/usuarios/${usuario.id_usuario}/estadisticas`,
+          {
+            headers: { Authorization: `Bearer ${token}` }
+          }
+        );
+        
+        setEstadisticas(response.data);
+      } catch (error: any) {
+        console.error('Error al cargar estadísticas:', error);
+        
+        // Si no hay estadísticas, usar datos por defecto
+        setEstadisticas({
+          partidos_jugados: 0,
+          partidos_ganados: 0,
+          partidos_perdidos: 0,
+          rating_actual: usuario?.rating || 1200,
+          rating_maximo: usuario?.rating || 1200,
+          actividad_semanal: [
+            { dia: 'Lun', partidos: 0, victorias: 0 },
+            { dia: 'Mar', partidos: 0, victorias: 0 },
+            { dia: 'Mié', partidos: 0, victorias: 0 },
+            { dia: 'Jue', partidos: 0, victorias: 0 },
+            { dia: 'Vie', partidos: 0, victorias: 0 },
+            { dia: 'Sáb', partidos: 0, victorias: 0 },
+            { dia: 'Dom', partidos: 0, victorias: 0 },
+          ],
+          rendimiento_por_categoria: []
+        });
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    cargarEstadisticas();
+  }, [usuario]);
+
+  // Datos calculados
+  const partidosJugados = estadisticas?.partidos_jugados || salas.filter(s => s.estado === 'finalizada').length;
 
   const ultimosPartidos = salas
     .filter(s => s.estado === 'finalizada')
     .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
     .slice(0, 5);
 
-  // Datos para gráficos
-  const actividadSemanal = [
-    { dia: 'Lun', partidos: 3, victorias: 2 },
-    { dia: 'Mar', partidos: 5, victorias: 3 },
-    { dia: 'Mié', partidos: 2, victorias: 1 },
-    { dia: 'Jue', partidos: 4, victorias: 3 },
-    { dia: 'Vie', partidos: 6, victorias: 4 },
-    { dia: 'Sáb', partidos: 8, victorias: 5 },
-    { dia: 'Dom', partidos: 4, victorias: 2 },
+  // Datos para gráficos (usar datos reales si están disponibles)
+  const actividadSemanal = estadisticas?.actividad_semanal || [
+    { dia: 'Lun', partidos: 0, victorias: 0 },
+    { dia: 'Mar', partidos: 0, victorias: 0 },
+    { dia: 'Mié', partidos: 0, victorias: 0 },
+    { dia: 'Jue', partidos: 0, victorias: 0 },
+    { dia: 'Vie', partidos: 0, victorias: 0 },
+    { dia: 'Sáb', partidos: 0, victorias: 0 },
+    { dia: 'Dom', partidos: 0, victorias: 0 },
   ];
 
-  const rendimientoPorCategoria = [
-    { categoria: '8va', partidos: 5, victorias: 3 },
-    { categoria: '7ma', partidos: 8, victorias: 5 },
-    { categoria: '6ta', partidos: 12, victorias: 8 },
-    { categoria: '5ta', partidos: 6, victorias: 4 },
-  ];
+  const rendimientoPorCategoria = estadisticas?.rendimiento_por_categoria || [];
 
   const distribucionResultados = [
-    { name: 'Victorias', value: partidosJugados > 0 ? Math.floor(partidosJugados * 0.6) : 0, color: '#FF006E' },
-    { name: 'Derrotas', value: partidosJugados > 0 ? Math.floor(partidosJugados * 0.4) : 0, color: '#94A3B8' },
+    { 
+      name: 'Victorias', 
+      value: estadisticas?.partidos_ganados || 0, 
+      color: '#FF006E' 
+    },
+    { 
+      name: 'Derrotas', 
+      value: estadisticas?.partidos_perdidos || 0, 
+      color: '#94A3B8' 
+    },
   ];
 
   const stats = [
     { 
       icon: Trophy, 
-      label: 'Torneos Activos', 
-      value: torneosActivos.toString(), 
+      label: 'Rating Actual', 
+      value: estadisticas?.rating_actual?.toString() || usuario?.rating?.toString() || '1200', 
       color: 'from-primary to-blue-500',
       iconBg: 'bg-primary/10',
       iconColor: 'text-primary',
@@ -67,17 +142,17 @@ export default function Dashboard() {
     },
     { 
       icon: Zap, 
-      label: 'Partidos Activos', 
-      value: partidosActivos.toString(), 
+      label: 'Victorias', 
+      value: (estadisticas?.partidos_ganados || 0).toString(), 
       color: 'from-accent to-yellow-400',
       iconBg: 'bg-accent/10',
       iconColor: 'text-accent',
       glowColor: 'accent'
     },
     { 
-      icon: Calendar, 
-      label: 'Próximos Partidos', 
-      value: proximosPartidos.toString(), 
+      icon: Target, 
+      label: 'Win Rate', 
+      value: partidosJugados > 0 ? `${Math.round(((estadisticas?.partidos_ganados || 0) / partidosJugados) * 100)}%` : '0%', 
       color: 'from-cyan-400 to-blue-500',
       iconBg: 'bg-cyan-400/10',
       iconColor: 'text-cyan-400',
@@ -128,12 +203,26 @@ export default function Dashboard() {
                 <div className="relative z-10">
                   <div className="flex items-center justify-between mb-2 md:mb-4">
                     <div className={`${stat.iconBg} p-2 md:p-3 rounded-lg relative`}>
-                      <Icon size={20} className={`${stat.iconColor} md:w-7 md:h-7`} strokeWidth={2.5} />
+                      {loading ? (
+                        <motion.div
+                          animate={{ rotate: 360 }}
+                          transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
+                          className="w-5 h-5 md:w-7 md:h-7 border-2 border-current border-t-transparent rounded-full"
+                        />
+                      ) : (
+                        <Icon size={20} className={`${stat.iconColor} md:w-7 md:h-7`} strokeWidth={2.5} />
+                      )}
                     </div>
                     <div className="text-right">
-                      <p className="text-3xl md:text-5xl font-black text-textPrimary tracking-tight">
-                        {stat.value}
-                      </p>
+                      <motion.p 
+                        className="text-3xl md:text-5xl font-black text-textPrimary tracking-tight"
+                        key={stat.value} // Re-animar cuando cambie el valor
+                        initial={{ scale: 0.8, opacity: 0 }}
+                        animate={{ scale: 1, opacity: 1 }}
+                        transition={{ type: "spring", stiffness: 200, damping: 15 }}
+                      >
+                        {loading ? '...' : stat.value}
+                      </motion.p>
                     </div>
                   </div>
                   <p className="text-textSecondary text-[10px] md:text-xs font-bold uppercase tracking-wider">{stat.label}</p>
