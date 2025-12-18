@@ -10,7 +10,7 @@ interface ModalCrearTorneoProps {
   onClose: () => void;
 }
 
-const CATEGORIAS = ['8va', '7ma', '6ta', '5ta', '4ta', 'Libre'];
+const CATEGORIAS = ['Principiantes', '8va', '7ma', '6ta', '5ta', '4ta', 'Libre'];
 const GENEROS = [
   { value: 'masculino', label: 'Masculino', icon: '♂' },
   { value: 'femenino', label: 'Femenino', icon: '♀' },
@@ -110,13 +110,13 @@ export default function ModalCrearTorneo({ isOpen, onClose }: ModalCrearTorneoPr
               exit={{ opacity: 0, scale: 0.9, y: 20 }}
               className="bg-cardBg rounded-xl sm:rounded-2xl border border-cardBorder shadow-2xl w-full max-w-2xl max-h-[95vh] sm:max-h-[90vh] overflow-y-auto"
             >
-              <div className="sticky top-0 bg-cardBg border-b border-cardBorder p-3 sm:p-4 flex items-center justify-between z-10">
-                <div className="flex items-center gap-2 sm:gap-3">
-                  <div className="bg-accent/10 p-2 rounded-lg">
-                    <Trophy className="text-accent" size={20} />
+              <div className="sticky top-0 bg-cardBg border-b border-cardBorder p-2 sm:p-4 flex items-center justify-between z-10">
+                <div className="flex items-center gap-1.5 sm:gap-3">
+                  <div className="bg-accent/10 p-1.5 sm:p-2 rounded-lg">
+                    <Trophy className="text-accent w-4 h-4 sm:w-5 sm:h-5" />
                   </div>
                   <div>
-                    <h2 className="text-lg sm:text-xl font-bold text-textPrimary">Crear Torneo</h2>
+                    <h2 className="text-base sm:text-xl font-bold text-textPrimary">Crear Torneo</h2>
                     <p className="text-textSecondary text-xs hidden sm:block">Organiza una nueva competencia</p>
                   </div>
                 </div>
@@ -126,23 +126,23 @@ export default function ModalCrearTorneo({ isOpen, onClose }: ModalCrearTorneoPr
                   onClick={handleClose}
                   className="text-textSecondary hover:text-textPrimary transition-colors"
                 >
-                  <X size={20} />
+                  <X size={18} className="sm:w-5 sm:h-5" />
                 </motion.button>
               </div>
 
-              <form onSubmit={handleSubmit} className="p-3 sm:p-5 space-y-4 sm:space-y-5">
+              <form onSubmit={handleSubmit} className="p-2 sm:p-5 space-y-3 sm:space-y-5">
                 {/* Error message */}
                 {error && (
-                  <div className="bg-red-500/10 border border-red-500/50 rounded-lg p-3 text-red-500 text-sm">
+                  <div className="bg-red-500/10 border border-red-500/50 rounded-lg p-2 sm:p-3 text-red-500 text-xs sm:text-sm">
                     {error}
                   </div>
                 )}
 
                 {/* Nombre del torneo */}
                 <div>
-                  <label className="block text-textSecondary text-xs sm:text-sm font-bold mb-1.5">
-                    <div className="flex items-center gap-2">
-                      <Trophy size={14} />
+                  <label className="block text-textSecondary text-xs sm:text-sm font-bold mb-1 sm:mb-1.5">
+                    <div className="flex items-center gap-1.5">
+                      <Trophy size={12} className="sm:w-[14px] sm:h-[14px]" />
                       Nombre del Torneo *
                     </div>
                   </label>
@@ -155,11 +155,11 @@ export default function ModalCrearTorneo({ isOpen, onClose }: ModalCrearTorneoPr
                 </div>
 
                 {/* Fechas */}
-                <div className="grid grid-cols-2 gap-2 sm:gap-3">
+                <div className="grid grid-cols-2 gap-1.5 sm:gap-3">
                   <div>
-                    <label className="block text-textSecondary text-xs sm:text-sm font-bold mb-1.5">
-                      <div className="flex items-center gap-1.5">
-                        <Calendar size={14} />
+                    <label className="block text-textSecondary text-xs sm:text-sm font-bold mb-1 sm:mb-1.5">
+                      <div className="flex items-center gap-1">
+                        <Calendar size={12} className="sm:w-[14px] sm:h-[14px]" />
                         <span className="hidden sm:inline">Fecha de Inicio *</span>
                         <span className="sm:hidden">Inicio *</span>
                       </div>
@@ -172,9 +172,9 @@ export default function ModalCrearTorneo({ isOpen, onClose }: ModalCrearTorneoPr
                     />
                   </div>
                   <div>
-                    <label className="block text-textSecondary text-xs sm:text-sm font-bold mb-1.5">
-                      <div className="flex items-center gap-1.5">
-                        <Calendar size={14} />
+                    <label className="block text-textSecondary text-xs sm:text-sm font-bold mb-1 sm:mb-1.5">
+                      <div className="flex items-center gap-1">
+                        <Calendar size={12} className="sm:w-[14px] sm:h-[14px]" />
                         <span className="hidden sm:inline">Fecha de Fin *</span>
                         <span className="sm:hidden">Fin *</span>
                       </div>
@@ -190,10 +190,10 @@ export default function ModalCrearTorneo({ isOpen, onClose }: ModalCrearTorneoPr
 
                 {/* Categoría */}
                 <div>
-                  <label className="block text-textSecondary text-xs sm:text-sm font-bold mb-1.5">
+                  <label className="block text-textSecondary text-xs sm:text-sm font-bold mb-1 sm:mb-1.5">
                     Categoría *
                   </label>
-                  <div className="grid grid-cols-3 sm:grid-cols-6 gap-1.5 sm:gap-2">
+                  <div className="grid grid-cols-3 sm:grid-cols-6 gap-1 sm:gap-2">
                     {CATEGORIAS.map((cat) => (
                       <motion.button
                         key={cat}
@@ -201,7 +201,7 @@ export default function ModalCrearTorneo({ isOpen, onClose }: ModalCrearTorneoPr
                         whileHover={{ scale: 1.05 }}
                         whileTap={{ scale: 0.95 }}
                         onClick={() => setFormData({ ...formData, categoria: cat })}
-                        className={`py-1.5 sm:py-2 px-2 sm:px-3 rounded-lg text-sm font-bold transition-all ${
+                        className={`py-1 sm:py-2 px-1.5 sm:px-3 rounded-lg text-xs sm:text-sm font-bold transition-all ${
                           formData.categoria === cat
                             ? 'bg-gradient-to-r from-primary to-blue-600 text-white shadow-lg shadow-primary/30'
                             : 'bg-cardBorder text-textSecondary hover:text-textPrimary'
@@ -215,10 +215,10 @@ export default function ModalCrearTorneo({ isOpen, onClose }: ModalCrearTorneoPr
 
                 {/* Género */}
                 <div>
-                  <label className="block text-textSecondary text-xs sm:text-sm font-bold mb-1.5">
+                  <label className="block text-textSecondary text-xs sm:text-sm font-bold mb-1 sm:mb-1.5">
                     Género *
                   </label>
-                  <div className="grid grid-cols-3 gap-1.5 sm:gap-2">
+                  <div className="grid grid-cols-3 gap-1 sm:gap-2">
                     {GENEROS.map((gen) => (
                       <motion.button
                         key={gen.value}
@@ -226,13 +226,13 @@ export default function ModalCrearTorneo({ isOpen, onClose }: ModalCrearTorneoPr
                         whileHover={{ scale: 1.05 }}
                         whileTap={{ scale: 0.95 }}
                         onClick={() => setFormData({ ...formData, genero: gen.value })}
-                        className={`py-1.5 sm:py-2 px-2 sm:px-3 rounded-lg text-sm font-bold transition-all flex items-center justify-center gap-1.5 ${
+                        className={`py-1 sm:py-2 px-1.5 sm:px-3 rounded-lg text-xs sm:text-sm font-bold transition-all flex items-center justify-center gap-1 ${
                           formData.genero === gen.value
                             ? 'bg-gradient-to-r from-primary to-blue-600 text-white shadow-lg shadow-primary/30'
                             : 'bg-cardBorder text-textSecondary hover:text-textPrimary'
                         }`}
                       >
-                        <span>{gen.icon}</span>
+                        <span className="text-sm sm:text-base">{gen.icon}</span>
                         <span className="hidden sm:inline">{gen.label}</span>
                       </motion.button>
                     ))}
@@ -241,9 +241,9 @@ export default function ModalCrearTorneo({ isOpen, onClose }: ModalCrearTorneoPr
 
                 {/* Lugar */}
                 <div>
-                  <label className="block text-textSecondary text-xs sm:text-sm font-bold mb-1.5">
-                    <div className="flex items-center gap-1.5">
-                      <MapPin size={14} />
+                  <label className="block text-textSecondary text-xs sm:text-sm font-bold mb-1 sm:mb-1.5">
+                    <div className="flex items-center gap-1">
+                      <MapPin size={12} className="sm:w-[14px] sm:h-[14px]" />
                       Lugar (Opcional)
                     </div>
                   </label>
@@ -256,33 +256,33 @@ export default function ModalCrearTorneo({ isOpen, onClose }: ModalCrearTorneoPr
 
                 {/* Canchas Disponibles */}
                 <div>
-                  <label className="block text-textSecondary text-xs sm:text-sm font-bold mb-1.5">
+                  <label className="block text-textSecondary text-xs sm:text-sm font-bold mb-1 sm:mb-1.5">
                     Canchas Disponibles *
                   </label>
-                  <div className="flex items-center gap-3">
+                  <div className="flex items-center gap-2">
                     <Input
                       type="number"
                       min="1"
                       max="10"
                       value={formData.canchasDisponibles}
                       onChange={(e) => setFormData({ ...formData, canchasDisponibles: parseInt(e.target.value) || 1 })}
-                      className="w-24"
+                      className="w-16 sm:w-24"
                       required
                     />
-                    <span className="text-textSecondary text-sm">
-                      {formData.canchasDisponibles === 1 ? 'cancha' : 'canchas'} para jugar simultáneamente
+                    <span className="text-textSecondary text-xs sm:text-sm">
+                      {formData.canchasDisponibles === 1 ? 'cancha' : 'canchas'} <span className="hidden sm:inline">para jugar simultáneamente</span>
                     </span>
                   </div>
-                  <p className="text-xs text-textSecondary mt-1">
+                  <p className="text-[10px] sm:text-xs text-textSecondary mt-1">
                     Esto ayuda a programar los partidos de forma eficiente
                   </p>
                 </div>
 
                 {/* Descripción */}
                 <div>
-                  <label className="block text-textSecondary text-xs sm:text-sm font-bold mb-1.5">
-                    <div className="flex items-center gap-1.5">
-                      <FileText size={14} />
+                  <label className="block text-textSecondary text-xs sm:text-sm font-bold mb-1 sm:mb-1.5">
+                    <div className="flex items-center gap-1">
+                      <FileText size={12} className="sm:w-[14px] sm:h-[14px]" />
                       Descripción (Opcional)
                     </div>
                   </label>
@@ -290,18 +290,18 @@ export default function ModalCrearTorneo({ isOpen, onClose }: ModalCrearTorneoPr
                     value={formData.descripcion}
                     onChange={(e) => setFormData({ ...formData, descripcion: e.target.value })}
                     placeholder="Describe el torneo, premios, reglas especiales..."
-                    className="w-full bg-background border border-cardBorder rounded-lg px-3 py-2 text-sm text-textPrimary placeholder-textSecondary focus:outline-none focus:border-primary transition-colors resize-none"
+                    className="w-full bg-background border border-cardBorder rounded-lg px-2 sm:px-3 py-1.5 sm:py-2 text-xs sm:text-sm text-textPrimary placeholder-textSecondary focus:outline-none focus:border-primary transition-colors resize-none"
                     rows={3}
                   />
                 </div>
 
                 {/* Botones */}
-                <div className="flex gap-2 sm:gap-3 pt-2">
+                <div className="flex gap-1.5 sm:gap-3 pt-1 sm:pt-2">
                   <Button
                     type="button"
                     variant="ghost"
                     onClick={handleClose}
-                    className="flex-1 text-sm"
+                    className="flex-1 text-xs sm:text-sm py-2 sm:py-2.5"
                     disabled={loading}
                   >
                     Cancelar
@@ -309,7 +309,7 @@ export default function ModalCrearTorneo({ isOpen, onClose }: ModalCrearTorneoPr
                   <Button
                     type="submit"
                     variant="accent"
-                    className="flex-1 text-sm"
+                    className="flex-1 text-xs sm:text-sm py-2 sm:py-2.5"
                     disabled={loading}
                   >
                     {loading ? 'Creando...' : 'Crear Torneo'}

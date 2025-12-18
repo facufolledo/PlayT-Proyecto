@@ -8,7 +8,10 @@
     "build": "vite build",
     "lint": "eslint .",
     "preview": "vite preview",
-    "typecheck": "tsc --noEmit -p tsconfig.app.json"
+    "typecheck": "tsc --noEmit -p tsconfig.app.json",
+    "prepare-prod": "node prepare-production.js",
+    "build:prod": "npm run prepare-prod && npm run build",
+    "analyze": "npm run build && npx vite-bundle-analyzer dist"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.57.4",

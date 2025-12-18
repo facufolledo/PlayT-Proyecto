@@ -5,6 +5,7 @@ import Button from './Button';
 import { useTorneos } from '../context/TorneosContext';
 import { useAuth } from '../context/AuthContext';
 import axios from 'axios';
+import { parseError } from '../utils/errorHandler';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
 
@@ -99,16 +100,8 @@ export default function ModalInscribirTorneo({
       }, 2000);
     } catch (err: any) {
       console.error('Error al inscribir:', err);
-      const errorMsg = err.response?.data?.detail || err.response?.data?.message || err.message || 'Error al inscribir pareja';
-      
-      // Si es error de autenticación, mostrar mensaje específico
-      if (err.response?.status === 401 || errorMsg.toLowerCase().includes('token') || errorMsg.toLowerCase().includes('inválido')) {
-        setError('Tu sesión ha expirado. Por favor, vuelve a iniciar sesión.');
-      } else if (err.response?.status === 405) {
-        setError('Método no permitido. El endpoint puede estar mal configurado.');
-      } else {
-        setError(errorMsg);
-      }
+      const errorInfo = parseError(err);
+      setError(errorInfo.message);
     }
   };
 
@@ -135,72 +128,72 @@ export default function ModalInscribirTorneo({
           />
 
           {/* Modal */}
-          <div className="fixed inset-0 flex items-center justify-center z-50 p-4">
+          <div className="fixed inset-0 flex items-center justify-center z-50 p-2 sm:p-4">
             <motion.div
               initial={{ opacity: 0, scale: 0.95, y: 20 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.95, y: 20 }}
-              className="bg-cardBg rounded-xl border border-cardBorder w-full max-w-md max-h-[90vh] overflow-y-auto"
+              className="bg-cardBg rounded-lg sm:rounded-xl border border-cardBorder w-full max-w-md max-h-[95vh] sm:max-h-[90vh] overflow-y-auto"
             >
               {success ? (
-                <div className="p-6 text-center">
-                  <div className="w-16 h-16 bg-green-500/20 rounded-full flex items-center justify-center mx-auto mb-4">
-                    <Users size={32} className="text-green-500" />
+                <div className="p-4 sm:p-6 text-center">
+                  <div className="w-12 h-12 sm:w-16 sm:h-16 bg-green-500/20 rounded-full flex items-center justify-center mx-auto mb-3 sm:mb-4">
+                    <Users size={24} className="text-green-500 sm:w-8 sm:h-8" />
                   </div>
-                  <h3 className="text-xl font-bold text-textPrimary mb-2">
+                  <h3 className="text-base sm:text-xl font-bold text-textPrimary mb-1 sm:mb-2">
                     ¡Inscripción Exitosa!
                   </h3>
-                  <p className="text-textSecondary">
+                  <p className="text-textSecondary text-xs sm:text-base">
                     Tu pareja ha sido inscrita en el torneo
                   </p>
                 </div>
               ) : (
                 <>
                   {/* Header */}
-                  <div className="flex items-center justify-between p-6 border-b border-cardBorder">
-                    <div>
-                      <h2 className="text-xl font-bold text-textPrimary">
+                  <div className="flex items-center justify-between p-3 sm:p-6 border-b border-cardBorder">
+                    <div className="flex-1 min-w-0 pr-2">
+                      <h2 className="text-base sm:text-xl font-bold text-textPrimary">
                         Inscribirse al Torneo
                       </h2>
-                      <p className="text-sm text-textSecondary mt-1">
+                      <p className="text-xs sm:text-sm text-textSecondary mt-0.5 sm:mt-1 truncate">
                         {torneoNombre}
                       </p>
                     </div>
                     <button
                       onClick={handleClose}
                       disabled={loading}
-                      className="text-textSecondary hover:text-textPrimary transition-colors disabled:opacity-50"
+                      className="text-textSecondary hover:text-textPrimary transition-colors disabled:opacity-50 flex-shrink-0"
                     >
-                      <X size={24} />
+                      <X size={20} className="sm:w-6 sm:h-6" />
                     </button>
                   </div>
 
                   {/* Form */}
-                  <form onSubmit={handleSubmit} className="p-6 space-y-4">
+                  <form onSubmit={handleSubmit} className="p-3 sm:p-6 space-y-3 sm:space-y-4">
                     {/* Info del usuario actual */}
-                    <div className="bg-primary/10 rounded-lg p-4">
-                      <p className="text-xs text-textSecondary mb-1">Jugador 1 (Tú)</p>
-                      <p className="font-bold text-textPrimary">
+                    <div className="bg-primary/10 rounded-lg p-2 sm:p-4">
+                      <p className="text-[10px] sm:text-xs text-textSecondary mb-0.5 sm:mb-1">Jugador 1 (Tú)</p>
+                      <p className="font-bold text-textPrimary text-sm sm:text-base">
                         {usuario?.nombre} {usuario?.apellido}
                       </p>
-                      <p className="text-xs text-textSecondary">
+                      <p className="text-[10px] sm:text-xs text-textSecondary">
                         Rating: {usuario?.rating || 1200}
                       </p>
                     </div>
 
                     {/* Buscar compañero */}
                     <div>
-                      <label className="block text-sm font-bold text-textSecondary mb-2">
+                      <label className="block text-xs sm:text-sm font-bold text-textSecondary mb-1.5 sm:mb-2">
                         Buscar Compañero *
                       </label>
                       
                       {selectedCompanero ? (
-                        <div className="bg-primary/10 rounded-lg p-4 flex items-center justify-between">
-                          <div>
-                            <p className="font-bold text-textPrimary">
+                        <div className="bg-primary/10 rounded-lg p-2 sm:p-4 flex items-center justify-between">
+                          <div className="flex-1 min-w-0">
+                            <p className="font-bold text-textPrimary text-sm sm:text-base truncate">
                               {selectedCompanero.nombre} {selectedCompanero.apellido}
                             </p>
-                            <p className="text-xs text-textSecondary">
+                            <p className="text-[10px] sm:text-xs text-textSecondary">
                               Rating: {selectedCompanero.rating || 1200}
                             </p>
                           </div>
@@ -210,30 +203,30 @@ export default function ModalInscribirTorneo({
                               setSelectedCompanero(null);
                               setFormData({ ...formData, jugador2_id: '' });
                             }}
-                            className="text-textSecondary hover:text-red-500 transition-colors"
+                            className="text-textSecondary hover:text-red-500 transition-colors flex-shrink-0 ml-2"
                           >
-                            <X size={20} />
+                            <X size={16} className="sm:w-5 sm:h-5" />
                           </button>
                         </div>
                       ) : (
                         <div className="relative">
                           <div className="relative">
-                            <Search size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-textSecondary" />
+                            <Search size={14} className="absolute left-2 sm:left-3 top-1/2 -translate-y-1/2 text-textSecondary sm:w-[18px] sm:h-[18px]" />
                             <input
                               type="text"
                               value={searchQuery}
                               onChange={(e) => setSearchQuery(e.target.value)}
                               placeholder="Busca por nombre o apellido..."
                               disabled={loading}
-                              className="w-full pl-10 pr-4 py-3 bg-background border border-cardBorder rounded-lg text-textPrimary placeholder-textSecondary focus:outline-none focus:border-primary transition-colors disabled:opacity-50"
+                              className="w-full pl-8 sm:pl-10 pr-3 sm:pr-4 py-2 sm:py-3 bg-background border border-cardBorder rounded-lg text-sm sm:text-base text-textPrimary placeholder-textSecondary focus:outline-none focus:border-primary transition-colors disabled:opacity-50"
                             />
                           </div>
                           
                           {/* Resultados de búsqueda */}
                           {searchQuery.length >= 2 && (
-                            <div className="absolute z-10 w-full mt-2 bg-card border border-cardBorder rounded-lg shadow-lg max-h-60 overflow-y-auto">
+                            <div className="absolute z-10 w-full mt-1 sm:mt-2 bg-card border border-cardBorder rounded-lg shadow-lg max-h-48 sm:max-h-60 overflow-y-auto">
                               {searching ? (
-                                <div className="p-4 text-center text-textSecondary">
+                                <div className="p-3 sm:p-4 text-center text-textSecondary text-xs sm:text-sm">
                                   Buscando...
                                 </div>
                               ) : searchResults.length > 0 ? (
@@ -247,18 +240,18 @@ export default function ModalInscribirTorneo({
                                       setSearchQuery('');
                                       setSearchResults([]);
                                     }}
-                                    className="w-full p-3 text-left hover:bg-background transition-colors border-b border-cardBorder last:border-b-0"
+                                    className="w-full p-2 sm:p-3 text-left hover:bg-background transition-colors border-b border-cardBorder last:border-b-0"
                                   >
-                                    <p className="font-bold text-textPrimary">
+                                    <p className="font-bold text-textPrimary text-sm sm:text-base truncate">
                                       {user.nombre} {user.apellido}
                                     </p>
-                                    <p className="text-xs text-textSecondary">
+                                    <p className="text-[10px] sm:text-xs text-textSecondary">
                                       Rating: {user.rating || 1200} • ID: {user.id_usuario}
                                     </p>
                                   </button>
                                 ))
                               ) : (
-                                <div className="p-4 text-center text-textSecondary">
+                                <div className="p-3 sm:p-4 text-center text-textSecondary text-xs sm:text-sm">
                                   No se encontraron usuarios
                                 </div>
                               )}
@@ -267,7 +260,7 @@ export default function ModalInscribirTorneo({
                         </div>
                       )}
                       
-                      <p className="text-xs text-textSecondary mt-1">
+                      <p className="text-[10px] sm:text-xs text-textSecondary mt-1">
                         {selectedCompanero 
                           ? 'Compañero seleccionado' 
                           : 'Escribe al menos 2 caracteres para buscar'}
@@ -276,9 +269,9 @@ export default function ModalInscribirTorneo({
 
                     {/* Nombre de la pareja - generado automáticamente */}
                     {selectedCompanero && (
-                      <div className="bg-accent/10 rounded-lg p-4">
-                        <p className="text-xs text-textSecondary mb-1">Nombre de la Pareja</p>
-                        <p className="font-bold text-textPrimary">
+                      <div className="bg-accent/10 rounded-lg p-2 sm:p-4">
+                        <p className="text-[10px] sm:text-xs text-textSecondary mb-0.5 sm:mb-1">Nombre de la Pareja</p>
+                        <p className="font-bold text-textPrimary text-sm sm:text-base">
                           {usuario?.apellido} / {selectedCompanero.apellido}
                         </p>
                       </div>
@@ -289,21 +282,21 @@ export default function ModalInscribirTorneo({
                       <motion.div
                         initial={{ opacity: 0, y: -10 }}
                         animate={{ opacity: 1, y: 0 }}
-                        className="flex items-start gap-2 p-3 bg-red-500/10 border border-red-500/30 rounded-lg"
+                        className="flex items-start gap-1.5 sm:gap-2 p-2 sm:p-3 bg-red-500/10 border border-red-500/30 rounded-lg"
                       >
-                        <AlertCircle size={18} className="text-red-500 flex-shrink-0 mt-0.5" />
-                        <p className="text-sm text-red-500">{error}</p>
+                        <AlertCircle size={14} className="text-red-500 flex-shrink-0 mt-0.5 sm:w-[18px] sm:h-[18px]" />
+                        <p className="text-xs sm:text-sm text-red-500">{error}</p>
                       </motion.div>
                     )}
 
                     {/* Botones */}
-                    <div className="flex gap-3 pt-4">
+                    <div className="flex gap-2 sm:gap-3 pt-2 sm:pt-4">
                       <Button
                         type="button"
                         variant="ghost"
                         onClick={handleClose}
                         disabled={loading}
-                        className="flex-1"
+                        className="flex-1 text-xs sm:text-sm py-2 sm:py-2.5"
                       >
                         Cancelar
                       </Button>
@@ -311,7 +304,7 @@ export default function ModalInscribirTorneo({
                         type="submit"
                         variant="accent"
                         disabled={loading}
-                        className="flex-1"
+                        className="flex-1 text-xs sm:text-sm py-2 sm:py-2.5"
                       >
                         {loading ? 'Inscribiendo...' : 'Inscribirse'}
                       </Button>

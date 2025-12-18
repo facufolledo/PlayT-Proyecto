@@ -45,8 +45,12 @@ export default function ModalCrearSala({ isOpen, onClose, onSalaCreada }: ModalC
       // Combinar fecha y hora
       const fechaHora = `${formData.fecha}T${formData.hora}`;
       
-      // Crear sala en el backend
-      const codigo = await addSala({
+      // Crear sala en el backend con timeout
+      const timeoutPromise = new Promise((_, reject) => 
+        setTimeout(() => reject(new Error('La creación está tardando más de lo esperado. Por favor, verifica tu conexión.')), 15000)
+      );
+      
+      const createPromise = addSala({
         nombre: formData.nombre,
         fecha: fechaHora,
         estado: 'esperando',
@@ -67,6 +71,8 @@ export default function ModalCrearSala({ isOpen, onClose, onSalaCreada }: ModalC
         }
       });
 
+      const codigo = await Promise.race([createPromise, timeoutPromise]) as string;
+
       const salaId = crypto.randomUUID(); // Temporal, el backend devuelve el ID real
       setSalaCreada({ id: salaId, codigo });
       
@@ -74,7 +80,8 @@ export default function ModalCrearSala({ isOpen, onClose, onSalaCreada }: ModalC
         onSalaCreada(salaId, codigo);
       }
     } catch (error: any) {
-      alert(error.message || 'Error al crear la sala');
+      console.error('Error al crear sala:', error);
+      alert(error.message || 'Error al crear la sala. Por favor, intenta nuevamente.');
     } finally {
       setCreando(false);
     }
@@ -108,11 +115,14 @@ export default function ModalCrearSala({ isOpen, onClose, onSalaCreada }: ModalC
     }
   };
 
+  const [linkCopiado, setLinkCopiado] = useState(false);
+
   const copiarLink = () => {
     if (salaCreada && salaCreada.codigo) {
       const link = `${window.location.origin}/salas?codigo=${salaCreada.codigo}`;
       navigator.clipboard.writeText(link);
-      alert('¡Link copiado!');
+      setLinkCopiado(true);
+      setTimeout(() => setLinkCopiado(false), 2000);
     } else {
       alert('Error: No hay código disponible');
     }
@@ -120,102 +130,131 @@ export default function ModalCrearSala({ isOpen, onClose, onSalaCreada }: ModalC
 
   return (
     <Modal isOpen={isOpen} onClose={handleCerrar}>
-      <div className="bg-cardBg rounded-2xl p-8 w-full max-w-lg border border-cardBorder">
-        <div className="flex items-center justify-between mb-6">
-          <h2 className="text-2xl font-bold text-textPrimary">
+      <div className="bg-cardBg rounded-xl md:rounded-2xl p-4 md:p-8 w-full max-w-lg border border-cardBorder">
+        <div className="flex items-center justify-between mb-4 md:mb-6">
+          <h2 className="text-xl md:text-2xl font-bold text-textPrimary">
             {salaCreada ? '¡Sala Creada!' : 'Nueva Sala'}
           </h2>
           <button
             onClick={handleCerrar}
-            className="text-textSecondary hover:text-textPrimary transition-colors"
+            disabled={creando}
+            className="text-textSecondary hover:text-textPrimary transition-colors disabled:opacity-50 p-2"
           >
-            <X size={24} />
+            <X size={20} className="md:w-6 md:h-6" />
           </button>
         </div>
 
         {!salaCreada ? (
-          <form onSubmit={handleSubmit} className="space-y-6">
+          <form onSubmit={handleSubmit} className="space-y-4 md:space-y-6">
             <div>
-              <label className="block text-textSecondary text-sm font-medium mb-2">
-                Nombre de la Sala
+              <label className="block text-textSecondary text-xs md:text-sm font-medium mb-2">
+                Nombre de la Sala *
               </label>
               <Input
                 value={formData.nombre}
                 onChange={(e) => setFormData({ ...formData, nombre: e.target.value })}
                 placeholder="Ej: Partido del Viernes"
                 autoFocus
+                disabled={creando}
+                maxLength={50}
+                className="text-sm md:text-base"
               />
             </div>
 
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 md:gap-4">
               <div>
-                <label className="block text-textSecondary text-sm font-medium mb-2">
-                  Fecha
+                <label className="block text-textSecondary text-xs md:text-sm font-medium mb-2">
+                  Fecha *
                 </label>
                 <Input
                   type="date"
                   value={formData.fecha}
                   onChange={(e) => setFormData({ ...formData, fecha: e.target.value })}
                   min={new Date().toISOString().split('T')[0]}
+                  disabled={creando}
+                  className="text-sm md:text-base"
                 />
               </div>
               <div>
-                <label className="block text-textSecondary text-sm font-medium mb-2">
-                  Hora
+                <label className="block text-textSecondary text-xs md:text-sm font-medium mb-2">
+                  Hora *
                 </label>
                 <Input
                   type="time"
                   value={formData.hora}
                   onChange={(e) => setFormData({ ...formData, hora: e.target.value })}
+                  disabled={creando}
+                  className="text-sm md:text-base"
                 />
               </div>
             </div>
 
             <div>
-              <label className="block text-textSecondary text-sm font-medium mb-2">
+              <label className="block text-textSecondary text-xs md:text-sm font-medium mb-2">
                 Formato del Partido
               </label>
               <div className="grid grid-cols-1 gap-2">
                 <button
                   type="button"
                   onClick={() => setFormData({ ...formData, formato: 'best_of_3' })}
-                  className={`p-3 rounded-lg border-2 transition-all text-left ${
+                  disabled={creando}
+                  className={`p-2 md:p-3 rounded-lg border-2 transition-all text-left disabled:opacity-50 ${
                     formData.formato === 'best_of_3'
                       ? 'border-primary bg-primary/10 text-textPrimary'
                       : 'border-cardBorder bg-background text-textSecondary hover:border-primary/50'
                   }`}
                 >
-                  <div className="font-bold text-sm">Best of 3 (Clásico)</div>
-                  <div className="text-xs mt-1">Sets a 6 games • Tercer set normal si es necesario</div>
+                  <div className="font-bold text-xs md:text-sm">Best of 3 (Clásico)</div>
+                  <div className="text-[10px] md:text-xs mt-1 text-textSecondary">Sets a 6 games • Tercer set normal si es necesario</div>
                 </button>
                 <button
                   type="button"
                   onClick={() => setFormData({ ...formData, formato: 'best_of_3_supertiebreak' })}
-                  className={`p-3 rounded-lg border-2 transition-all text-left ${
+                  disabled={creando}
+                  className={`p-2 md:p-3 rounded-lg border-2 transition-all text-left disabled:opacity-50 ${
                     formData.formato === 'best_of_3_supertiebreak'
                       ? 'border-secondary bg-secondary/10 text-textPrimary'
                       : 'border-cardBorder bg-background text-textSecondary hover:border-secondary/50'
                   }`}
                 >
-                  <div className="font-bold text-sm">Best of 3 con SuperTiebreak</div>
-                  <div className="text-xs mt-1">Sets a 6 games • SuperTiebreak a 10 en el tercero</div>
+                  <div className="font-bold text-xs md:text-sm">Best of 3 con SuperTiebreak</div>
+                  <div className="text-[10px] md:text-xs mt-1 text-textSecondary">Sets a 6 games • SuperTiebreak a 10 en el tercero</div>
                 </button>
               </div>
             </div>
 
-            <div className="bg-primary/10 border border-primary/30 rounded-xl p-4">
-              <p className="text-textSecondary text-sm">
+            <div className="bg-primary/10 border border-primary/30 rounded-lg md:rounded-xl p-3 md:p-4">
+              <p className="text-textSecondary text-xs md:text-sm">
                 💡 <strong>Tip:</strong> Después de crear la sala, recibirás un código 
                 de invitación para compartir con los demás jugadores.
               </p>
             </div>
+
+            {creando && (
+              <div className="bg-primary/10 border border-primary/30 rounded-xl p-4">
+                <div className="flex items-center gap-3">
+                  <div className="w-5 h-5 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+                  <div className="flex-1">
+                    <p className="text-textPrimary text-sm font-medium">Creando sala...</p>
+                    <p className="text-textSecondary text-xs">Esto puede tardar unos segundos</p>
+                  </div>
+                </div>
+              </div>
+            )}
 
             <div className="flex gap-3">
               <Button type="button" variant="secondary" onClick={handleCerrar} className="flex-1" disabled={creando}>
                 Cancelar
               </Button>
               <Button type="submit" variant="primary" className="flex-1" disabled={creando}>
-                {creando ? 'Creando...' : 'Crear Sala'}
+                {creando ? (
+                  <span className="flex items-center gap-2">
+                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                    Creando...
+                  </span>
+                ) : (
+                  'Crear Sala'
+                )}
               </Button>
             </div>
           </form>
@@ -266,10 +305,10 @@ export default function ModalCrearSala({ isOpen, onClose, onSalaCreada }: ModalC
                 <Button
                   variant="ghost"
                   onClick={copiarCodigo}
-                  className="flex flex-col items-center gap-1 py-3"
+                  className="flex flex-col items-center gap-1 py-3 relative"
                 >
                   <Copy size={20} />
-                  <span className="text-xs">Copiar</span>
+                  <span className="text-xs">{copiado ? '✓ Copiado' : 'Copiar'}</span>
                 </Button>
                 <Button
                   variant="ghost"
@@ -282,10 +321,10 @@ export default function ModalCrearSala({ isOpen, onClose, onSalaCreada }: ModalC
                 <Button
                   variant="ghost"
                   onClick={copiarLink}
-                  className="flex flex-col items-center gap-1 py-3"
+                  className="flex flex-col items-center gap-1 py-3 relative"
                 >
                   <Share2 size={20} />
-                  <span className="text-xs">Link</span>
+                  <span className="text-xs">{linkCopiado ? '✓ Copiado' : 'Link'}</span>
                 </Button>
               </div>
             </div>

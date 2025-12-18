@@ -295,6 +295,111 @@ class TorneoService {
     return response.data;
   }
 
+  // Canchas
+  async listarCanchas(torneoId: number): Promise<any[]> {
+    const response = await axios.get(`${API_URL}/torneos/${torneoId}/canchas`);
+    return response.data;
+  }
+
+  async crearCancha(torneoId: number, data: { nombre: string; activa?: boolean }): Promise<any> {
+    const response = await axios.post(
+      `${API_URL}/torneos/${torneoId}/canchas`,
+      data,
+      this.getAuthHeaders()
+    );
+    return response.data;
+  }
+
+  async actualizarCancha(torneoId: number, canchaId: number, data: { nombre?: string; activa?: boolean }): Promise<any> {
+    const response = await axios.put(
+      `${API_URL}/torneos/${torneoId}/canchas/${canchaId}`,
+      data,
+      this.getAuthHeaders()
+    );
+    return response.data;
+  }
+
+  async eliminarCancha(torneoId: number, canchaId: number): Promise<void> {
+    await axios.delete(
+      `${API_URL}/torneos/${torneoId}/canchas/${canchaId}`,
+      this.getAuthHeaders()
+    );
+  }
+
+  // Slots de horarios
+  async listarSlots(torneoId: number, params?: { cancha_id?: number; fecha?: string }): Promise<any[]> {
+    const response = await axios.get(`${API_URL}/torneos/${torneoId}/slots`, { params });
+    return response.data;
+  }
+
+  async crearSlot(torneoId: number, data: {
+    cancha_id: number;
+    fecha_hora_inicio: string;
+    fecha_hora_fin: string;
+  }): Promise<any> {
+    const response = await axios.post(
+      `${API_URL}/torneos/${torneoId}/slots`,
+      data,
+      this.getAuthHeaders()
+    );
+    return response.data;
+  }
+
+  async eliminarSlot(torneoId: number, slotId: number): Promise<void> {
+    await axios.delete(
+      `${API_URL}/torneos/${torneoId}/slots/${slotId}`,
+      this.getAuthHeaders()
+    );
+  }
+
+  // Programación automática
+  async programarPartidosAutomaticamente(torneoId: number, params?: {
+    fecha_inicio?: string;
+    fecha_fin?: string;
+    duracion_partido_minutos?: number;
+  }): Promise<any> {
+    const response = await axios.post(
+      `${API_URL}/torneos/${torneoId}/programar-automatico`,
+      params || {},
+      this.getAuthHeaders()
+    );
+    return response.data;
+  }
+
+  async obtenerProgramacion(torneoId: number): Promise<any> {
+    const response = await axios.get(`${API_URL}/torneos/${torneoId}/programacion`);
+    return response.data;
+  }
+
+  // Bloqueos horarios de jugadores
+  async listarBloqueosJugador(torneoId: number, jugadorId: number): Promise<any[]> {
+    const response = await axios.get(
+      `${API_URL}/torneos/${torneoId}/jugadores/${jugadorId}/bloqueos`
+    );
+    return response.data;
+  }
+
+  async crearBloqueoJugador(torneoId: number, jugadorId: number, data: {
+    fecha: string;
+    hora_desde: string;
+    hora_hasta: string;
+    motivo?: string;
+  }): Promise<any> {
+    const response = await axios.post(
+      `${API_URL}/torneos/${torneoId}/jugadores/${jugadorId}/bloqueos`,
+      data,
+      this.getAuthHeaders()
+    );
+    return response.data;
+  }
+
+  async eliminarBloqueoJugador(torneoId: number, jugadorId: number, bloqueoId: number): Promise<void> {
+    await axios.delete(
+      `${API_URL}/torneos/${torneoId}/jugadores/${jugadorId}/bloqueos/${bloqueoId}`,
+      this.getAuthHeaders()
+    );
+  }
+
   // Validaciones
   validarDatosTorneo(data: TorneoCreate): string[] {
     const errores: string[] = [];

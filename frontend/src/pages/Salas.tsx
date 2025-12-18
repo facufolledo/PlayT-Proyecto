@@ -23,9 +23,17 @@ export default function Salas() {
 
   // Cargar salas cuando se monta la página y hay usuario
   useEffect(() => {
-    if (usuario) {
-      cargarSalas();
-    }
+    const cargarDatos = async () => {
+      if (usuario) {
+        try {
+          await cargarSalas();
+        } catch (error) {
+          console.error('Error al cargar salas:', error);
+        }
+      }
+    };
+
+    cargarDatos();
     
     // Verificar si hay un código en la URL
     const params = new URLSearchParams(window.location.search);
@@ -134,15 +142,15 @@ export default function Salas() {
         <motion.div
           initial={{ opacity: 0, y: -20 }}
           animate={{ opacity: 1, y: 0 }}
-          className="bg-accent/10 border border-accent/30 rounded-xl p-4"
+          className="bg-accent/10 border border-accent/30 rounded-lg md:rounded-xl p-2 md:p-4"
         >
-          <div className="flex items-center gap-3">
-            <AlertCircle size={24} className="text-accent" />
-            <div className="flex-1">
-              <p className="text-accent font-bold">
+          <div className="flex items-center gap-2 md:gap-3">
+            <AlertCircle size={18} className="text-accent md:w-6 md:h-6 flex-shrink-0" />
+            <div className="flex-1 min-w-0">
+              <p className="text-accent font-bold text-xs md:text-base">
                 Tienes {salasPendientes.length} {salasPendientes.length === 1 ? 'partido pendiente' : 'partidos pendientes'} de confirmación
               </p>
-              <p className="text-textSecondary text-sm">
+              <p className="text-textSecondary text-[10px] md:text-sm">
                 Confirma los resultados para que sean oficiales
               </p>
             </div>
@@ -153,16 +161,17 @@ export default function Salas() {
                 setSalaSeleccionada(salasPendientes[0]);
                 setModalMarcadorOpen(true);
               }}
-              className="text-sm"
+              className="text-[10px] md:text-sm px-2 md:px-4 py-1.5 md:py-2 flex-shrink-0"
             >
-              Confirmar Ahora
+              <span className="hidden sm:inline">Confirmar Ahora</span>
+              <span className="sm:hidden">Confirmar</span>
             </Button>
           </div>
         </motion.div>
       )}
 
       {/* Estadísticas compactas */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-1.5 md:gap-2">
         {[
           { label: 'Total', value: salas.length, color: 'from-cyan-500 to-blue-500', icon: '📊' },
           { label: 'En Juego', value: salasActivas.length, color: 'from-secondary to-pink-500', icon: '🎾' },
@@ -176,33 +185,33 @@ export default function Salas() {
             transition={{ delay: index * 0.03 }}
             className="group relative"
           >
-            <div className="bg-cardBg rounded-lg p-2.5 border border-cardBorder group-hover:border-transparent transition-all duration-200 relative overflow-hidden">
+            <div className="bg-cardBg rounded-lg p-1.5 md:p-2.5 border border-cardBorder group-hover:border-transparent transition-all duration-200 relative overflow-hidden">
               <div className={`absolute -inset-[1px] bg-gradient-to-br ${stat.color} opacity-0 group-hover:opacity-100 transition-opacity duration-200 rounded-lg -z-10 blur-sm`} />
 
-              <div className="flex items-center justify-between mb-1">
-                <span className="text-base">{stat.icon}</span>
-                <p className="text-2xl font-black text-textPrimary tracking-tight">
+              <div className="flex items-center justify-between mb-0.5 md:mb-1">
+                <span className="text-xs md:text-base">{stat.icon}</span>
+                <p className="text-lg md:text-2xl font-black text-textPrimary tracking-tight">
                   {stat.value}
                 </p>
               </div>
-              <p className="text-textSecondary text-[9px] font-bold uppercase tracking-wider">{stat.label}</p>
+              <p className="text-textSecondary text-[8px] md:text-[9px] font-bold uppercase tracking-wider">{stat.label}</p>
             </div>
           </motion.div>
         ))}
       </div>
 
       {/* Filtros */}
-      <div className="flex items-center gap-3 flex-wrap">
-        <div className="flex items-center gap-2 text-textSecondary">
-          <Filter size={18} />
-          <span className="text-sm">Filtrar:</span>
+      <div className="flex items-center gap-1.5 md:gap-3 flex-wrap">
+        <div className="flex items-center gap-1 md:gap-2 text-textSecondary">
+          <Filter size={14} className="md:w-[18px] md:h-[18px]" />
+          <span className="text-xs md:text-sm">Filtrar:</span>
         </div>
         {(['todas', 'activa', 'programada', 'finalizada'] as const).map((f) => (
           <Button
             key={f}
             variant={filtro === f ? 'primary' : 'secondary'}
             onClick={() => setFiltro(f)}
-            className="text-sm"
+            className="text-[10px] md:text-sm px-2 md:px-3 py-1 md:py-1.5"
           >
             {f === 'todas' ? 'Todas' : f === 'activa' ? 'En Juego' : f === 'programada' ? 'Programadas' : 'Finalizadas'}
           </Button>
@@ -211,12 +220,12 @@ export default function Salas() {
 
       {/* Salas de Ejemplo (3 aleatorias) */}
       {filtro === 'todas' && (
-        <div className="space-y-4">
-          <div className="flex items-center gap-2">
-            <h2 className="text-xl font-bold text-textPrimary">Salas Activas</h2>
-            <span className="text-textSecondary text-sm">(Ejemplos de la comunidad)</span>
+        <div className="space-y-3 md:space-y-4">
+          <div className="flex items-center gap-1.5 md:gap-2">
+            <h2 className="text-base md:text-xl font-bold text-textPrimary">Salas Activas</h2>
+            <span className="text-textSecondary text-[10px] md:text-sm">(Ejemplos de la comunidad)</span>
           </div>
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-2 md:gap-4">
             {loading ? (
               // Skeleton loaders mientras carga
               <>
@@ -243,11 +252,11 @@ export default function Salas() {
       )}
 
       {/* Mis Salas */}
-      <div className="space-y-4">
-        <div className="flex items-center gap-2">
-          <h2 className="text-xl font-bold text-textPrimary">Mis Salas</h2>
+      <div className="space-y-3 md:space-y-4">
+        <div className="flex items-center gap-1.5 md:gap-2">
+          <h2 className="text-base md:text-xl font-bold text-textPrimary">Mis Salas</h2>
           {!loading && (
-            <span className="text-textSecondary text-sm">
+            <span className="text-textSecondary text-[10px] md:text-sm">
               ({salasFiltradas.filter(s => s.jugadores?.some(j => j.id === usuario?.id_usuario?.toString())).length})
             </span>
           )}
@@ -255,7 +264,7 @@ export default function Salas() {
 
         {loading ? (
           // Skeleton loaders mientras carga
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-2 md:gap-4">
             <SalaCardSkeleton />
             <SalaCardSkeleton />
             <SalaCardSkeleton />
@@ -263,19 +272,19 @@ export default function Salas() {
           </div>
         ) : salasFiltradas.filter(s => s.jugadores?.some(j => j.id === usuario?.id_usuario?.toString())).length === 0 ? (
           <Card>
-            <div className="text-center py-8 md:py-12 text-textSecondary px-4">
-              <p className="text-base md:text-lg mb-2 md:mb-4">
+            <div className="text-center py-6 md:py-12 text-textSecondary px-3 md:px-4">
+              <p className="text-sm md:text-lg mb-1.5 md:mb-4">
                 No tienes salas
                 {filtro !== 'todas' && ` ${filtro === 'activa' ? 'en juego' : filtro === 'programada' ? 'programadas' : 'finalizadas'}`}
               </p>
-              <p className="text-xs md:text-sm mb-4">
+              <p className="text-[10px] md:text-sm mb-3 md:mb-4">
                 Crea una sala o únete a una existente para comenzar
               </p>
-              <div className="flex gap-2 justify-center">
-                <Button variant="primary" onClick={() => setModalCrearOpen(true)}>
+              <div className="flex gap-1.5 md:gap-2 justify-center">
+                <Button variant="primary" onClick={() => setModalCrearOpen(true)} className="text-xs md:text-sm px-3 md:px-4 py-1.5 md:py-2">
                   Crear Sala
                 </Button>
-                <Button variant="secondary" onClick={() => setModalUnirseOpen(true)}>
+                <Button variant="secondary" onClick={() => setModalUnirseOpen(true)} className="text-xs md:text-sm px-3 md:px-4 py-1.5 md:py-2">
                   Unirse a Sala
                 </Button>
               </div>
@@ -283,7 +292,7 @@ export default function Salas() {
           </Card>
         ) : (
           <>
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-2 md:gap-4">
               <AnimatePresence mode="popLayout">
                 {salasFiltradas
                   .filter(s => s.jugadores?.some(j => j.id === usuario?.id_usuario?.toString()))
@@ -300,11 +309,11 @@ export default function Salas() {
 
             {/* Botón Cargar Más */}
             {!mostrarTodas && salasFiltradas.filter(s => s.jugadores?.some(j => j.id === usuario?.id_usuario?.toString())).length > ITEMS_POR_PAGINA && (
-              <div className="mt-4 md:mt-6 text-center">
+              <div className="mt-3 md:mt-6 text-center">
                 <Button
                   variant="primary"
                   onClick={() => setMostrarTodas(true)}
-                  className="w-full md:w-auto"
+                  className="w-full md:w-auto text-xs md:text-sm px-3 md:px-4 py-2 md:py-2.5"
                 >
                   Cargar más ({salasFiltradas.filter(s => s.jugadores?.some(j => j.id === usuario?.id_usuario?.toString())).length - ITEMS_POR_PAGINA} restantes)
                 </Button>
@@ -312,14 +321,14 @@ export default function Salas() {
             )}
 
             {mostrarTodas && salasFiltradas.filter(s => s.jugadores?.some(j => j.id === usuario?.id_usuario?.toString())).length > ITEMS_POR_PAGINA && (
-              <div className="mt-4 md:mt-6 text-center">
+              <div className="mt-3 md:mt-6 text-center">
                 <Button
                   variant="ghost"
                   onClick={() => {
                     setMostrarTodas(false);
                     window.scrollTo({ top: 0, behavior: 'smooth' });
                   }}
-                  className="w-full md:w-auto"
+                  className="w-full md:w-auto text-xs md:text-sm px-3 md:px-4 py-2 md:py-2.5"
                 >
                   Mostrar menos
                 </Button>

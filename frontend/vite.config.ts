@@ -4,35 +4,57 @@ import react from '@vitejs/plugin-react';
 // https://vitejs.dev/config/
 export default defineConfig(({ mode }) => ({
   plugins: [react()],
-  base: mode === 'production' ? '/PlayR/' : '/',
+  base: mode === 'production' ? '/' : '/', // Cambiar para producción en dominio propio
   optimizeDeps: {
     exclude: ['lucide-react'],
+    include: ['react', 'react-dom', 'react-router-dom']
   },
   build: {
-    // Optimizaciones para PWA
+    // Optimizaciones para producción
     target: 'esnext',
     minify: 'terser',
+    sourcemap: mode === 'development',
     terserOptions: {
       compress: {
-        drop_console: true,
-        drop_debugger: true
+        drop_console: mode === 'production',
+        drop_debugger: mode === 'production',
+        pure_funcs: mode === 'production' ? ['console.log', 'console.info'] : []
       }
     },
     rollupOptions: {
       output: {
         manualChunks: {
           'react-vendor': ['react', 'react-dom', 'react-router-dom'],
-          'firebase': ['firebase/app', 'firebase/auth'],
+          'firebase': ['firebase/app', 'firebase/auth', 'firebase/storage'],
           'framer': ['framer-motion'],
-          'utils': ['axios']
-        }
+          'charts': ['recharts'],
+          'utils': ['axios'],
+          'ui': ['lucide-react']
+        },
+        // Optimizar nombres de archivos para cache
+        entryFileNames: 'assets/[name]-[hash].js',
+        chunkFileNames: 'assets/[name]-[hash].js',
+        assetFileNames: 'assets/[name]-[hash].[ext]'
       }
     },
-    chunkSizeWarningLimit: 1000
+    chunkSizeWarningLimit: 1000,
+    // Optimizar assets
+    assetsInlineLimit: 4096, // Inline assets < 4kb
+    cssCodeSplit: true
   },
   server: {
     port: 5173,
     strictPort: true,
+    host: true,
+    cors: true
+  },
+  preview: {
+    port: 4173,
+    strictPort: true,
     host: true
+  },
+  // Optimizaciones adicionales
+  esbuild: {
+    logOverride: { 'this-is-undefined-in-esm': 'silent' }
   }
 }));

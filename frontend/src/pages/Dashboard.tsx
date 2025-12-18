@@ -1,24 +1,34 @@
+import { useState, useEffect } from 'react';
 import { motion, useReducedMotion } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
-import { useState, useEffect, useMemo } from 'react';
 import Card from '../components/Card';
 import Button from '../components/Button';
-import { Trophy, Users, Calendar, Zap, Target, TrendingUp } from 'lucide-react';
+import { Trophy, Users, Zap, Target, TrendingUp } from 'lucide-react';
 import { useSalas } from '../context/SalasContext';
 import { useTorneos } from '../context/TorneosContext';
 import { useAuth } from '../context/AuthContext';
 import { LineChart, Line, BarChart, Bar, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import axios from 'axios';
+import { parseError } from '../utils/errorHandler';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
 
-interface PartidoHistorial {
-  id_partido: number;
-  fecha: string;
-  tipo: string;
-  jugadores: { id_usuario: number; equipo: number; nombre: string; apellido: string }[];
-  resultado?: { sets_eq1: number; sets_eq2: number };
-  historial_rating?: { delta: number };
+interface EstadisticasUsuario {
+  partidos_jugados: number;
+  partidos_ganados: number;
+  partidos_perdidos: number;
+  rating_actual: number;
+  rating_maximo: number;
+  actividad_semanal: Array<{
+    dia: string;
+    partidos: number;
+    victorias: number;
+  }>;
+  rendimiento_por_categoria: Array<{
+    categoria: string;
+    partidos: number;
+    victorias: number;
+  }>;
 }
 
 export default function Dashboard() {
@@ -27,106 +37,95 @@ export default function Dashboard() {
   const { usuario } = useAuth();
   const navigate = useNavigate();
   const shouldReduceMotion = useReducedMotion();
-  const [partidos, setPartidos] = useState<PartidoHistorial[]>([]);
+  
+  const [estadisticas, setEstadisticas] = useState<EstadisticasUsuario | null>(null);
+  const [loading, setLoading] = useState(true);
 
-  // Cargar partidos del usuario
+  // Cargar estadísticas del usuario
   useEffect(() => {
-    const cargarPartidos = async () => {
+    const cargarEstadisticas = async () => {
       if (!usuario?.id_usuario) return;
+      
       try {
-        const token = localStorage.getItem('token');
+        setLoading(true);
+        const token = localStorage.getItem('firebase_token');
+        
         const response = await axios.get(
-          `${API_URL}/partidos/usuario/${usuario.id_usuario}`,
-          { headers: { Authorization: `Bearer ${token}` }, params: { limit: 100 } }
+          `${API_URL}/usuarios/${usuario.id_usuario}/estadisticas`,
+          {
+            headers: { Authorization: `Bearer ${token}` }
+          }
         );
-        setPartidos(response.data);
-      } catch (error) {
-        console.error('Error cargando partidos:', error);
+        
+        setEstadisticas(response.data);
+      } catch (error: any) {
+        console.error('Error al cargar estadísticas:', error);
+        
+        // Si no hay estadísticas, usar datos por defecto
+        setEstadisticas({
+          partidos_jugados: 0,
+          partidos_ganados: 0,
+          partidos_perdidos: 0,
+          rating_actual: usuario?.rating || 1200,
+          rating_maximo: usuario?.rating || 1200,
+          actividad_semanal: [
+            { dia: 'Lun', partidos: 0, victorias: 0 },
+            { dia: 'Mar', partidos: 0, victorias: 0 },
+            { dia: 'Mié', partidos: 0, victorias: 0 },
+            { dia: 'Jue', partidos: 0, victorias: 0 },
+            { dia: 'Vie', partidos: 0, victorias: 0 },
+            { dia: 'Sáb', partidos: 0, victorias: 0 },
+            { dia: 'Dom', partidos: 0, victorias: 0 },
+          ],
+          rendimiento_por_categoria: []
+        });
+      } finally {
+        setLoading(false);
       }
     };
-    cargarPartidos();
+
+    cargarEstadisticas();
   }, [usuario]);
 
-  // Calcular estadísticas reales
-  const estadisticas = useMemo(() => {
-    const esVictoria = (p: PartidoHistorial) => {
-      if (p.historial_rating) return p.historial_rating.delta > 0;
-      if (!p.resultado) return false;
-      const miEquipo = p.jugadores.find(j => j.id_usuario === usuario?.id_usuario)?.equipo;
-      return miEquipo === 1 ? p.resultado.sets_eq1 > p.resultado.sets_eq2 : p.resultado.sets_eq2 > p.resultado.sets_eq1;
-    };
+  // Datos calculados
+  const partidosJugados = estadisticas?.partidos_jugados || salas.filter(s => s.estado === 'finalizada').length;
 
-    const partidosConResultado = partidos.filter(p => p.resultado || p.historial_rating);
-    const victorias = partidosConResultado.filter(esVictoria).length;
-    const derrotas = partidosConResultado.length - victorias;
-
-    // Actividad semanal (últimos 7 días)
-    const hoy = new Date();
-    const dias = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'];
-    const actividadSemanal = [];
-    
-    for (let i = 6; i >= 0; i--) {
-      const fecha = new Date(hoy);
-      fecha.setDate(hoy.getDate() - i);
-      const diaStr = dias[fecha.getDay()];
-      
-      const partidosDia = partidos.filter(p => {
-        const fechaPartido = new Date(p.fecha);
-        return fechaPartido.toDateString() === fecha.toDateString();
-      });
-      
-      const victoriasDia = partidosDia.filter(esVictoria).length;
-      
-      actividadSemanal.push({
-        dia: diaStr,
-        partidos: partidosDia.length,
-        victorias: victoriasDia
-      });
-    }
-
-    // Distribución por tipo
-    const torneoPartidos = partidos.filter(p => p.tipo === 'torneo');
-    const amistososPartidos = partidos.filter(p => p.tipo === 'amistoso' || !p.tipo);
-    
-    const victoriasTorneo = torneoPartidos.filter(esVictoria).length;
-    const victoriasAmistoso = amistososPartidos.filter(esVictoria).length;
-
-    const rendimientoPorTipo = [
-      { tipo: 'Torneos', partidos: torneoPartidos.length, victorias: victoriasTorneo },
-      { tipo: 'Amistosos', partidos: amistososPartidos.length, victorias: victoriasAmistoso },
-    ];
-
-    return { victorias, derrotas, actividadSemanal, rendimientoPorTipo, totalPartidos: partidosConResultado.length };
-  }, [partidos, usuario]);
-
-  const partidosJugados = estadisticas.totalPartidos;
-  const proximosPartidos = salas.filter(s => s.estado === 'programada' || s.estado === 'esperando').length;
-  const partidosActivos = salas.filter(s => s.estado === 'activa' || s.estado === 'en_juego').length;
-  const torneosActivos = torneos.filter(t => 
-    t.estado === 'activo' || t.estado === 'programado' || 
-    (t.estado as string) === 'inscripcion' || (t.estado as string) === 'fase_grupos' || (t.estado as string) === 'fase_eliminacion'
-  ).length;
-
-  // Últimos partidos desde el endpoint real
-  const ultimosPartidos = partidos
-    .filter(p => p.resultado || p.historial_rating)
-    .sort((a, b) => new Date(b.fecha).getTime() - new Date(a.fecha).getTime())
+  const ultimosPartidos = salas
+    .filter(s => s.estado === 'finalizada')
+    .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
     .slice(0, 5);
 
-  // Datos para gráficos - ahora con datos reales
-  const actividadSemanal = estadisticas.actividadSemanal;
-  const rendimientoPorTipo = estadisticas.rendimientoPorTipo;
+  // Datos para gráficos (usar datos reales si están disponibles)
+  const actividadSemanal = estadisticas?.actividad_semanal || [
+    { dia: 'Lun', partidos: 0, victorias: 0 },
+    { dia: 'Mar', partidos: 0, victorias: 0 },
+    { dia: 'Mié', partidos: 0, victorias: 0 },
+    { dia: 'Jue', partidos: 0, victorias: 0 },
+    { dia: 'Vie', partidos: 0, victorias: 0 },
+    { dia: 'Sáb', partidos: 0, victorias: 0 },
+    { dia: 'Dom', partidos: 0, victorias: 0 },
+  ];
+
+  const rendimientoPorCategoria = estadisticas?.rendimiento_por_categoria || [];
 
   const distribucionResultados = [
-    { name: 'Victorias', value: estadisticas.victorias, color: '#FF006E' },
-    { name: 'Derrotas', value: estadisticas.derrotas, color: '#94A3B8' },
+    { 
+      name: 'Victorias', 
+      value: estadisticas?.partidos_ganados || 0, 
+      color: '#FF006E' 
+    },
+    { 
+      name: 'Derrotas', 
+      value: estadisticas?.partidos_perdidos || 0, 
+      color: '#94A3B8' 
+    },
   ];
 
   const stats = [
     { 
       icon: Trophy, 
-      label: 'Torneos Activos', 
-      value: torneosActivos.toString(), 
+      label: 'Rating Actual', 
+      value: estadisticas?.rating_actual?.toString() || usuario?.rating?.toString() || '1200', 
       color: 'from-primary to-blue-500',
       iconBg: 'bg-primary/10',
       iconColor: 'text-primary',
@@ -143,17 +142,17 @@ export default function Dashboard() {
     },
     { 
       icon: Zap, 
-      label: 'Partidos Activos', 
-      value: partidosActivos.toString(), 
+      label: 'Victorias', 
+      value: (estadisticas?.partidos_ganados || 0).toString(), 
       color: 'from-accent to-yellow-400',
       iconBg: 'bg-accent/10',
       iconColor: 'text-accent',
       glowColor: 'accent'
     },
     { 
-      icon: Calendar, 
-      label: 'Próximos Partidos', 
-      value: proximosPartidos.toString(), 
+      icon: Target, 
+      label: 'Win Rate', 
+      value: partidosJugados > 0 ? `${Math.round(((estadisticas?.partidos_ganados || 0) / partidosJugados) * 100)}%` : '0%', 
       color: 'from-cyan-400 to-blue-500',
       iconBg: 'bg-cyan-400/10',
       iconColor: 'text-cyan-400',
@@ -204,12 +203,26 @@ export default function Dashboard() {
                 <div className="relative z-10">
                   <div className="flex items-center justify-between mb-2 md:mb-4">
                     <div className={`${stat.iconBg} p-2 md:p-3 rounded-lg relative`}>
-                      <Icon size={20} className={`${stat.iconColor} md:w-7 md:h-7`} strokeWidth={2.5} />
+                      {loading ? (
+                        <motion.div
+                          animate={{ rotate: 360 }}
+                          transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
+                          className="w-5 h-5 md:w-7 md:h-7 border-2 border-current border-t-transparent rounded-full"
+                        />
+                      ) : (
+                        <Icon size={20} className={`${stat.iconColor} md:w-7 md:h-7`} strokeWidth={2.5} />
+                      )}
                     </div>
                     <div className="text-right">
-                      <p className="text-3xl md:text-5xl font-black text-textPrimary tracking-tight">
-                        {stat.value}
-                      </p>
+                      <motion.p 
+                        className="text-3xl md:text-5xl font-black text-textPrimary tracking-tight"
+                        key={stat.value} // Re-animar cuando cambie el valor
+                        initial={{ scale: 0.8, opacity: 0 }}
+                        animate={{ scale: 1, opacity: 1 }}
+                        transition={{ type: "spring", stiffness: 200, damping: 15 }}
+                      >
+                        {loading ? '...' : stat.value}
+                      </motion.p>
                     </div>
                   </div>
                   <p className="text-textSecondary text-[10px] md:text-xs font-bold uppercase tracking-wider">{stat.label}</p>
@@ -252,70 +265,43 @@ export default function Dashboard() {
             </motion.div>
           ) : (
             <div className="space-y-3">
-              {ultimosPartidos.map((partido, index) => {
-                const miEquipo = partido.jugadores.find(j => j.id_usuario === usuario?.id_usuario)?.equipo;
-                const equipoA = partido.jugadores.filter(j => j.equipo === 1);
-                const equipoB = partido.jugadores.filter(j => j.equipo === 2);
-                const setsA = partido.resultado?.sets_eq1 || 0;
-                const setsB = partido.resultado?.sets_eq2 || 0;
-                const esVictoria = partido.historial_rating ? partido.historial_rating.delta > 0 : 
-                  (miEquipo === 1 ? setsA > setsB : setsB > setsA);
-                const ganadorEquipo = setsA > setsB ? 1 : 2;
-
-                return (
-                  <motion.div
-                    key={partido.id_partido}
-                    initial={{ opacity: 0, x: -20 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    transition={{ delay: index * 0.1 }}
-                    whileHover={{ scale: 1.02, x: 5 }}
-                    className={`bg-gradient-to-r ${esVictoria ? 'from-green-500/10' : 'from-red-500/10'} to-cardBg rounded-xl p-4 border ${esVictoria ? 'border-green-500/30' : 'border-red-500/30'} hover:border-primary/50 transition-all cursor-pointer group`}
-                    onClick={() => navigate('/perfil')}
-                  >
-                    <div className="flex items-center justify-between mb-3">
-                      <div className="flex items-center gap-2">
-                        <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
-                          partido.tipo === 'torneo' ? 'bg-accent/20 text-accent' : 'bg-primary/20 text-primary'
-                        }`}>
-                          {partido.tipo === 'torneo' ? 'TORNEO' : 'AMISTOSO'}
-                        </span>
-                        {partido.historial_rating && (
-                          <span className={`text-sm font-bold ${esVictoria ? 'text-green-400' : 'text-red-400'}`}>
-                            {partido.historial_rating.delta > 0 ? '+' : ''}{partido.historial_rating.delta}
-                          </span>
-                        )}
-                      </div>
-                      <p className="text-textSecondary text-xs bg-cardBorder px-2 py-1 rounded-full">
-                        {new Date(partido.fecha).toLocaleDateString('es-ES', { day: 'numeric', month: 'short' })}
-                      </p>
+              {ultimosPartidos.map((sala, index) => (
+                <motion.div
+                  key={sala.id}
+                  initial={{ opacity: 0, x: -20 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  transition={{ delay: index * 0.1 }}
+                  whileHover={{ scale: 1.02, x: 5 }}
+                  className="bg-gradient-to-r from-background to-cardBg rounded-xl p-4 border border-cardBorder hover:border-primary/50 transition-all cursor-pointer group"
+                  onClick={() => navigate('/salas')}
+                >
+                  <div className="flex items-center justify-between mb-3">
+                    <p className="text-textPrimary font-bold group-hover:text-primary transition-colors">{sala.nombre}</p>
+                    <p className="text-textSecondary text-xs bg-cardBorder px-2 py-1 rounded-full">
+                      {new Date(sala.fecha).toLocaleDateString('es-ES', { day: 'numeric', month: 'short' })}
+                    </p>
+                  </div>
+                  <div className="flex items-center justify-between text-sm">
+                    <div className="flex items-center gap-2 flex-1">
+                      <span className={`${sala.ganador === 'equipoA' ? 'text-primary font-black' : 'text-textSecondary'} truncate`}>
+                        {sala.equipoA.jugador1.nombre} / {sala.equipoA.jugador2.nombre}
+                      </span>
+                      <span className={`${sala.ganador === 'equipoA' ? 'text-primary' : 'text-textPrimary'} font-bold text-lg`}>
+                        {sala.equipoA.puntos}
+                      </span>
                     </div>
-                    <div className="grid grid-cols-7 items-center text-sm gap-2">
-                      {/* Equipo A - nombres */}
-                      <div className="col-span-2 text-left">
-                        <span className={`${ganadorEquipo === 1 ? 'text-green-400 font-black' : 'text-red-400'} truncate block`}>
-                          {equipoA.map(j => j.nombre || j.apellido).join(' / ') || 'Equipo A'}
-                        </span>
-                      </div>
-                      {/* Resultado centrado */}
-                      <div className="col-span-3 flex items-center justify-center gap-2">
-                        <span className={`${ganadorEquipo === 1 ? 'text-green-400' : 'text-red-400'} font-black text-2xl`}>
-                          {setsA}
-                        </span>
-                        <span className="text-textSecondary font-bold text-lg">-</span>
-                        <span className={`${ganadorEquipo === 2 ? 'text-green-400' : 'text-red-400'} font-black text-2xl`}>
-                          {setsB}
-                        </span>
-                      </div>
-                      {/* Equipo B - nombres */}
-                      <div className="col-span-2 text-right">
-                        <span className={`${ganadorEquipo === 2 ? 'text-green-400 font-black' : 'text-red-400'} truncate block`}>
-                          {equipoB.map(j => j.nombre || j.apellido).join(' / ') || 'Equipo B'}
-                        </span>
-                      </div>
+                    <span className="text-textSecondary mx-3 font-bold">VS</span>
+                    <div className="flex items-center gap-2 flex-1 justify-end">
+                      <span className={`${sala.ganador === 'equipoB' ? 'text-secondary' : 'text-textPrimary'} font-bold text-lg`}>
+                        {sala.equipoB.puntos}
+                      </span>
+                      <span className={`${sala.ganador === 'equipoB' ? 'text-secondary font-black' : 'text-textSecondary'} truncate text-right`}>
+                        {sala.equipoB.jugador1.nombre} / {sala.equipoB.jugador2.nombre}
+                      </span>
                     </div>
-                  </motion.div>
-                );
-              })}
+                  </div>
+                </motion.div>
+              ))}
             </div>
           )}
         </Card>
@@ -416,16 +402,16 @@ export default function Dashboard() {
         </Card>
       </div>
 
-      {/* Gráfico de Rendimiento por Tipo */}
+      {/* Gráfico de Rendimiento por Categoría */}
       <Card gradient>
         <div className="flex items-center gap-2 mb-6">
           <Target className="text-accent" size={28} />
-          <h2 className="text-2xl font-bold text-textPrimary">Rendimiento por Tipo de Partido</h2>
+          <h2 className="text-2xl font-bold text-textPrimary">Rendimiento por Categoría</h2>
         </div>
         <ResponsiveContainer width="100%" height={300}>
-          <BarChart data={rendimientoPorTipo}>
+          <BarChart data={rendimientoPorCategoria}>
             <CartesianGrid strokeDasharray="3 3" stroke="#3A4558" />
-            <XAxis dataKey="tipo" stroke="#94A3B8" />
+            <XAxis dataKey="categoria" stroke="#94A3B8" />
             <YAxis stroke="#94A3B8" />
             <Tooltip 
               contentStyle={{ 
