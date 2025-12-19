@@ -7,6 +7,7 @@ class CategoriaBase(BaseModel):
     descripcion: Optional[str] = None
     rating_min: Optional[int] = None
     rating_max: Optional[int] = None
+    sexo: Optional[str] = "masculino"
 
 class CategoriaCreate(CategoriaBase):
     """Esquema para crear una categoría"""

@@ -127,7 +127,7 @@ class PadelValidator:
         Valida un resultado completo de partido
         
         Args:
-            sets: Lista de sets con formato {'juegos_eq1': int, 'juegos_eq2': int}
+            sets: Lista de sets con formato {'juegos_eq1': int, 'juegos_eq2': int, 'esSuperTiebreak': bool}
             supertiebreak: Dict opcional con formato {'puntos_eq1': int, 'puntos_eq2': int}
             
         Returns:
@@ -152,36 +152,32 @@ class PadelValidator:
         for i, set_data in enumerate(sets, 1):
             juegos_eq1 = set_data.get('juegos_eq1', 0)
             juegos_eq2 = set_data.get('juegos_eq2', 0)
+            es_supertiebreak = set_data.get('esSuperTiebreak', False)
             
-            es_valido, mensaje = PadelValidator.validar_set(juegos_eq1, juegos_eq2)
-            if not es_valido:
-                errores.append(f"Set {i}: {mensaje}")
-            else:
-                # Contar sets ganados
-                if juegos_eq1 > juegos_eq2:
-                    sets_ganados_eq1 += 1
+            # Si es supertiebreak, validar como supertiebreak
+            if es_supertiebreak:
+                es_valido, mensaje = PadelValidator.validar_supertiebreak(juegos_eq1, juegos_eq2)
+                if not es_valido:
+                    errores.append(f"Super Tiebreak: {mensaje}")
                 else:
-                    sets_ganados_eq2 += 1
+                    if juegos_eq1 > juegos_eq2:
+                        sets_ganados_eq1 += 1
+                    else:
+                        sets_ganados_eq2 += 1
+            else:
+                # Validar como set normal
+                es_valido, mensaje = PadelValidator.validar_set(juegos_eq1, juegos_eq2)
+                if not es_valido:
+                    errores.append(f"Set {i}: {mensaje}")
+                else:
+                    if juegos_eq1 > juegos_eq2:
+                        sets_ganados_eq1 += 1
+                    else:
+                        sets_ganados_eq2 += 1
         
-        # Validar que el partido esté completo
+        # Validar que el partido esté completo (alguien ganó 2 sets)
         if sets_ganados_eq1 < 2 and sets_ganados_eq2 < 2:
-            # Si hay empate 1-1, debe haber supertiebreak
-            if sets_ganados_eq1 == 1 and sets_ganados_eq2 == 1:
-                if not supertiebreak:
-                    errores.append("Con empate 1-1 en sets, debe jugarse supertiebreak")
-                else:
-                    puntos_eq1 = supertiebreak.get('puntos_eq1', 0)
-                    puntos_eq2 = supertiebreak.get('puntos_eq2', 0)
-                    es_valido, mensaje = PadelValidator.validar_supertiebreak(puntos_eq1, puntos_eq2)
-                    if not es_valido:
-                        errores.append(f"Supertiebreak: {mensaje}")
-            else:
-                errores.append("Partido incompleto: debe haber un ganador")
-        
-        # Validar que no haya más sets si ya hay ganador
-        if (sets_ganados_eq1 == 2 or sets_ganados_eq2 == 2) and len(sets) > 2:
-            # Esto es válido, puede haber 3 sets si el tercero se jugó
-            pass
+            errores.append("Partido incompleto: debe haber un ganador con 2 sets")
         
         return len(errores) == 0, errores
     
@@ -198,15 +194,18 @@ class PadelValidator:
         for i, set_data in enumerate(sets, 1):
             juegos_eq1 = set_data.get('juegos_eq1', 0)
             juegos_eq2 = set_data.get('juegos_eq2', 0)
+            es_supertiebreak = set_data.get('esSuperTiebreak', False)
             
             # Detectar resultados muy desbalanceados (posible trampa)
-            if juegos_eq1 == 6 and juegos_eq2 == 0:
-                advertencias.append(f"Set {i}: Resultado 6-0 (muy desbalanceado)")
-            elif juegos_eq2 == 6 and juegos_eq1 == 0:
-                advertencias.append(f"Set {i}: Resultado 0-6 (muy desbalanceado)")
-            
-            # Detectar resultados imposibles
-            if juegos_eq1 > 7 or juegos_eq2 > 7:
-                advertencias.append(f"Set {i}: Resultado imposible (más de 7 juegos)")
+            if not es_supertiebreak:
+                if juegos_eq1 == 6 and juegos_eq2 == 0:
+                    advertencias.append(f"Set {i}: Resultado 6-0 (muy desbalanceado)")
+                elif juegos_eq2 == 6 and juegos_eq1 == 0:
+                    advertencias.append(f"Set {i}: Resultado 0-6 (muy desbalanceado)")
+                
+                # Detectar resultados imposibles (solo para sets normales)
+                if juegos_eq1 > 7 or juegos_eq2 > 7:
+                    advertencias.append(f"Set {i}: Resultado imposible (más de 7 juegos)")
+            # Para supertiebreak, no hay límite de 7
         
         return len(advertencias) == 0, advertencias

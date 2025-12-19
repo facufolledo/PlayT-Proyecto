@@ -4,6 +4,7 @@ import { X, Users, AlertCircle, Search } from 'lucide-react';
 import Button from './Button';
 import { useTorneos } from '../context/TorneosContext';
 import { useAuth } from '../context/AuthContext';
+import { torneoService, Categoria } from '../services/torneo.service';
 import axios from 'axios';
 import { parseError } from '../utils/errorHandler';
 
@@ -14,6 +15,7 @@ interface ModalInscribirTorneoProps {
   onClose: () => void;
   torneoId: number;
   torneoNombre: string;
+  esOrganizador?: boolean;
 }
 
 export default function ModalInscribirTorneo({
@@ -21,22 +23,94 @@ export default function ModalInscribirTorneo({
   onClose,
   torneoId,
   torneoNombre,
+  esOrganizador = false,
 }: ModalInscribirTorneoProps) {
-  const { inscribirPareja, loading } = useTorneos();
+  const { loading } = useTorneos();
   const { usuario } = useAuth();
   const [error, setError] = useState('');
   const [success, setSuccess] = useState(false);
+  const [codigoConfirmacion, setCodigoConfirmacion] = useState('');
+  
+  // Categorías del torneo
+  const [categorias, setCategorias] = useState<Categoria[]>([]);
+  const [categoriaSeleccionada, setCategoriaSeleccionada] = useState<number | null>(null);
+  const [loadingCategorias, setLoadingCategorias] = useState(false);
+  
+  // Para búsqueda de jugador 1 (solo organizador)
+  const [searchQuery1, setSearchQuery1] = useState('');
+  const [searchResults1, setSearchResults1] = useState<any[]>([]);
+  const [searching1, setSearching1] = useState(false);
+  const [selectedJugador1, setSelectedJugador1] = useState<any>(null);
+  
+  // Para búsqueda de jugador 2
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState<any[]>([]);
   const [searching, setSearching] = useState(false);
   const [selectedCompanero, setSelectedCompanero] = useState<any>(null);
   
   const [formData, setFormData] = useState({
+    jugador1_id: '',
     jugador2_id: '',
     nombre_pareja: '',
   });
 
-  // Buscar usuarios cuando cambia el query
+  // Cargar categorías al abrir
+  useEffect(() => {
+    if (isOpen && torneoId) {
+      cargarCategorias();
+    }
+  }, [isOpen, torneoId]);
+
+  const cargarCategorias = async () => {
+    try {
+      setLoadingCategorias(true);
+      const cats = await torneoService.listarCategorias(torneoId);
+      setCategorias(cats);
+      // Si solo hay una categoría, seleccionarla automáticamente
+      if (cats.length === 1) {
+        setCategoriaSeleccionada(cats[0].id);
+      }
+    } catch (err) {
+      console.error('Error cargando categorías:', err);
+    } finally {
+      setLoadingCategorias(false);
+    }
+  };
+
+  // Buscar usuarios para jugador 1 (solo organizador)
+  useEffect(() => {
+    if (!esOrganizador) return;
+    
+    const buscarUsuarios = async () => {
+      if (searchQuery1.length < 2) {
+        setSearchResults1([]);
+        return;
+      }
+
+      try {
+        setSearching1(true);
+        const response = await axios.get(`${API_URL}/usuarios/buscar`, {
+          params: { q: searchQuery1, limit: 5 }
+        });
+        
+        // Filtrar para no mostrar al jugador 2 si ya está seleccionado
+        const resultados = response.data.filter((u: any) => 
+          u.id_usuario !== selectedCompanero?.id_usuario
+        );
+        setSearchResults1(resultados);
+      } catch (err) {
+        console.error('Error buscando usuarios:', err);
+        setSearchResults1([]);
+      } finally {
+        setSearching1(false);
+      }
+    };
+
+    const timeoutId = setTimeout(buscarUsuarios, 300);
+    return () => clearTimeout(timeoutId);
+  }, [searchQuery1, esOrganizador, selectedCompanero]);
+
+  // Buscar usuarios para jugador 2
   useEffect(() => {
     const buscarUsuarios = async () => {
       if (searchQuery.length < 2) {
@@ -50,8 +124,9 @@ export default function ModalInscribirTorneo({
           params: { q: searchQuery, limit: 5 }
         });
         
-        // Filtrar para no mostrar al usuario actual
-        const resultados = response.data.filter((u: any) => u.id_usuario !== usuario?.id_usuario);
+        // Filtrar para no mostrar al usuario actual ni al jugador 1 seleccionado
+        const jugador1Id = esOrganizador ? selectedJugador1?.id_usuario : usuario?.id_usuario;
+        const resultados = response.data.filter((u: any) => u.id_usuario !== jugador1Id);
         setSearchResults(resultados);
       } catch (err) {
         console.error('Error buscando usuarios:', err);
@@ -63,7 +138,7 @@ export default function ModalInscribirTorneo({
 
     const timeoutId = setTimeout(buscarUsuarios, 300);
     return () => clearTimeout(timeoutId);
-  }, [searchQuery, usuario]);
+  }, [searchQuery, usuario, esOrganizador, selectedJugador1]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -74,30 +149,49 @@ export default function ModalInscribirTorneo({
       return;
     }
 
-    if (!formData.jugador2_id) {
-      setError('Debes ingresar el ID de tu compañero');
+    // Validaciones según si es organizador o no
+    if (esOrganizador) {
+      if (!selectedJugador1) {
+        setError('Debes seleccionar el jugador 1');
+        return;
+      }
+      if (!selectedCompanero) {
+        setError('Debes seleccionar el jugador 2');
+        return;
+      }
+    } else {
+      if (!formData.jugador2_id) {
+        setError('Debes seleccionar tu compañero');
+        return;
+      }
+    }
+
+    // Determinar jugadores
+    const jugador1 = esOrganizador ? selectedJugador1 : usuario;
+    const jugador2 = selectedCompanero;
+
+    // Generar nombre de pareja automáticamente
+    const nombrePareja = jugador2 
+      ? `${jugador1.apellido || jugador1.nombre} / ${jugador2.apellido || jugador2.nombre}`
+      : '';
+
+    // Validar categoría si hay categorías disponibles
+    if (categorias.length > 0 && !categoriaSeleccionada) {
+      setError('Debes seleccionar una categoría');
       return;
     }
 
-    // Generar nombre de pareja automáticamente
-    const nombrePareja = selectedCompanero 
-      ? `${usuario.apellido} / ${selectedCompanero.apellido}`
-      : '';
-
     try {
-      await inscribirPareja(torneoId, {
-        jugador1_id: usuario.id_usuario,
-        jugador2_id: parseInt(formData.jugador2_id),
+      const resultado = await torneoService.inscribirPareja(torneoId, {
+        jugador1_id: jugador1.id_usuario,
+        jugador2_id: jugador2.id_usuario,
         nombre_pareja: nombrePareja,
+        categoria_id: categoriaSeleccionada || undefined,
       });
 
+      setCodigoConfirmacion(resultado.codigo_confirmacion);
       setSuccess(true);
-      setTimeout(() => {
-        onClose();
-        setSuccess(false);
-        setFormData({ jugador2_id: '', nombre_pareja: '' });
-        setSelectedCompanero(null);
-      }, 2000);
+      // No cerrar automáticamente para que el usuario vea el código
     } catch (err: any) {
       console.error('Error al inscribir:', err);
       const errorInfo = parseError(err);
@@ -110,7 +204,12 @@ export default function ModalInscribirTorneo({
       onClose();
       setError('');
       setSuccess(false);
-      setFormData({ jugador2_id: '', nombre_pareja: '' });
+      setFormData({ jugador1_id: '', jugador2_id: '', nombre_pareja: '' });
+      setSelectedJugador1(null);
+      setSelectedCompanero(null);
+      setSearchQuery('');
+      setSearchQuery1('');
+      setCategoriaSeleccionada(null);
     }
   };
 
@@ -137,15 +236,45 @@ export default function ModalInscribirTorneo({
             >
               {success ? (
                 <div className="p-4 sm:p-6 text-center">
-                  <div className="w-12 h-12 sm:w-16 sm:h-16 bg-green-500/20 rounded-full flex items-center justify-center mx-auto mb-3 sm:mb-4">
-                    <Users size={24} className="text-green-500 sm:w-8 sm:h-8" />
+                  <div className="w-12 h-12 sm:w-16 sm:h-16 bg-yellow-500/20 rounded-full flex items-center justify-center mx-auto mb-3 sm:mb-4">
+                    <Users size={24} className="text-yellow-500 sm:w-8 sm:h-8" />
                   </div>
                   <h3 className="text-base sm:text-xl font-bold text-textPrimary mb-1 sm:mb-2">
-                    ¡Inscripción Exitosa!
+                    ¡Invitación Enviada!
                   </h3>
-                  <p className="text-textSecondary text-xs sm:text-base">
-                    Tu pareja ha sido inscrita en el torneo
+                  <p className="text-textSecondary text-xs sm:text-sm mb-4">
+                    Tu compañero debe confirmar la inscripción
                   </p>
+                  
+                  {/* Código de confirmación */}
+                  <div className="bg-accent/10 border-2 border-accent/30 rounded-xl p-4 mb-4">
+                    <p className="text-xs text-textSecondary mb-2">Código de confirmación:</p>
+                    <p className="text-3xl font-black text-accent tracking-widest">{codigoConfirmacion}</p>
+                  </div>
+                  
+                  <p className="text-xs text-textSecondary mb-4">
+                    Comparte este código con tu compañero para que confirme.<br/>
+                    También le enviamos una notificación.
+                  </p>
+                  
+                  <div className="flex gap-2">
+                    <Button
+                      variant="ghost"
+                      onClick={() => {
+                        navigator.clipboard.writeText(codigoConfirmacion);
+                      }}
+                      className="flex-1 text-xs"
+                    >
+                      Copiar código
+                    </Button>
+                    <Button
+                      variant="accent"
+                      onClick={handleClose}
+                      className="flex-1 text-xs"
+                    >
+                      Entendido
+                    </Button>
+                  </div>
                 </div>
               ) : (
                 <>
@@ -170,21 +299,144 @@ export default function ModalInscribirTorneo({
 
                   {/* Form */}
                   <form onSubmit={handleSubmit} className="p-3 sm:p-6 space-y-3 sm:space-y-4">
-                    {/* Info del usuario actual */}
-                    <div className="bg-primary/10 rounded-lg p-2 sm:p-4">
-                      <p className="text-[10px] sm:text-xs text-textSecondary mb-0.5 sm:mb-1">Jugador 1 (Tú)</p>
-                      <p className="font-bold text-textPrimary text-sm sm:text-base">
-                        {usuario?.nombre} {usuario?.apellido}
-                      </p>
-                      <p className="text-[10px] sm:text-xs text-textSecondary">
-                        Rating: {usuario?.rating || 1200}
-                      </p>
-                    </div>
+                    {/* Selector de Categoría */}
+                    {categorias.length > 0 && (
+                      <div>
+                        <label className="block text-xs sm:text-sm font-bold text-textSecondary mb-1.5 sm:mb-2">
+                          Categoría *
+                        </label>
+                        {loadingCategorias ? (
+                          <div className="h-10 bg-cardBorder animate-pulse rounded-lg"></div>
+                        ) : (
+                          <div className="grid grid-cols-2 gap-2">
+                            {categorias.map((cat) => (
+                              <button
+                                key={cat.id}
+                                type="button"
+                                onClick={() => setCategoriaSeleccionada(cat.id)}
+                                disabled={cat.parejas_inscritas >= cat.max_parejas}
+                                className={`p-2 rounded-lg border text-left transition-all ${
+                                  categoriaSeleccionada === cat.id
+                                    ? 'border-primary bg-primary/10'
+                                    : cat.parejas_inscritas >= cat.max_parejas
+                                    ? 'border-cardBorder opacity-50 cursor-not-allowed'
+                                    : 'border-cardBorder hover:border-primary/50'
+                                }`}
+                              >
+                                <span className="font-bold text-textPrimary text-sm">{cat.nombre}</span>
+                                <span className={`ml-1 text-xs ${
+                                  cat.genero === 'masculino' ? 'text-blue-400' :
+                                  cat.genero === 'femenino' ? 'text-pink-400' : 'text-purple-400'
+                                }`}>
+                                  ({cat.genero.charAt(0).toUpperCase()})
+                                </span>
+                                <p className="text-xs text-textSecondary">
+                                  {cat.parejas_inscritas}/{cat.max_parejas} parejas
+                                </p>
+                              </button>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    )}
 
-                    {/* Buscar compañero */}
+                    {/* Jugador 1 - Si es organizador puede elegir, si no es el usuario actual */}
+                    {esOrganizador ? (
+                      <div>
+                        <label className="block text-xs sm:text-sm font-bold text-textSecondary mb-1.5 sm:mb-2">
+                          Jugador 1 *
+                        </label>
+                        
+                        {selectedJugador1 ? (
+                          <div className="bg-primary/10 rounded-lg p-2 sm:p-4 flex items-center justify-between">
+                            <div className="flex-1 min-w-0">
+                              <p className="font-bold text-textPrimary text-sm sm:text-base truncate">
+                                {selectedJugador1.nombre} {selectedJugador1.apellido}
+                              </p>
+                              <p className="text-[10px] sm:text-xs text-textSecondary">
+                                Rating: {selectedJugador1.rating || 1200}
+                              </p>
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setSelectedJugador1(null);
+                                setFormData({ ...formData, jugador1_id: '' });
+                              }}
+                              className="text-textSecondary hover:text-red-500 transition-colors flex-shrink-0 ml-2"
+                            >
+                              <X size={16} className="sm:w-5 sm:h-5" />
+                            </button>
+                          </div>
+                        ) : (
+                          <div className="relative">
+                            <div className="relative">
+                              <Search size={14} className="absolute left-2 sm:left-3 top-1/2 -translate-y-1/2 text-textSecondary sm:w-[18px] sm:h-[18px]" />
+                              <input
+                                type="text"
+                                value={searchQuery1}
+                                onChange={(e) => setSearchQuery1(e.target.value)}
+                                placeholder="Busca por nombre o apellido..."
+                                disabled={loading}
+                                className="w-full pl-8 sm:pl-10 pr-3 sm:pr-4 py-2 sm:py-3 bg-background border border-cardBorder rounded-lg text-sm sm:text-base text-textPrimary placeholder-textSecondary focus:outline-none focus:border-primary transition-colors disabled:opacity-50"
+                              />
+                            </div>
+                            
+                            {/* Resultados de búsqueda jugador 1 */}
+                            {searchQuery1.length >= 2 && (
+                              <div className="absolute z-10 w-full mt-1 sm:mt-2 bg-card border border-cardBorder rounded-lg shadow-lg max-h-48 sm:max-h-60 overflow-y-auto">
+                                {searching1 ? (
+                                  <div className="p-3 sm:p-4 text-center text-textSecondary text-xs sm:text-sm">
+                                    Buscando...
+                                  </div>
+                                ) : searchResults1.length > 0 ? (
+                                  searchResults1.map((user) => (
+                                    <button
+                                      key={user.id_usuario}
+                                      type="button"
+                                      onClick={() => {
+                                        setSelectedJugador1(user);
+                                        setFormData({ ...formData, jugador1_id: user.id_usuario.toString() });
+                                        setSearchQuery1('');
+                                        setSearchResults1([]);
+                                      }}
+                                      className="w-full p-2 sm:p-3 text-left hover:bg-background transition-colors border-b border-cardBorder last:border-b-0"
+                                    >
+                                      <p className="font-bold text-textPrimary text-sm sm:text-base truncate">
+                                        {user.nombre} {user.apellido}
+                                      </p>
+                                      <p className="text-[10px] sm:text-xs text-textSecondary">
+                                        Rating: {user.rating || 1200}
+                                      </p>
+                                    </button>
+                                  ))
+                                ) : (
+                                  <div className="p-3 sm:p-4 text-center text-textSecondary text-xs sm:text-sm">
+                                    No se encontraron usuarios
+                                  </div>
+                                )}
+                              </div>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    ) : (
+                      /* Info del usuario actual (no organizador) */
+                      <div className="bg-primary/10 rounded-lg p-2 sm:p-4">
+                        <p className="text-[10px] sm:text-xs text-textSecondary mb-0.5 sm:mb-1">Jugador 1 (Tú)</p>
+                        <p className="font-bold text-textPrimary text-sm sm:text-base">
+                          {usuario?.nombre} {usuario?.apellido}
+                        </p>
+                        <p className="text-[10px] sm:text-xs text-textSecondary">
+                          Rating: {usuario?.rating || 1200}
+                        </p>
+                      </div>
+                    )}
+
+                    {/* Buscar compañero (Jugador 2) */}
                     <div>
                       <label className="block text-xs sm:text-sm font-bold text-textSecondary mb-1.5 sm:mb-2">
-                        Buscar Compañero *
+                        {esOrganizador ? 'Jugador 2 *' : 'Buscar Compañero *'}
                       </label>
                       
                       {selectedCompanero ? (
@@ -268,11 +520,14 @@ export default function ModalInscribirTorneo({
                     </div>
 
                     {/* Nombre de la pareja - generado automáticamente */}
-                    {selectedCompanero && (
+                    {selectedCompanero && (esOrganizador ? selectedJugador1 : usuario) && (
                       <div className="bg-accent/10 rounded-lg p-2 sm:p-4">
                         <p className="text-[10px] sm:text-xs text-textSecondary mb-0.5 sm:mb-1">Nombre de la Pareja</p>
                         <p className="font-bold text-textPrimary text-sm sm:text-base">
-                          {usuario?.apellido} / {selectedCompanero.apellido}
+                          {esOrganizador 
+                            ? `${selectedJugador1?.apellido || selectedJugador1?.nombre} / ${selectedCompanero.apellido || selectedCompanero.nombre}`
+                            : `${usuario?.apellido} / ${selectedCompanero.apellido}`
+                          }
                         </p>
                       </div>
                     )}

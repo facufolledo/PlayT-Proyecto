@@ -277,6 +277,7 @@ async def listar_salas(
         jugadores_por_sala[sj.id_sala].append({
             "id": str(usuario.id_usuario),
             "nombre": nombre_completo,
+            "nombre_usuario": usuario.nombre_usuario,
             "rating": usuario.rating or 1500,
             "equipo": sj.equipo,
             "esCreador": False  # Se actualizará después
@@ -284,9 +285,11 @@ async def listar_salas(
     
     # Obtener resultados de partidos y cambios de Elo
     from ..models.playt_models import Partido, PartidoJugador, ResultadoPartido
+    from ..models.confirmacion import Confirmacion
     partidos_ids = [s.id_partido for s in salas if s.id_partido]
     partidos_dict = {}
     cambios_elo_dict = {}
+    confirmaciones_dict = {}  # IDs de usuarios que ya confirmaron por partido
     
     if partidos_ids:
         partidos = db.query(Partido).filter(Partido.id_partido.in_(partidos_ids)).all()
@@ -307,6 +310,17 @@ async def listar_salas(
                 "rating_despues": cambio.rating_despues,
                 "cambio_elo": cambio.cambio_elo
             })
+        
+        # Obtener confirmaciones de cada partido
+        confirmaciones = db.query(Confirmacion).filter(
+            Confirmacion.id_partido.in_(partidos_ids),
+            Confirmacion.tipo == 'confirmacion'
+        ).all()
+        
+        for conf in confirmaciones:
+            if conf.id_partido not in confirmaciones_dict:
+                confirmaciones_dict[conf.id_partido] = []
+            confirmaciones_dict[conf.id_partido].append(conf.id_usuario)
     
     # Construir resultado
     resultado = []
@@ -356,6 +370,11 @@ async def listar_salas(
                     if sala.id_partido in cambios_elo_dict:
                         cambios_elo = cambios_elo_dict[sala.id_partido]
             
+            # Obtener usuarios que ya confirmaron este partido
+            usuarios_confirmados = []
+            if sala.id_partido and sala.id_partido in confirmaciones_dict:
+                usuarios_confirmados = confirmaciones_dict[sala.id_partido]
+            
             sala_completa = SalaCompleta(
                 id_sala=str(sala.id_sala),
                 nombre=sala.nombre,
@@ -370,7 +389,8 @@ async def listar_salas(
                 resultado=resultado_partido,
                 estado_confirmacion=estado_confirmacion,
                 cambios_elo=cambios_elo,
-                elo_aplicado=elo_aplicado
+                elo_aplicado=elo_aplicado,
+                usuarios_confirmados=usuarios_confirmados
             )
             resultado.append(sala_completa)
         except Exception as e:
@@ -590,10 +610,11 @@ async def cargar_resultado(
         for set_info in resultado.sets:
             sets_para_validar.append({
                 'juegos_eq1': set_info.gamesEquipoA,
-                'juegos_eq2': set_info.gamesEquipoB
+                'juegos_eq2': set_info.gamesEquipoB,
+                'esSuperTiebreak': getattr(set_info, 'esSuperTiebreak', False)
             })
         
-        # Preparar supertiebreak si existe
+        # Preparar supertiebreak si existe (formato antiguo)
         supertiebreak_para_validar = None
         if resultado.supertiebreak and resultado.supertiebreak.completado:
             supertiebreak_para_validar = {
@@ -640,7 +661,20 @@ async def cargar_resultado(
                 detail="El resultado ya fue confirmado y no se puede editar"
             )
         
-        # Si existe pero no está confirmado, permitir actualización (eliminar el anterior)
+        # Verificar si ya hay confirmaciones de otros jugadores
+        from ..models.confirmacion import Confirmacion
+        confirmaciones_existentes = db.query(Confirmacion).filter(
+            Confirmacion.id_partido == partido.id_partido,
+            Confirmacion.tipo == 'confirmacion'
+        ).count()
+        
+        if confirmaciones_existentes > 0:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"No se puede modificar el resultado: {confirmaciones_existentes} jugador(es) ya confirmaron"
+            )
+        
+        # Si existe pero no está confirmado y no hay confirmaciones, permitir actualización
         if resultado_existente and not resultado_existente.confirmado:
             db.delete(resultado_existente)
             db.flush()

@@ -1,10 +1,10 @@
-import { useEffect, useState } from 'react';
-import { Trophy, Zap, Users, Info } from 'lucide-react';
+import { useEffect, useState, useCallback } from 'react';
+import { Trophy, Zap, Users, Info, RefreshCw, Filter } from 'lucide-react';
 import Card from './Card';
 import Button from './Button';
 import SkeletonLoader from './SkeletonLoader';
 import TorneoBracket from './TorneoBracket';
-import torneoService from '../services/torneo.service';
+import torneoService, { Categoria } from '../services/torneo.service';
 import { useTorneos } from '../context/TorneosContext';
 
 interface TorneoPlayoffsProps {
@@ -24,53 +24,116 @@ interface Partido {
   estado: string;
 }
 
+// Cache de playoffs
+const playoffsCache: Record<number, { partidos: Partido[]; timestamp: number }> = {};
+const CACHE_TTL = 30000; // 30 segundos - más corto para ver cambios en tiempo real
+
 export default function TorneoPlayoffs({ torneoId, esOrganizador }: TorneoPlayoffsProps) {
   const [partidos, setPartidos] = useState<Partido[]>([]);
   const [loading, setLoading] = useState(true);
   const [generando, setGenerando] = useState(false);
   const [playoffsGenerados, setPlayoffsGenerados] = useState(false);
+  const [ultimaActualizacion, setUltimaActualizacion] = useState<Date | null>(null);
   const { parejas } = useTorneos();
+  const [categorias, setCategorias] = useState<Categoria[]>([]);
+  const [categoriaFiltro, setCategoriaFiltro] = useState<number | null>(null);
 
   useEffect(() => {
-    cargarPlayoffs();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    torneoService.listarCategorias(torneoId)
+      .then(setCategorias)
+      .catch(() => setCategorias([]));
   }, [torneoId]);
 
-  const cargarPlayoffs = async () => {
+  const cargarPlayoffs = useCallback(async (forzar: boolean = false) => {
+    const cached = playoffsCache[torneoId];
+    
+    if (!forzar && cached && Date.now() - cached.timestamp < CACHE_TTL) {
+      // Filtrar por categoría del cache
+      const partidosFiltrados = categoriaFiltro 
+        ? cached.partidos.filter((p: any) => p.categoria_id === categoriaFiltro)
+        : cached.partidos;
+      setPartidos(partidosFiltrados);
+      setPlayoffsGenerados(partidosFiltrados.length > 0);
+      setLoading(false);
+      return;
+    }
+
     try {
       setLoading(true);
-      const data = await torneoService.listarPartidosPlayoffs(torneoId);
-      // El endpoint puede retornar un array directamente o un objeto con partidos
+      // Cargar todos los playoffs (sin filtro en el backend para cachear)
+      const data = await torneoService.listarPlayoffs(torneoId);
       const partidosData = Array.isArray(data) ? data : (data as any)?.partidos || [];
       
-      if (partidosData.length > 0) {
-        setPartidos(partidosData);
-        setPlayoffsGenerados(true);
-      } else {
-        setPartidos([]);
-        setPlayoffsGenerados(false);
-      }
+      // Guardar en cache
+      playoffsCache[torneoId] = {
+        partidos: partidosData,
+        timestamp: Date.now()
+      };
+      
+      // Filtrar por categoría
+      const partidosFiltrados = categoriaFiltro 
+        ? partidosData.filter((p: any) => p.categoria_id === categoriaFiltro)
+        : partidosData;
+      
+      setPartidos(partidosFiltrados);
+      setPlayoffsGenerados(partidosFiltrados.length > 0);
+      setUltimaActualizacion(new Date());
     } catch (error: any) {
-      // Si el endpoint no existe o no hay playoffs, mostrar estado vacío
       console.error('Error al cargar playoffs:', error);
       setPartidos([]);
       setPlayoffsGenerados(false);
     } finally {
       setLoading(false);
     }
+  }, [torneoId, categoriaFiltro]);
+
+  useEffect(() => {
+    cargarPlayoffs();
+  }, [cargarPlayoffs, categoriaFiltro]);
+
+  // Auto-refresh cada 30 segundos para ver cambios en tiempo real
+  useEffect(() => {
+    const interval = setInterval(() => {
+      cargarPlayoffs(true);
+    }, 30000);
+    
+    return () => clearInterval(interval);
+  }, [cargarPlayoffs]);
+
+  // Función para refrescar manualmente
+  const refrescarPlayoffs = () => {
+    delete playoffsCache[torneoId];
+    cargarPlayoffs(true);
   };
+
+  const [error, setError] = useState<string | null>(null);
 
   const generarPlayoffs = async () => {
     try {
       setGenerando(true);
+      setError(null);
       await torneoService.generarPlayoffs(torneoId);
       await cargarPlayoffs();
     } catch (error: any) {
       console.error('Error al generar playoffs:', error);
-      alert(error.response?.data?.detail || 'Error al generar playoffs');
+      setError(error.response?.data?.detail || 'Error al generar playoffs');
     } finally {
       setGenerando(false);
     }
+  };
+
+  const regenerarPlayoffs = async () => {
+    if (!confirm('¿Estás seguro de regenerar los playoffs? Se perderán los resultados actuales.')) {
+      return;
+    }
+    delete playoffsCache[torneoId];
+    await generarPlayoffs();
+  };
+
+  // Invalidar cache cuando se carga un resultado
+  const handleResultadoCargado = () => {
+    delete playoffsCache[torneoId];
+    cargarPlayoffs(true);
   };
 
   // Calcular información del bracket basado en parejas
@@ -145,6 +208,13 @@ export default function TorneoPlayoffs({ torneoId, esOrganizador }: TorneoPlayof
                 </p>
               </div>
 
+              {/* Mensaje de error */}
+              {error && (
+                <div className="bg-red-500/10 border border-red-500/30 rounded-lg p-3 mb-4 max-w-md mx-auto">
+                  <p className="text-red-500 text-sm">{error}</p>
+                </div>
+              )}
+
               {esOrganizador && (
                 <Button
                   onClick={generarPlayoffs}
@@ -173,11 +243,76 @@ export default function TorneoPlayoffs({ torneoId, esOrganizador }: TorneoPlayof
   return (
     <Card>
       <div className="p-4 md:p-6">
+        {/* Filtro por categoría */}
+        {categorias.length > 0 && (
+          <div className="flex items-center gap-2 overflow-x-auto pb-3 mb-4 border-b border-cardBorder">
+            <Filter size={14} className="text-textSecondary flex-shrink-0" />
+            <button
+              onClick={() => setCategoriaFiltro(null)}
+              className={`px-3 py-1.5 rounded-lg text-xs font-bold whitespace-nowrap transition-all ${
+                categoriaFiltro === null
+                  ? 'bg-accent text-white'
+                  : 'bg-cardBorder text-textSecondary hover:bg-accent/20'
+              }`}
+            >
+              Todas
+            </button>
+            {categorias.map((cat) => (
+              <button
+                key={cat.id}
+                onClick={() => setCategoriaFiltro(cat.id)}
+                className={`px-3 py-1.5 rounded-lg text-xs font-bold whitespace-nowrap transition-all ${
+                  categoriaFiltro === cat.id
+                    ? 'bg-accent text-white'
+                    : 'bg-cardBorder text-textSecondary hover:bg-accent/20'
+                }`}
+              >
+                {cat.nombre}
+              </button>
+            ))}
+          </div>
+        )}
+
+        {/* Header con botones */}
+        <div className="flex items-center justify-between mb-4">
+          <div className="flex items-center gap-2 text-xs text-textSecondary">
+            {ultimaActualizacion && (
+              <span>Actualizado: {ultimaActualizacion.toLocaleTimeString()}</span>
+            )}
+            <button
+              onClick={refrescarPlayoffs}
+              className="p-1 hover:bg-background rounded transition-colors"
+              title="Refrescar"
+            >
+              <RefreshCw size={14} className={loading ? 'animate-spin' : ''} />
+            </button>
+          </div>
+          {esOrganizador && (
+            <Button
+              onClick={regenerarPlayoffs}
+              disabled={generando}
+              variant="ghost"
+              size="sm"
+              className="text-xs"
+            >
+              <Zap size={14} className="mr-1" />
+              {generando ? 'Regenerando...' : 'Regenerar Playoffs'}
+            </Button>
+          )}
+        </div>
+        
+        {/* Mensaje de error */}
+        {error && (
+          <div className="bg-red-500/10 border border-red-500/30 rounded-lg p-3 mb-4">
+            <p className="text-red-500 text-sm">{error}</p>
+          </div>
+        )}
+        
         <TorneoBracket 
           partidos={partidos} 
           torneoId={torneoId}
           esOrganizador={esOrganizador}
-          onResultadoCargado={cargarPlayoffs}
+          onResultadoCargado={handleResultadoCargado}
         />
       </div>
     </Card>

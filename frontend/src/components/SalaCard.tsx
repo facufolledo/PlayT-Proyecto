@@ -2,6 +2,7 @@ import { forwardRef } from 'react';
 import { motion, useReducedMotion } from 'framer-motion';
 import { Calendar, Trophy, Trash2, Play } from 'lucide-react';
 import Button from './Button';
+import { PlayerLink } from './UserLink';
 import { Sala } from '../utils/types';
 import { useSalas } from '../context/SalasContext';
 import { useAuth } from '../context/AuthContext';
@@ -123,7 +124,7 @@ const SalaCard = forwardRef<HTMLDivElement, SalaCardProps>(
                       <div className="w-6 h-6 md:w-8 md:h-8 rounded-full bg-gradient-to-br from-primary to-secondary flex items-center justify-center text-white text-[10px] md:text-sm font-bold flex-shrink-0">
                         {jugador.nombre.charAt(0).toUpperCase()}
                       </div>
-                      <span className="text-textPrimary text-[10px] md:text-sm font-semibold truncate flex-1">{jugador.nombre}</span>
+                      <PlayerLink id={jugador.id} nombre={jugador.nombre} nombreUsuario={jugador.nombreUsuario} size="sm" className="truncate flex-1" />
                       {jugador.esCreador && (
                         <span className="ml-auto text-accent text-xs md:text-base flex-shrink-0">👑</span>
                       )}
@@ -138,8 +139,8 @@ const SalaCard = forwardRef<HTMLDivElement, SalaCardProps>(
                   <div className="text-center">
                     <div className="bg-primary/10 rounded p-1.5 md:p-2 mb-1 md:mb-2">
                       <p className="text-primary text-[8px] md:text-xs font-bold mb-0.5 md:mb-1">EQUIPO A</p>
-                      <p className="text-textPrimary font-semibold text-[9px] md:text-sm leading-tight truncate">{sala.equipoA.jugador1.nombre}</p>
-                      <p className="text-textPrimary font-semibold text-[9px] md:text-sm leading-tight truncate">{sala.equipoA.jugador2.nombre}</p>
+                      <PlayerLink id={sala.equipoA.jugador1.id} nombre={sala.equipoA.jugador1.nombre} nombreUsuario={sala.equipoA.jugador1.nombreUsuario} size="sm" className="block truncate" />
+                      <PlayerLink id={sala.equipoA.jugador2.id} nombre={sala.equipoA.jugador2.nombre} nombreUsuario={sala.equipoA.jugador2.nombreUsuario} size="sm" className="block truncate" />
                     </div>
                     <p className="text-2xl md:text-4xl font-black text-primary">
                       {(() => {
@@ -162,8 +163,8 @@ const SalaCard = forwardRef<HTMLDivElement, SalaCardProps>(
                   <div className="text-center">
                     <div className="bg-secondary/10 rounded p-1.5 md:p-2 mb-1 md:mb-2">
                       <p className="text-secondary text-[8px] md:text-xs font-bold mb-0.5 md:mb-1">EQUIPO B</p>
-                      <p className="text-textPrimary font-semibold text-[9px] md:text-sm leading-tight truncate">{sala.equipoB.jugador1.nombre}</p>
-                      <p className="text-textPrimary font-semibold text-[9px] md:text-sm leading-tight truncate">{sala.equipoB.jugador2.nombre}</p>
+                      <PlayerLink id={sala.equipoB.jugador1.id} nombre={sala.equipoB.jugador1.nombre} nombreUsuario={sala.equipoB.jugador1.nombreUsuario} size="sm" className="block truncate" />
+                      <PlayerLink id={sala.equipoB.jugador2.id} nombre={sala.equipoB.jugador2.nombre} nombreUsuario={sala.equipoB.jugador2.nombreUsuario} size="sm" className="block truncate" />
                     </div>
                     <p className="text-2xl md:text-4xl font-black text-secondary">
                       {(() => {

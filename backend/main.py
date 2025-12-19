@@ -12,8 +12,13 @@ from sqlalchemy import text
 # Cargar variables de entorno
 load_dotenv()
 
+# Configurar logging ANTES de todo
+from src.utils.logger import setup_logging
+logger = setup_logging()
+
 # Imports del proyecto
 from src.database.config import engine
+from src.utils.error_handler import register_exception_handlers
 from src.controllers.auth_controller import router as auth_router
 from src.controllers.usuario_controller import router as usuario_router
 from src.controllers.categoria_controller import router as categoria_router
@@ -22,36 +27,36 @@ from src.controllers.ranking_controller import router as ranking_router
 from src.controllers.estadisticas_controller import router as estadisticas_router
 from src.controllers.sala_controller import router as sala_router
 from src.controllers.resultado_controller import router as resultado_router
-from src.controllers.torneo_controller import router as torneo_router
+from src.controllers.torneo import router as torneo_router
+from src.controllers.health_controller import router as health_router
 
 
 # ---- Lifespan (startup/shutdown) ----
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # Startup
-    print("🚀 Iniciando PlayT API...")
+    logger.info("🚀 Iniciando PlayT API...")
     try:
         with engine.connect() as conn:
-            # En SQLAlchemy 2.x, usar text() o exec_driver_sql()
             conn.execute(text("SELECT 1"))
-        print("✅ Conexión a base de datos exitosa")
+        logger.info("✅ Conexión a base de datos exitosa")
     except Exception as e:
-        print(f"❌ Error conectando a la base de datos: {e}")
+        logger.error(f"❌ Error conectando a la base de datos: {e}")
     
     # Inicializar Firebase Admin
     try:
         from src.auth.firebase_handler import FirebaseHandler
         if FirebaseHandler.initialize():
-            print("✅ Firebase Admin inicializado correctamente")
+            logger.info("✅ Firebase Admin inicializado correctamente")
         else:
-            print("⚠️ Firebase Admin no pudo inicializarse")
+            logger.warning("⚠️ Firebase Admin no pudo inicializarse")
     except Exception as e:
-        print(f"❌ Error al inicializar Firebase Admin: {e}")
+        logger.error(f"❌ Error al inicializar Firebase Admin: {e}")
 
-    yield  # <- aquí la app queda levantada
+    yield
 
     # Shutdown
-    print("🛑 Cerrando PlayT API...")
+    logger.info("🛑 Cerrando PlayT API...")
 
 
 # ---- Crear app ----
@@ -81,6 +86,9 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# ---- Registrar handlers de excepciones ----
+register_exception_handlers(app)
+
 # ---- Routers ----
 app.include_router(auth_router)
 app.include_router(usuario_router)
@@ -91,6 +99,7 @@ app.include_router(partido_router)
 app.include_router(ranking_router)
 app.include_router(estadisticas_router)
 app.include_router(torneo_router)
+app.include_router(health_router)
 
 # ---- Endpoints básicos ----
 @app.get("/")

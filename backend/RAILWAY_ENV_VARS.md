@@ -1,8 +1,8 @@
-# 🔐 Variables de Entorno para Render
+# 🔐 Variables de Entorno para Railway
 
-## Copiar estas variables en Render Dashboard
+## Copiar estas variables en Railway Dashboard
 
-Ve a: **Environment** → **Add Environment Variable**
+Ve a: **Variables** → **New Variable**
 
 ---
 
@@ -59,10 +59,8 @@ FIREBASE_CREDENTIALS_PATH
 
 ```
 CORS_ORIGINS
-["http://localhost:5173","http://localhost:5174","https://tudominio.com","https://www.tudominio.com"]
+["http://localhost:5173","http://localhost:5174","https://kioskito.click","https://www.kioskito.click"]
 ```
-
-**IMPORTANTE:** Actualiza con tu dominio real de Hostinger cuando lo tengas.
 
 ---
 
@@ -75,13 +73,34 @@ HOST
 
 ```
 PORT
-10000
+8000
 ```
 
 ```
 DEBUG
 False
 ```
+
+```
+ENVIRONMENT
+production
+```
+
+---
+
+## 🗄️ Pool de Conexiones DB (IMPORTANTE para escalar)
+
+```
+DB_POOL_SIZE
+5
+```
+
+```
+DB_MAX_OVERFLOW
+10
+```
+
+**Nota:** En Railway Hobby ($5/mes), estos valores son suficientes. Si escalás a un plan Pro o DB dedicada, podés subir a `DB_POOL_SIZE=10` y `DB_MAX_OVERFLOW=20`.
 
 ---
 
@@ -113,7 +132,7 @@ MAX_K_FACTOR
 
 ```
 APP_NAME
-PlayR API
+PlayT API
 ```
 
 ```
@@ -125,9 +144,9 @@ APP_VERSION
 
 ## 🚀 Pasos para Configurar
 
-### 1. En Render Dashboard:
-- Ve a tu servicio → **Environment**
-- Click **Add Environment Variable**
+### 1. En Railway Dashboard:
+- Ve a tu servicio → **Variables**
+- Click **New Variable**
 - Copia cada variable de arriba
 
 ### 2. Firebase Credentials:
@@ -145,9 +164,8 @@ python -c "import secrets; print(secrets.token_urlsafe(32))"
 ```
 
 ### 4. Actualizar CORS:
-Cuando tengas tu dominio de Hostinger, actualiza:
 ```
-CORS_ORIGINS=["https://tudominio.com","https://www.tudominio.com","http://localhost:5173"]
+CORS_ORIGINS=["https://kioskito.click","https://www.kioskito.click","http://localhost:5173"]
 ```
 
 ---
@@ -157,11 +175,14 @@ CORS_ORIGINS=["https://tudominio.com","https://www.tudominio.com","http://localh
 - [ ] DATABASE_URL configurada
 - [ ] SECRET_KEY generada y configurada
 - [ ] FIREBASE_CREDENTIALS_JSON o FIREBASE_CREDENTIALS_PATH configurada
-- [ ] CORS_ORIGINS actualizada con tu dominio
+- [ ] CORS_ORIGINS actualizada con tu dominio (kioskito.click)
+- [ ] ENVIRONMENT=production
+- [ ] DB_POOL_SIZE y DB_MAX_OVERFLOW configurados
 - [ ] Todas las demás variables copiadas
-- [ ] Deploy exitoso en Render
-- [ ] Health check funcionando: `https://tu-app.onrender.com/health`
-- [ ] API Docs accesibles: `https://tu-app.onrender.com/docs`
+- [ ] Deploy exitoso en Railway
+- [ ] Health check funcionando: `https://tu-app.up.railway.app/health`
+- [ ] Pool status: `https://tu-app.up.railway.app/health/db`
+- [ ] API Docs accesibles: `https://tu-app.up.railway.app/docs`
 
 ---
 
@@ -171,10 +192,16 @@ Después del deploy, verifica:
 
 ```bash
 # Health check
-curl https://tu-app.onrender.com/health
+curl https://tu-app.up.railway.app/health
 
 # Debería responder:
 # {"status":"healthy","service":"PlayT API","database":"connected"}
+
+# Ver estado del pool de conexiones
+curl https://tu-app.up.railway.app/health/db
+
+# Ver estado del caché
+curl https://tu-app.up.railway.app/health/cache
 ```
 
 ---
@@ -185,7 +212,7 @@ curl https://tu-app.onrender.com/health
 2. **Firebase**: Asegúrate de que el JSON esté en UNA SOLA LÍNEA
 3. **CORS**: Incluye TODOS los dominios desde donde accederás (frontend)
 4. **DATABASE_URL**: Verifica que Neon permita conexiones desde cualquier IP (0.0.0.0/0)
-5. **Free Tier**: El servicio se dormirá después de 15 min de inactividad
+5. **Railway Hobby ($5/mes)**: El servicio NO se duerme, está siempre activo
 
 ---
 
@@ -206,6 +233,11 @@ curl https://tu-app.onrender.com/health
 - Incluye http:// o https:// según corresponda
 - Incluye www y sin www si es necesario
 
+### Error: "BrokenPipeError" o "network error"
+- Verifica que DB_POOL_SIZE y DB_MAX_OVERFLOW estén configurados
+- El pool_pre_ping=True debería manejar esto automáticamente
+- Revisa `/health/db` para ver estado del pool
+
 ---
 
-**¡Listo para producción!** 🚀
+**¡Listo para producción en Railway!** 🚀

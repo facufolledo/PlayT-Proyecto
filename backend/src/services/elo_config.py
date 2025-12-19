@@ -112,7 +112,7 @@ class EloConfig:
     
     # Caps según tipo de partido - BALANCEADOS PARA TORNEOS (60% SUBA)
     MATCH_TYPE_CAPS = {
-        "amistoso": {"win": 8, "loss": -8},    # Partidos casuales
+        "amistoso": {"win": 15, "loss": -15},    # Partidos casuales (ajustado para ser más significativo)
         "torneo": {"win": 100, "loss": -50},   # Partidos de torneo (recompensa muy alta)
         "final": {"win": 140, "loss": -70},    # Finales de torneo (1.4x que semifinal)
         "zona": {"win": 75, "loss": -38},      # Partidos de zona

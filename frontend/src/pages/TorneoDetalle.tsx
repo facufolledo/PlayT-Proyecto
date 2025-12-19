@@ -13,7 +13,7 @@ import TorneoFixture from '../components/TorneoFixture';
 import TorneoPlayoffs from '../components/TorneoPlayoffs';
 import TorneoProgramacion from '../components/TorneoProgramacion';
 import TorneoParejas from '../components/TorneoParejas';
-import TorneoProgramacion from '../components/TorneoProgramacion';
+import TorneoCategorias from '../components/TorneoCategorias';
 
 export default function TorneoDetalle() {
   const { id } = useParams<{ id: string }>();
@@ -30,6 +30,13 @@ export default function TorneoDetalle() {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id]);
+
+  // Verificar si el usuario ya está inscripto en el torneo
+  const miInscripcion = parejas.find(p => 
+    usuario && (p.jugador1_id === usuario.id_usuario || p.jugador2_id === usuario.id_usuario)
+  );
+  const estaInscripto = !!miInscripcion;
+  const estadoInscripcion = miInscripcion?.estado;
 
   // Escuchar evento para cambiar tab
   useEffect(() => {
@@ -167,9 +174,37 @@ export default function TorneoDetalle() {
             <p className="text-textSecondary">{torneoActual.descripcion || 'Sin descripción'}</p>
           </div>
 
-          {/* Botón de inscripción - visible para todos cuando está en inscripción */}
-          {puedeInscribirse && (
-            <div className="border-t border-cardBorder pt-6">
+          {/* Estado de inscripción o botón para inscribirse */}
+          <div className="border-t border-cardBorder pt-6">
+            {estaInscripto ? (
+              <div className="flex items-center gap-3">
+                <div className={`inline-flex items-center gap-2 px-4 py-2 rounded-full ${
+                  estadoInscripcion === 'inscripta' || estadoInscripcion === 'confirmada'
+                    ? 'bg-green-500/10 text-green-500'
+                    : estadoInscripcion === 'pendiente'
+                    ? 'bg-yellow-500/10 text-yellow-500'
+                    : 'bg-gray-500/10 text-gray-500'
+                }`}>
+                  <span className="w-2 h-2 rounded-full bg-current" />
+                  <span className="font-bold text-sm">
+                    {estadoInscripcion === 'inscripta' && '✓ Inscripto'}
+                    {estadoInscripcion === 'confirmada' && '✓ Confirmado'}
+                    {estadoInscripcion === 'pendiente' && '⏳ Pendiente de confirmación'}
+                    {!['inscripta', 'confirmada', 'pendiente'].includes(estadoInscripcion || '') && 'Participando'}
+                  </span>
+                </div>
+                {/* El organizador puede seguir inscribiendo otras parejas */}
+                {esOrganizador && puedeInscribirse && (
+                  <Button
+                    variant="ghost"
+                    onClick={() => setModalInscripcionOpen(true)}
+                    className="text-sm"
+                  >
+                    + Inscribir otra pareja
+                  </Button>
+                )}
+              </div>
+            ) : puedeInscribirse ? (
               <Button
                 variant="accent"
                 onClick={() => setModalInscripcionOpen(true)}
@@ -177,8 +212,8 @@ export default function TorneoDetalle() {
               >
                 Inscribir Pareja
               </Button>
-            </div>
-          )}
+            ) : null}
+          </div>
         </div>
       </Card>
 
@@ -194,16 +229,19 @@ export default function TorneoDetalle() {
         >
           Información
         </button>
-        <button
-          onClick={() => setTab('parejas')}
-          className={`px-4 py-2 font-bold transition-colors whitespace-nowrap ${
-            tab === 'parejas'
-              ? 'text-primary border-b-2 border-primary'
-              : 'text-textSecondary hover:text-textPrimary'
-          }`}
-        >
-          Parejas ({parejas.length})
-        </button>
+        {/* Parejas solo visible para organizador */}
+        {esOrganizador && (
+          <button
+            onClick={() => setTab('parejas')}
+            className={`px-4 py-2 font-bold transition-colors whitespace-nowrap ${
+              tab === 'parejas'
+                ? 'text-primary border-b-2 border-primary'
+                : 'text-textSecondary hover:text-textPrimary'
+            }`}
+          >
+            Parejas ({parejas.length})
+          </button>
+        )}
         <button
           onClick={() => setTab('zonas')}
           className={`px-4 py-2 font-bold transition-colors whitespace-nowrap ${
@@ -225,17 +263,6 @@ export default function TorneoDetalle() {
           Fixture
         </button>
         <button
-          onClick={() => setTab('programacion')}
-          className={`px-4 py-2 font-bold transition-colors whitespace-nowrap flex items-center gap-2 ${
-            tab === 'programacion'
-              ? 'text-primary border-b-2 border-primary'
-              : 'text-textSecondary hover:text-textPrimary'
-          }`}
-        >
-          <Calendar size={16} />
-          Programación
-        </button>
-        <button
           onClick={() => setTab('playoffs')}
           className={`px-4 py-2 font-bold transition-colors whitespace-nowrap flex items-center gap-2 ${
             tab === 'playoffs'
@@ -246,6 +273,7 @@ export default function TorneoDetalle() {
           <Trophy size={16} />
           Playoffs
         </button>
+        {/* Programación solo visible para organizador */}
         {esOrganizador && (
           <button
             onClick={() => setTab('programacion')}
@@ -263,16 +291,23 @@ export default function TorneoDetalle() {
 
       {/* Contenido de tabs */}
       {tab === 'info' && (
-        <Card>
-          <div className="p-6">
-            <h3 className="font-bold text-textPrimary mb-4">Información del Torneo</h3>
-            <div className="space-y-2 text-textSecondary">
-              <p>• Formato: {torneoActual.formato || 'Eliminación simple'}</p>
-              <p>• Género: {torneoActual.genero || 'Mixto'}</p>
-              <p>• Categoría: {torneoActual.categoria}</p>
+        <div className="space-y-4">
+          {/* Categorías del torneo */}
+          <TorneoCategorias 
+            torneoId={parseInt(id!)} 
+            esOrganizador={esOrganizador}
+          />
+          
+          <Card>
+            <div className="p-6">
+              <h3 className="font-bold text-textPrimary mb-4">Información del Torneo</h3>
+              <div className="space-y-2 text-textSecondary">
+                <p>• Formato: {torneoActual.formato || 'Eliminación simple'}</p>
+                <p>• Género: {torneoActual.genero || 'Mixto'}</p>
+              </div>
             </div>
-          </div>
-        </Card>
+          </Card>
+        </div>
       )}
 
       {tab === 'parejas' && (
@@ -292,10 +327,6 @@ export default function TorneoDetalle() {
         <TorneoFixture torneoId={parseInt(id!)} esOrganizador={esOrganizador} />
       )}
 
-      {tab === 'programacion' && (
-        <TorneoProgramacion torneoId={parseInt(id!)} esOrganizador={esOrganizador} />
-      )}
-
       {tab === 'playoffs' && (
         <TorneoPlayoffs torneoId={parseInt(id!)} esOrganizador={esOrganizador} />
       )}
@@ -310,6 +341,7 @@ export default function TorneoDetalle() {
         onClose={() => setModalInscripcionOpen(false)}
         torneoId={parseInt(id!)}
         torneoNombre={torneoActual?.nombre || ''}
+        esOrganizador={esOrganizador}
       />
     </div>
   );

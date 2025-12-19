@@ -37,13 +37,20 @@ class TorneoInscripcionService:
         Raises:
             ValueError: Si hay algún error de validación
         """
-        # Verificar que el torneo existe y está en inscripción
+        # Verificar que el torneo existe
         torneo = db.query(Torneo).filter(Torneo.id == torneo_id).first()
         if not torneo:
             raise ValueError("Torneo no encontrado")
         
+        # Verificar permisos según estado del torneo
+        from .torneo_service import TorneoService
+        es_organizador = TorneoService.es_organizador_torneo(db, torneo_id, inscriptor_id)
+        
+        # Si no está en inscripción, solo el organizador puede agregar parejas
         if torneo.estado != EstadoTorneo.INSCRIPCION:
-            raise ValueError("El torneo no está en período de inscripción")
+            if not es_organizador:
+                raise ValueError("El torneo no está en período de inscripción")
+            # Organizador puede agregar parejas de último momento
         
         # Verificar que los jugadores existen
         jugador1 = db.query(Usuario).filter(Usuario.id_usuario == pareja_data.jugador1_id).first()
@@ -75,9 +82,29 @@ class TorneoInscripcionService:
             if pareja_data.jugador2_id in [pareja.jugador1_id, pareja.jugador2_id]:
                 raise ValueError(f"{nombre2} ya está inscrito en este torneo")
         
+        # Verificar categoría si se especifica
+        categoria_id = getattr(pareja_data, 'categoria_id', None)
+        if categoria_id:
+            from ..models.torneo_models import TorneoCategoria
+            categoria = db.query(TorneoCategoria).filter(
+                TorneoCategoria.id == categoria_id,
+                TorneoCategoria.torneo_id == torneo_id
+            ).first()
+            if not categoria:
+                raise ValueError("Categoría no encontrada en este torneo")
+            
+            # Verificar que no exceda el máximo de parejas
+            parejas_en_categoria = db.query(TorneoPareja).filter(
+                TorneoPareja.categoria_id == categoria_id,
+                TorneoPareja.estado != EstadoPareja.BAJA
+            ).count()
+            if parejas_en_categoria >= categoria.max_parejas:
+                raise ValueError(f"La categoría {categoria.nombre} ya tiene el máximo de parejas ({categoria.max_parejas})")
+        
         # Crear pareja
         pareja = TorneoPareja(
             torneo_id=torneo_id,
+            categoria_id=categoria_id,
             jugador1_id=pareja_data.jugador1_id,
             jugador2_id=pareja_data.jugador2_id,
             estado=EstadoPareja.INSCRIPTA,
@@ -104,7 +131,57 @@ class TorneoInscripcionService:
         db.commit()
         db.refresh(pareja)
         
+        # Si el torneo ya tiene playoffs generados, regenerarlos para incluir la nueva pareja
+        if torneo.estado in [EstadoTorneo.FASE_GRUPOS, EstadoTorneo.FASE_ELIMINACION]:
+            TorneoInscripcionService._actualizar_playoffs_si_necesario(db, torneo_id, inscriptor_id)
+        
         return pareja
+    
+    @staticmethod
+    def _actualizar_playoffs_si_necesario(db: Session, torneo_id: int, user_id: int) -> bool:
+        """
+        Regenera playoffs si hay parejas nuevas que no están incluidas
+        
+        Returns:
+            True si se regeneraron los playoffs
+        """
+        from ..models.playt_models import Partido
+        from ..services.torneo_playoff_service import TorneoPlayoffService
+        import logging
+        
+        logger = logging.getLogger(__name__)
+        
+        try:
+            # Verificar si hay partidos de playoffs
+            partidos_playoffs = db.query(Partido).filter(
+                Partido.id_torneo == torneo_id,
+                Partido.fase != 'zona',
+                Partido.fase.isnot(None)
+            ).all()
+            
+            if not partidos_playoffs:
+                return False
+            
+            # Verificar si hay partidos de playoffs ya jugados
+            partidos_jugados = [p for p in partidos_playoffs if p.estado == 'confirmado']
+            
+            if partidos_jugados:
+                # No regenerar si ya hay partidos jugados
+                logger.info(f"No se regeneran playoffs del torneo {torneo_id}: hay partidos ya jugados")
+                return False
+            
+            # Regenerar playoffs
+            logger.info(f"Regenerando playoffs del torneo {torneo_id} por nueva pareja")
+            TorneoPlayoffService.generar_playoffs(
+                db=db,
+                torneo_id=torneo_id,
+                user_id=user_id,
+                clasificados_por_zona=2
+            )
+            return True
+        except Exception as e:
+            logger.error(f"Error actualizando playoffs: {e}")
+            return False
     
     @staticmethod
     def listar_parejas(
@@ -402,6 +479,17 @@ class TorneoInscripcionService:
         # Actualizar campos
         if pareja_data.estado is not None:
             pareja.estado = pareja_data.estado
+        
+        if pareja_data.categoria_id is not None:
+            # Verificar que la categoría existe y pertenece al torneo
+            from ..models.torneo_models import TorneoCategoria
+            categoria = db.query(TorneoCategoria).filter(
+                TorneoCategoria.id == pareja_data.categoria_id,
+                TorneoCategoria.torneo_id == pareja.torneo_id
+            ).first()
+            if not categoria:
+                raise ValueError("La categoría no existe o no pertenece a este torneo")
+            pareja.categoria_id = pareja_data.categoria_id
         
         if pareja_data.categoria_asignada is not None:
             pareja.categoria_asignada = pareja_data.categoria_asignada

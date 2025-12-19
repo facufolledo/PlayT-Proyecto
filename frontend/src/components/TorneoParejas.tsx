@@ -1,9 +1,10 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { Users, Check, X, Trash2, AlertCircle } from 'lucide-react';
-import { torneoService, Pareja } from '../services/torneo.service';
+import { Users, Check, X, Trash2, AlertCircle, Filter, RefreshCw } from 'lucide-react';
+import { torneoService, Pareja, Categoria } from '../services/torneo.service';
 import Card from './Card';
 import Button from './Button';
+import { PlayerLink } from './UserLink';
 
 interface TorneoParejaProps {
   torneoId: number;
@@ -20,6 +21,25 @@ export default function TorneoParejas({
 }: TorneoParejaProps) {
   const [loading, setLoading] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [categorias, setCategorias] = useState<Categoria[]>([]);
+  const [categoriaFiltro, setCategoriaFiltro] = useState<number | null>(null);
+  
+  // Modal cambiar categoría
+  const [parejaEditando, setParejaEditando] = useState<Pareja | null>(null);
+  const [nuevaCategoriaId, setNuevaCategoriaId] = useState<number | null>(null);
+
+  useEffect(() => {
+    cargarCategorias();
+  }, [torneoId]);
+
+  const cargarCategorias = async () => {
+    try {
+      const cats = await torneoService.listarCategorias(torneoId);
+      setCategorias(cats);
+    } catch (err) {
+      console.error('Error cargando categorías:', err);
+    }
+  };
 
   const confirmarPareja = async (parejaId: number) => {
     try {
@@ -67,8 +87,46 @@ export default function TorneoParejas({
     }
   };
 
-  const parejasActivas = parejas.filter((p) => p.estado !== 'baja');
-  const parejasBaja = parejas.filter((p) => p.estado === 'baja');
+  const cambiarCategoria = async () => {
+    if (!parejaEditando || !nuevaCategoriaId) return;
+    
+    try {
+      setLoading(parejaEditando.id);
+      setError(null);
+      await torneoService.cambiarCategoriaPareja(torneoId, parejaEditando.id, nuevaCategoriaId);
+      setParejaEditando(null);
+      setNuevaCategoriaId(null);
+      await cargarCategorias(); // Recargar para actualizar conteos
+      onUpdate();
+    } catch (err: any) {
+      console.error('Error al cambiar categoría:', err);
+      setError(err.response?.data?.detail || 'Error al cambiar categoría');
+    } finally {
+      setLoading(null);
+    }
+  };
+
+  const abrirModalCategoria = async (pareja: Pareja) => {
+    setParejaEditando(pareja);
+    setNuevaCategoriaId((pareja as any).categoria_id || null);
+    // Recargar categorías para tener el conteo actualizado
+    await cargarCategorias();
+  };
+
+  // Filtrar por categoría
+  const parejasFiltradas = categoriaFiltro 
+    ? parejas.filter((p: any) => p.categoria_id === categoriaFiltro)
+    : parejas;
+  
+  const parejasActivas = parejasFiltradas.filter((p) => p.estado !== 'baja');
+  const parejasBaja = parejasFiltradas.filter((p) => p.estado === 'baja');
+  
+  // Obtener nombre de categoría
+  const getNombreCategoria = (categoriaId: number | null) => {
+    if (!categoriaId) return null;
+    const cat = categorias.find(c => c.id === categoriaId);
+    return cat?.nombre;
+  };
 
   if (parejas.length === 0) {
     return (
@@ -110,13 +168,46 @@ export default function TorneoParejas({
           </h3>
           <div className="flex gap-2">
             <span className="px-3 py-1 bg-green-500/10 text-green-500 rounded-full text-xs font-bold">
-              {parejas.filter((p) => p.estado === 'confirmada').length} confirmadas
+              {parejasFiltradas.filter((p) => p.estado === 'confirmada').length} confirmadas
             </span>
             <span className="px-3 py-1 bg-yellow-500/10 text-yellow-500 rounded-full text-xs font-bold">
-              {parejas.filter((p) => p.estado === 'inscripta').length} pendientes
+              {parejasFiltradas.filter((p) => p.estado === 'inscripta').length} pendientes
             </span>
           </div>
         </div>
+
+        {/* Filtro por categoría */}
+        {categorias.length > 0 && (
+          <div className="flex items-center gap-2 mb-4 overflow-x-auto pb-2">
+            <Filter size={14} className="text-textSecondary flex-shrink-0" />
+            <button
+              onClick={() => setCategoriaFiltro(null)}
+              className={`px-3 py-1.5 rounded-lg text-xs font-bold whitespace-nowrap transition-all ${
+                categoriaFiltro === null
+                  ? 'bg-primary text-white'
+                  : 'bg-cardBorder text-textSecondary hover:bg-primary/20'
+              }`}
+            >
+              Todas ({parejas.length})
+            </button>
+            {categorias.map((cat) => {
+              const count = parejas.filter((p: any) => p.categoria_id === cat.id).length;
+              return (
+                <button
+                  key={cat.id}
+                  onClick={() => setCategoriaFiltro(cat.id)}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-bold whitespace-nowrap transition-all ${
+                    categoriaFiltro === cat.id
+                      ? 'bg-primary text-white'
+                      : 'bg-cardBorder text-textSecondary hover:bg-primary/20'
+                  }`}
+                >
+                  {cat.nombre} ({count})
+                </button>
+              );
+            })}
+          </div>
+        )}
 
         {/* Lista de parejas activas */}
         <div className="space-y-2">
@@ -133,13 +224,32 @@ export default function TorneoParejas({
                   {index + 1}
                 </div>
                 <div className="min-w-0">
-                  <p className="font-bold text-textPrimary text-sm md:text-base truncate">
-                    {pareja.nombre_pareja}
-                  </p>
-                  {pareja.jugador1_nombre && pareja.jugador2_nombre && (
-                    <p className="text-xs text-textSecondary truncate">
-                      {pareja.jugador1_nombre} & {pareja.jugador2_nombre}
+                  <div className="flex items-center gap-2">
+                    <p className="font-bold text-textPrimary text-sm md:text-base truncate">
+                      {pareja.nombre_pareja}
                     </p>
+                    {getNombreCategoria((pareja as any).categoria_id) && (
+                      <span className="px-1.5 py-0.5 bg-accent/10 text-accent text-[10px] font-bold rounded">
+                        {getNombreCategoria((pareja as any).categoria_id)}
+                      </span>
+                    )}
+                  </div>
+                  {pareja.jugador1_nombre && pareja.jugador2_nombre && (
+                    <div className="text-xs text-textSecondary flex items-center gap-1 flex-wrap">
+                      <PlayerLink 
+                        id={(pareja as any).jugador1_id} 
+                        nombre={pareja.jugador1_nombre} 
+                        nombreUsuario={(pareja as any).jugador1_username}
+                        size="sm" 
+                      />
+                      <span>&</span>
+                      <PlayerLink 
+                        id={(pareja as any).jugador2_id} 
+                        nombre={pareja.jugador2_nombre}
+                        nombreUsuario={(pareja as any).jugador2_username}
+                        size="sm" 
+                      />
+                    </div>
                   )}
                 </div>
               </div>
@@ -159,6 +269,18 @@ export default function TorneoParejas({
                 {/* Botones de acción para organizador */}
                 {esOrganizador && (
                   <div className="flex gap-1">
+                    {categorias.length > 1 && (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => abrirModalCategoria(pareja)}
+                        disabled={loading === pareja.id}
+                        className="p-2 hover:bg-accent/10 hover:text-accent"
+                        title="Cambiar categoría"
+                      >
+                        <RefreshCw size={16} />
+                      </Button>
+                    )}
                     {pareja.estado === 'inscripta' && (
                       <Button
                         variant="ghost"
@@ -235,6 +357,70 @@ export default function TorneoParejas({
           </div>
         )}
       </div>
+
+      {/* Modal cambiar categoría */}
+      {parejaEditando && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <motion.div
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            className="bg-card rounded-xl max-w-sm w-full p-4"
+          >
+            <h3 className="text-lg font-bold text-textPrimary mb-2">
+              Cambiar Categoría
+            </h3>
+            <p className="text-sm text-textSecondary mb-4">
+              {parejaEditando.nombre_pareja}
+            </p>
+
+            <div className="space-y-2 mb-4">
+              {categorias.map((cat) => (
+                <button
+                  key={cat.id}
+                  onClick={() => setNuevaCategoriaId(cat.id)}
+                  className={`w-full p-3 rounded-lg border text-left transition-all ${
+                    nuevaCategoriaId === cat.id
+                      ? 'border-primary bg-primary/10'
+                      : 'border-cardBorder hover:border-primary/50'
+                  }`}
+                >
+                  <span className="font-bold text-textPrimary">{cat.nombre}</span>
+                  <span className={`ml-2 text-xs ${
+                    cat.genero === 'masculino' ? 'text-blue-400' : 'text-pink-400'
+                  }`}>
+                    {cat.genero === 'masculino' ? '♂' : '♀'}
+                  </span>
+                  <p className="text-xs text-textSecondary">
+                    {cat.parejas_inscritas}/{cat.max_parejas} parejas
+                  </p>
+                </button>
+              ))}
+            </div>
+
+            <div className="flex gap-2">
+              <Button
+                variant="ghost"
+                onClick={() => {
+                  setParejaEditando(null);
+                  setNuevaCategoriaId(null);
+                }}
+                className="flex-1"
+                disabled={loading === parejaEditando.id}
+              >
+                Cancelar
+              </Button>
+              <Button
+                variant="accent"
+                onClick={cambiarCategoria}
+                className="flex-1"
+                disabled={loading === parejaEditando.id || !nuevaCategoriaId || nuevaCategoriaId === (parejaEditando as any).categoria_id}
+              >
+                {loading === parejaEditando.id ? 'Guardando...' : 'Guardar'}
+              </Button>
+            </div>
+          </motion.div>
+        </div>
+      )}
     </Card>
   );
 }

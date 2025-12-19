@@ -1,11 +1,12 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { motion } from 'framer-motion';
-import { Calendar, Trophy, AlertCircle, X } from 'lucide-react';
-import { torneoService } from '../services/torneo.service';
+import { Calendar, Trophy, AlertCircle, X, MapPin, Clock, Camera, Filter } from 'lucide-react';
+import { torneoService, Categoria } from '../services/torneo.service';
 import Card from './Card';
 import Button from './Button';
 import SkeletonLoader from './SkeletonLoader';
 import ModalCargarResultado from './ModalCargarResultado';
+import html2canvas from 'html2canvas';
 
 interface TorneoFixtureProps {
   torneoId: number;
@@ -20,7 +21,12 @@ export default function TorneoFixture({ torneoId, esOrganizador }: TorneoFixture
   const [modalResultadoOpen, setModalResultadoOpen] = useState(false);
   const [filtroZona, setFiltroZona] = useState<string>('todas');
   const [zonas, setZonas] = useState<any[]>([]);
+  const [canchas, setCanchas] = useState<any[]>([]);
   const [error, setError] = useState<string | null>(null);
+  const [capturando, setCapturando] = useState(false);
+  const fixtureRef = useRef<HTMLDivElement>(null);
+  const [categorias, setCategorias] = useState<Categoria[]>([]);
+  const [categoriaFiltro, setCategoriaFiltro] = useState<number | null>(null);
 
   useEffect(() => {
     cargarDatos();
@@ -29,9 +35,11 @@ export default function TorneoFixture({ torneoId, esOrganizador }: TorneoFixture
   const cargarDatos = async () => {
     try {
       setLoading(true);
-      const [partidosResponse, zonasData] = await Promise.all([
+      const [partidosResponse, zonasData, canchasData, categoriasData] = await Promise.all([
         torneoService.listarPartidos(torneoId),
-        torneoService.listarZonas(torneoId)
+        torneoService.listarZonas(torneoId),
+        torneoService.listarCanchas(torneoId).catch(() => []),
+        torneoService.listarCategorias(torneoId).catch(() => [])
       ]);
       // El endpoint retorna { total, partidos }, necesitamos solo el array
       const partidosArray = Array.isArray(partidosResponse) 
@@ -39,11 +47,44 @@ export default function TorneoFixture({ torneoId, esOrganizador }: TorneoFixture
         : (partidosResponse as any).partidos || [];
       setPartidos(partidosArray);
       setZonas(zonasData);
+      setCanchas(canchasData);
+      setCategorias(categoriasData);
     } catch (error) {
       console.error('Error al cargar datos:', error);
     } finally {
       setLoading(false);
     }
+  };
+
+  // Función para capturar el fixture como imagen
+  const capturarFixture = async () => {
+    if (!fixtureRef.current) return;
+    
+    try {
+      setCapturando(true);
+      const canvas = await html2canvas(fixtureRef.current, {
+        backgroundColor: '#1a1a2e',
+        scale: 2,
+        useCORS: true,
+      });
+      
+      // Crear link de descarga
+      const link = document.createElement('a');
+      link.download = `fixture-torneo-${torneoId}.png`;
+      link.href = canvas.toDataURL('image/png');
+      link.click();
+    } catch (error) {
+      console.error('Error al capturar fixture:', error);
+    } finally {
+      setCapturando(false);
+    }
+  };
+
+  // Obtener nombre de cancha por ID
+  const getNombreCancha = (canchaId: number | null) => {
+    if (!canchaId) return null;
+    const cancha = canchas.find(c => c.id === canchaId);
+    return cancha?.nombre || `Cancha ${canchaId}`;
   };
 
   const generarFixture = async () => {
@@ -65,10 +106,20 @@ export default function TorneoFixture({ torneoId, esOrganizador }: TorneoFixture
     setModalResultadoOpen(true);
   };
 
-  const handleResultadoCargado = () => {
+  const handleResultadoCargado = (partidoActualizado?: any) => {
     setModalResultadoOpen(false);
+    
+    // Actualizar solo el partido modificado en lugar de recargar todo
+    if (partidoActualizado) {
+      setPartidos(prev => prev.map(p => 
+        p.id_partido === partidoActualizado.id_partido ? partidoActualizado : p
+      ));
+    } else {
+      // Si no tenemos el partido actualizado, recargar todo
+      cargarDatos();
+    }
+    
     setPartidoSeleccionado(null);
-    cargarDatos();
   };
 
   if (loading) {
@@ -127,8 +178,13 @@ export default function TorneoFixture({ torneoId, esOrganizador }: TorneoFixture
     );
   }
 
+  // Filtrar partidos por categoría
+  const partidosFiltrados = categoriaFiltro
+    ? partidos.filter((p: any) => p.categoria_id === categoriaFiltro)
+    : partidos;
+
   // Agrupar partidos por zona
-  const partidosPorZona = partidos.reduce((acc: any, partido: any) => {
+  const partidosPorZona = partidosFiltrados.reduce((acc: any, partido: any) => {
     const zonaId = partido.zona_id || 'sin_zona';
     if (!acc[zonaId]) {
       acc[zonaId] = [];
@@ -165,32 +221,78 @@ export default function TorneoFixture({ torneoId, esOrganizador }: TorneoFixture
 
   return (
     <div className="space-y-6">
-      {/* Filtros */}
-      {zonas.length > 1 && (
-        <div className="flex gap-2 overflow-x-auto pb-2 -mx-4 px-4 md:mx-0 md:px-0">
-          <Button
-            variant={filtroZona === 'todas' ? 'primary' : 'ghost'}
-            onClick={() => setFiltroZona('todas')}
-            size="sm"
-            className="whitespace-nowrap text-xs md:text-sm"
+      {/* Filtro por categoría */}
+      {categorias.length > 0 && (
+        <div className="flex items-center gap-2 overflow-x-auto pb-2">
+          <Filter size={14} className="text-textSecondary flex-shrink-0" />
+          <button
+            onClick={() => setCategoriaFiltro(null)}
+            className={`px-3 py-1.5 rounded-lg text-xs font-bold whitespace-nowrap transition-all ${
+              categoriaFiltro === null
+                ? 'bg-accent text-white'
+                : 'bg-cardBorder text-textSecondary hover:bg-accent/20'
+            }`}
           >
             Todas
-          </Button>
-          {zonas.map(zona => (
-            <Button
-              key={zona.id}
-              variant={filtroZona === zona.id.toString() ? 'primary' : 'ghost'}
-              onClick={() => setFiltroZona(zona.id.toString())}
-              size="sm"
-              className="whitespace-nowrap text-xs md:text-sm"
+          </button>
+          {categorias.map((cat) => (
+            <button
+              key={cat.id}
+              onClick={() => setCategoriaFiltro(cat.id)}
+              className={`px-3 py-1.5 rounded-lg text-xs font-bold whitespace-nowrap transition-all ${
+                categoriaFiltro === cat.id
+                  ? 'bg-accent text-white'
+                  : 'bg-cardBorder text-textSecondary hover:bg-accent/20'
+              }`}
             >
-              {zona.nombre}
-            </Button>
+              {cat.nombre}
+            </button>
           ))}
         </div>
       )}
 
+      {/* Header con filtros de zona y botón de captura */}
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        {/* Filtros por zona */}
+        {zonas.length > 1 && (
+          <div className="flex gap-2 overflow-x-auto pb-2 -mx-4 px-4 md:mx-0 md:px-0 flex-1">
+            <Button
+              variant={filtroZona === 'todas' ? 'primary' : 'ghost'}
+              onClick={() => setFiltroZona('todas')}
+              size="sm"
+              className="whitespace-nowrap text-xs md:text-sm"
+            >
+              Todas
+            </Button>
+            {zonas.map(zona => (
+              <Button
+                key={zona.id}
+                variant={filtroZona === zona.id.toString() ? 'primary' : 'ghost'}
+                onClick={() => setFiltroZona(zona.id.toString())}
+                size="sm"
+                className="whitespace-nowrap text-xs md:text-sm"
+              >
+                {zona.nombre}
+              </Button>
+            ))}
+          </div>
+        )}
+        
+        {/* Botón capturar para Instagram */}
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={capturarFixture}
+          disabled={capturando}
+          className="flex items-center gap-2 text-xs md:text-sm"
+        >
+          <Camera size={16} />
+          {capturando ? 'Capturando...' : 'Capturar'}
+        </Button>
+      </div>
+
       {/* Partidos por zona */}
+      <div ref={fixtureRef} className="space-y-6">
       {zonasConPartidos
         .filter(zona => filtroZona === 'todas' || filtroZona === zona.id)
         .map((zona, index) => (
@@ -222,20 +324,43 @@ export default function TorneoFixture({ torneoId, esOrganizador }: TorneoFixture
                         transition={{ delay: idx * 0.05 }}
                         className="p-3 md:p-4 bg-background rounded-lg border border-cardBorder hover:border-primary/50 transition-all hover:shadow-md"
                       >
-                        {/* Header del partido */}
-                        <div className="flex items-center justify-between mb-3 md:mb-4">
-                          <div className="flex items-center gap-1.5 md:gap-2 text-xs md:text-sm text-textSecondary">
-                            <div className="bg-primary/10 p-1 md:p-1.5 rounded">
-                              <Calendar size={12} className="text-primary md:w-[14px] md:h-[14px]" />
+                        {/* Header del partido con fecha, hora y cancha */}
+                        <div className="flex flex-wrap items-center justify-between gap-2 mb-3 md:mb-4">
+                          <div className="flex flex-wrap items-center gap-2 md:gap-3 text-xs md:text-sm text-textSecondary">
+                            {/* Fecha y hora */}
+                            <div className="flex items-center gap-1.5">
+                              <div className="bg-primary/10 p-1 md:p-1.5 rounded">
+                                <Calendar size={12} className="text-primary md:w-[14px] md:h-[14px]" />
+                              </div>
+                              <span className="font-medium">
+                                {partido.fecha_hora ? new Date(partido.fecha_hora).toLocaleDateString('es-ES', {
+                                  weekday: 'short',
+                                  day: 'numeric',
+                                  month: 'short'
+                                }).toUpperCase() : 'Sin fecha'}
+                              </span>
                             </div>
-                            <span className="font-medium">
-                              {new Date(partido.fecha_hora).toLocaleDateString('es-ES', {
-                                day: 'numeric',
-                                month: 'short',
-                                hour: '2-digit',
-                                minute: '2-digit'
-                              })}
-                            </span>
+                            {/* Hora */}
+                            {partido.fecha_hora && (
+                              <div className="flex items-center gap-1">
+                                <Clock size={12} className="text-accent md:w-[14px] md:h-[14px]" />
+                                <span className="font-bold text-accent">
+                                  {new Date(partido.fecha_hora).toLocaleTimeString('es-ES', {
+                                    hour: '2-digit',
+                                    minute: '2-digit'
+                                  })}
+                                </span>
+                              </div>
+                            )}
+                            {/* Cancha */}
+                            {partido.cancha_id && (
+                              <div className="flex items-center gap-1 bg-accent/10 px-2 py-0.5 rounded">
+                                <MapPin size={12} className="text-accent md:w-[14px] md:h-[14px]" />
+                                <span className="font-bold text-accent text-[10px] md:text-xs">
+                                  {getNombreCancha(partido.cancha_id)}
+                                </span>
+                              </div>
+                            )}
                           </div>
                           <div
                             className={`px-2 md:px-3 py-0.5 md:py-1 rounded-full text-[10px] md:text-xs font-bold flex items-center gap-1 md:gap-1.5 ${
@@ -332,6 +457,7 @@ export default function TorneoFixture({ torneoId, esOrganizador }: TorneoFixture
             </Card>
           </motion.div>
         ))}
+      </div>
 
       {/* Modal Cargar Resultado */}
       {partidoSeleccionado && (

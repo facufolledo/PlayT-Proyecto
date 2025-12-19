@@ -4,8 +4,8 @@ import { useAuth } from '../context/AuthContext';
 import { Trophy, MapPin, Calendar, ChevronDown, ChevronUp, Target, Hand, TrendingUp, TrendingDown, Flame, Award, Zap } from 'lucide-react';
 import Button from '../components/Button';
 import { PartidoCardSkeleton } from '../components/SkeletonLoader';
+import { PlayerLink } from '../components/UserLink';
 import axios from 'axios';
-import { parseError } from '../utils/errorHandler';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
 
@@ -664,9 +664,14 @@ export default function MiPerfil() {
                           {/* Mi Equipo */}
                           <div className="col-span-5">
                             {miEquipo.map((jugador, i) => (
-                              <p key={i} className="text-textPrimary font-semibold text-[11px] md:text-sm truncate">
-                                {jugador.nombre} {jugador.apellido}
-                              </p>
+                              <div key={i} className="truncate">
+                                <PlayerLink 
+                                  id={jugador.id_usuario} 
+                                  nombre={`${jugador.nombre} ${jugador.apellido}`}
+                                  nombreUsuario={jugador.nombre_usuario}
+                                  size="sm" 
+                                />
+                              </div>
                             ))}
                           </div>
 
@@ -685,9 +690,14 @@ export default function MiPerfil() {
                           {/* Equipo Rival */}
                           <div className="col-span-5 text-right">
                             {rivalEquipo.map((jugador, i) => (
-                              <p key={i} className="text-textPrimary font-semibold text-[11px] md:text-sm truncate">
-                                {jugador.nombre} {jugador.apellido}
-                              </p>
+                              <div key={i} className="truncate">
+                                <PlayerLink 
+                                  id={jugador.id_usuario} 
+                                  nombre={`${jugador.nombre} ${jugador.apellido}`}
+                                  nombreUsuario={jugador.nombre_usuario}
+                                  size="sm" 
+                                />
+                              </div>
                             ))}
                           </div>
                         </div>

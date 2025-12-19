@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { Trophy, Minus, Medal, Filter, Search } from 'lucide-react';
 import Card from '../components/Card';
@@ -33,6 +34,7 @@ export default function Rankings() {
 
   const [mostrarTodos, setMostrarTodos] = useState(false);
   const ITEMS_POR_PAGINA = 20;
+  const navigate = useNavigate();
 
 
 
@@ -262,8 +264,13 @@ export default function Rankings() {
                         </div>
                       </td>
                       <td className="py-2 md:py-4 px-2 md:px-4">
-                        <p className="text-textPrimary font-bold text-xs md:text-base truncate max-w-[120px] md:max-w-none">{nombreCompleto}</p>
-                        <p className="text-textSecondary text-[10px] md:text-xs truncate max-w-[120px] md:max-w-none">@{jugador.nombre_usuario}</p>
+                        <button 
+                          onClick={() => navigate(`/${jugador.nombre_usuario}`)}
+                          className="text-left hover:opacity-80 transition-opacity"
+                        >
+                          <p className="text-textPrimary font-bold text-xs md:text-base truncate max-w-[120px] md:max-w-none hover:text-primary transition-colors">{nombreCompleto}</p>
+                          <p className="text-textSecondary text-[10px] md:text-xs truncate max-w-[120px] md:max-w-none">@{jugador.nombre_usuario}</p>
+                        </button>
                       </td>
                       <td className="py-2 md:py-4 px-1 md:px-4 text-center hidden md:table-cell">
                         <span className={`inline-block px-2 md:px-3 py-0.5 md:py-1 rounded-full text-white font-bold text-xs md:text-sm ${

@@ -62,12 +62,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             try {
               const currentUser = auth.currentUser;
               if (currentUser) {
-                const newToken = await currentUser.getIdToken(true); // Force refresh
+                const newToken = await currentUser.getIdToken(true);
                 localStorage.setItem('firebase_token', newToken);
-                console.log('🔄 Token de Firebase renovado automáticamente');
               }
             } catch (error) {
-              console.error('Error al renovar token:', error);
+              // Silenciar error
             }
           }, 50 * 60 * 1000); // 50 minutos
 
@@ -123,17 +122,24 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }, [usuario]);
 
-  // Renovar token cuando el usuario vuelve a la pestaña
+  // Renovar token cuando el usuario vuelve a la pestaña (con debounce)
   useEffect(() => {
+    let lastRefresh = 0;
+    const REFRESH_COOLDOWN = 60000; // 1 minuto mínimo entre refreshes
+
     const handleVisibilityChange = async () => {
       if (document.visibilityState === 'visible' && firebaseUser) {
+        const now = Date.now();
+        // Solo renovar si pasó más de 1 minuto desde la última renovación
+        if (now - lastRefresh < REFRESH_COOLDOWN) {
+          return;
+        }
         try {
-          console.log('👁️ Usuario volvió a la pestaña, verificando token...');
-          const newToken = await firebaseUser.getIdToken(true); // Force refresh
+          lastRefresh = now;
+          const newToken = await firebaseUser.getIdToken(true);
           localStorage.setItem('firebase_token', newToken);
-          console.log('✅ Token renovado al volver a la pestaña');
         } catch (error) {
-          console.error('Error al renovar token:', error);
+          // Silenciar error, no es crítico
         }
       }
     };

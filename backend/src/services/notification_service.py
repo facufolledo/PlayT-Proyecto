@@ -97,14 +97,6 @@ class NotificationService:
     ) -> Dict:
         """
         Envía notificación cuando hay un resultado pendiente de confirmación
-        
-        Args:
-            id_usuario: ID del usuario
-            nombre_sala: Nombre de la sala
-            db: Sesión de base de datos
-            
-        Returns:
-            Dict con resultado del envío
         """
         try:
             usuario = db.query(Usuario).filter(Usuario.id_usuario == id_usuario).first()
@@ -132,6 +124,67 @@ class NotificationService:
             }
             
         except Exception as e:
+            return {
+                "success": False,
+                "error": str(e)
+            }
+    
+    @staticmethod
+    def enviar_notificacion(
+        db: Session,
+        user_id: int,
+        titulo: str,
+        mensaje: str,
+        data: Dict = None
+    ) -> Dict:
+        """
+        Envía una notificación push genérica a un usuario
+        
+        Args:
+            db: Sesión de base de datos
+            user_id: ID del usuario destinatario
+            titulo: Título de la notificación
+            mensaje: Cuerpo del mensaje
+            data: Datos adicionales (opcional)
+            
+        Returns:
+            Dict con resultado del envío
+        """
+        try:
+            usuario = db.query(Usuario).filter(Usuario.id_usuario == user_id).first()
+            
+            if not usuario:
+                return {"success": False, "error": "Usuario no encontrado"}
+            
+            if not hasattr(usuario, 'fcm_token') or not usuario.fcm_token:
+                print(f"Usuario {user_id} no tiene token FCM configurado")
+                return {"success": False, "error": "Usuario sin token FCM"}
+            
+            # Convertir data a strings (FCM requiere strings)
+            data_str = {}
+            if data:
+                for key, value in data.items():
+                    data_str[key] = str(value) if value is not None else ""
+            
+            message = messaging.Message(
+                notification=messaging.Notification(
+                    title=titulo,
+                    body=mensaje,
+                ),
+                data=data_str,
+                token=usuario.fcm_token
+            )
+            
+            response = messaging.send(message)
+            print(f"Notificación enviada a usuario {user_id}: {response}")
+            
+            return {
+                "success": True,
+                "message_id": response
+            }
+            
+        except Exception as e:
+            print(f"Error enviando notificación a usuario {user_id}: {e}")
             return {
                 "success": False,
                 "error": str(e)

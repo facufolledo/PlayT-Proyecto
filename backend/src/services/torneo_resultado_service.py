@@ -77,8 +77,74 @@ class TorneoResultadoService:
         # Si es partido de playoffs, avanzar ganador a siguiente fase
         if partido.fase and partido.fase != 'zona':
             TorneoResultadoService._avanzar_ganador_playoff(db, partido, ganador_pareja_id)
+        else:
+            # Si es partido de zona, verificar si se completaron todas las zonas
+            # para auto-generar playoffs
+            TorneoResultadoService._verificar_auto_playoffs(db, partido.id_torneo)
         
         return partido
+    
+    @staticmethod
+    def _verificar_auto_playoffs(db: Session, torneo_id: int) -> bool:
+        """
+        Verifica si todas las zonas están completas y auto-genera playoffs si corresponde
+        
+        Returns:
+            True si se generaron playoffs automáticamente
+        """
+        from ..models.torneo_models import Torneo, TorneoZona
+        
+        # Obtener torneo
+        torneo = db.query(Torneo).filter(Torneo.id == torneo_id).first()
+        if not torneo:
+            return False
+        
+        # Solo auto-generar si está en fase_grupos
+        if str(torneo.estado) not in ['fase_grupos', 'EstadoTorneo.FASE_GRUPOS']:
+            return False
+        
+        # Verificar si ya hay partidos de playoffs
+        partidos_playoffs = db.query(Partido).filter(
+            Partido.id_torneo == torneo_id,
+            Partido.fase != 'zona',
+            Partido.fase.isnot(None)
+        ).count()
+        
+        if partidos_playoffs > 0:
+            # Ya hay playoffs generados
+            return False
+        
+        # Obtener todas las zonas
+        zonas = db.query(TorneoZona).filter(TorneoZona.torneo_id == torneo_id).all()
+        if not zonas:
+            return False
+        
+        # Verificar que todas las zonas estén completas
+        todas_completas = True
+        for zona in zonas:
+            if not TorneoResultadoService.verificar_zona_completa(db, zona.id):
+                todas_completas = False
+                break
+        
+        if not todas_completas:
+            return False
+        
+        # Todas las zonas completas - generar playoffs automáticamente
+        try:
+            from ..services.torneo_playoff_service import TorneoPlayoffService
+            
+            logger.info(f"Auto-generando playoffs para torneo {torneo_id}")
+            TorneoPlayoffService.generar_playoffs(
+                db=db,
+                torneo_id=torneo_id,
+                user_id=torneo.creado_por,  # Usar el creador del torneo
+                clasificados_por_zona=2
+            )
+            logger.info(f"Playoffs auto-generados exitosamente para torneo {torneo_id}")
+            return True
+        except Exception as e:
+            logger.error(f"Error auto-generando playoffs: {e}")
+            return False
     
     @staticmethod
     def _avanzar_ganador_playoff(

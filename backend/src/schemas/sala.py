@@ -35,3 +35,4 @@ class SalaCompleta(SalaResponse):
     estado_confirmacion: Optional[str] = None
     cambios_elo: Optional[List[dict]] = None
     elo_aplicado: Optional[bool] = False
+    usuarios_confirmados: Optional[List[int]] = []  # IDs de usuarios que ya confirmaron

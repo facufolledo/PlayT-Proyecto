@@ -1,19 +1,30 @@
 import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { Torneo } from '../utils/types';
-import torneoService, { TorneoCreate, TorneoBackend, ParejaInscripcion, Pareja } from '../services/torneo.service';
+import torneoService, { TorneoCreate, ParejaInscripcion, Pareja } from '../services/torneo.service';
 import { useAuth } from './AuthContext';
+
+interface MiTorneo {
+  id: number;
+  nombre: string;
+  estado: string;
+  estado_inscripcion: string;
+  fecha_inicio: string;
+  fecha_fin: string;
+}
 
 interface TorneosContextType {
   // Estado
   torneos: Torneo[];
   torneoActual: Torneo | null;
   parejas: Pareja[];
+  misTorneos: MiTorneo[];
   loading: boolean;
   error: string | null;
   
   // Acciones de torneos
   cargarTorneos: () => Promise<void>;
   cargarTorneo: (id: number) => Promise<void>;
+  cargarMisTorneos: () => Promise<void>;
   crearTorneo: (data: TorneoCreate) => Promise<Torneo>;
   actualizarTorneo: (id: number, data: Partial<TorneoCreate>) => Promise<void>;
   eliminarTorneo: (id: number) => Promise<void>;
@@ -40,6 +51,7 @@ export function TorneosProvider({ children }: { children: ReactNode }) {
   const [torneos, setTorneos] = useState<Torneo[]>([]);
   const [torneoActual, setTorneoActual] = useState<Torneo | null>(null);
   const [parejas, setParejas] = useState<Pareja[]>([]);
+  const [misTorneos, setMisTorneos] = useState<MiTorneo[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   
@@ -123,6 +135,25 @@ export function TorneosProvider({ children }: { children: ReactNode }) {
       setError(err.response?.data?.detail || 'Error al cargar torneo');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const cargarMisTorneos = async () => {
+    if (!usuario) return;
+    
+    try {
+      const data = await torneoService.obtenerMisTorneos();
+      const adaptados = data.torneos.map(t => ({
+        id: t.id,
+        nombre: t.nombre,
+        estado: t.estado,
+        estado_inscripcion: t.mi_inscripcion?.estado_inscripcion || 'inscripta',
+        fecha_inicio: t.fecha_inicio,
+        fecha_fin: t.fecha_fin
+      }));
+      setMisTorneos(adaptados);
+    } catch (err: any) {
+      console.error('Error al cargar mis torneos:', err);
     }
   };
   
@@ -259,10 +290,13 @@ export function TorneosProvider({ children }: { children: ReactNode }) {
         throw new Error(errores.join(', '));
       }
       
-      const nuevaPareja = await torneoService.inscribirPareja(torneoId, data);
+      // inscribirPareja ahora devuelve código de confirmación, no la pareja
+      await torneoService.inscribirPareja(torneoId, data);
       
-      // Actualizar lista local
-      setParejas(prev => [nuevaPareja, ...prev]);
+      // Recargar parejas para obtener la nueva
+      await cargarParejas(torneoId);
+      // También recargar mis torneos
+      await cargarMisTorneos();
     } catch (err: any) {
       console.error('Error al inscribir pareja:', err);
       const errorMsg = err.response?.data?.detail || err.message || 'Error al inscribir pareja';
@@ -344,18 +378,27 @@ export function TorneosProvider({ children }: { children: ReactNode }) {
     cargarTorneos();
   }, []);
 
+  // Cargar mis torneos cuando hay usuario
+  useEffect(() => {
+    if (usuario) {
+      cargarMisTorneos();
+    }
+  }, [usuario]);
+
   return (
     <TorneosContext.Provider value={{
       // Estado
       torneos,
       torneoActual,
       parejas,
+      misTorneos,
       loading,
       error,
       
       // Acciones de torneos
       cargarTorneos,
       cargarTorneo,
+      cargarMisTorneos,
       crearTorneo,
       actualizarTorneo,
       eliminarTorneo,

@@ -27,6 +27,7 @@ const MiPerfil = lazy(() => import('./pages/MiPerfil'));
 const EditarPerfil = lazy(() => import('./pages/EditarPerfil'));
 const MiRanking = lazy(() => import('./pages/MiRanking'));
 const CompletarPerfil = lazy(() => import('./pages/CompletarPerfil'));
+const PerfilPublico = lazy(() => import('./pages/PerfilPublico'));
 
 // Loading component
 const PageLoader = () => (
@@ -203,12 +204,35 @@ function App() {
                   </PrivateRoute>
                 }
               />
+              {/* Perfil público por ID */}
+              <Route
+                path="/perfil/:id"
+                element={
+                  <PrivateRoute>
+                    <Layout>
+                      <PerfilPublico />
+                    </Layout>
+                  </PrivateRoute>
+                }
+              />
               <Route
                 path="/configuracion"
                 element={
                   <PrivateRoute>
                     <Layout>
                       <div className="text-textPrimary">Configuración - Próximamente</div>
+                    </Layout>
+                  </PrivateRoute>
+                }
+              />
+              
+              {/* Perfil público de otros usuarios - URL amigable */}
+              <Route
+                path="/:username"
+                element={
+                  <PrivateRoute>
+                    <Layout>
+                      <PerfilPublico />
                     </Layout>
                   </PrivateRoute>
                 }

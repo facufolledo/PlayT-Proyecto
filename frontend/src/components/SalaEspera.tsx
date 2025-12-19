@@ -1,10 +1,11 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { motion } from 'framer-motion';
 import { X, Copy, Users, Play, Crown } from 'lucide-react';
 import Modal from './Modal';
 import Button from './Button';
 import AsignarEquipos from './AsignarEquipos';
 import ModalAntiTrampa from './ModalAntiTrampa';
+import { PlayerLink } from './UserLink';
 import { Sala } from '../utils/types';
 import { useAuth } from '../context/AuthContext';
 import { salaService } from '../services/sala.service';
@@ -17,9 +18,17 @@ interface SalaEsperaProps {
   onIniciarPartido: () => void;
 }
 
-export default function SalaEspera({ isOpen, onClose, sala, onIniciarPartido }: SalaEsperaProps) {
+export default function SalaEspera({ isOpen, onClose, sala: salaProp, onIniciarPartido }: SalaEsperaProps) {
   const { usuario } = useAuth();
-  const { cargarSalas } = useSalas();
+  const { cargarSalas, salas } = useSalas();
+  
+  // Obtener la sala actualizada del contexto (para reflejar cambios como equipos asignados)
+  const sala = useMemo(() => {
+    if (!salaProp) return null;
+    // Buscar la sala actualizada en el contexto
+    const salaActualizada = salas.find(s => s.id === salaProp.id);
+    return salaActualizada || salaProp;
+  }, [salaProp, salas]);
   const [copiado, setCopiado] = useState(false);
   const [asignando, setAsignando] = useState(false);
   const [mostrarAsignacion, setMostrarAsignacion] = useState(false);
@@ -29,30 +38,33 @@ export default function SalaEspera({ isOpen, onClose, sala, onIniciarPartido }: 
     partidos: number;
     limite: number;
   } | null>(null);
+  const [mensajeExito, setMensajeExito] = useState<string | null>(null);
 
-  // Recargar salas cada vez que se abre el modal y cada 30 segundos
+  // Recargar salas solo cuando se abre el modal (no en cada render)
   useEffect(() => {
-    if (isOpen) {
+    if (isOpen && sala) {
+      // Cargar una vez al abrir
       cargarSalas();
       
-      // Polling cada 30 segundos para actualizar jugadores (reducido de 15s)
+      // Polling cada 30 segundos para actualizar jugadores
       const interval = setInterval(() => {
         cargarSalas();
       }, 30000);
       
       return () => clearInterval(interval);
     }
-  }, [isOpen, cargarSalas]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isOpen, sala?.id]); // Solo depender de isOpen y sala.id, no de cargarSalas
 
-  if (!sala) return null;
-
-  const esCreador = usuario?.id_usuario === sala.creador_id;
-  const jugadores = sala.jugadores || [];
-  const hayEquiposAsignados = sala.equiposAsignados;
+  // Calcular valores derivados antes del early return
+  const esCreador = usuario?.id_usuario === sala?.creador_id;
+  const jugadores = sala?.jugadores || [];
+  const hayEquiposAsignados = sala?.equiposAsignados;
   const puedeIniciar = jugadores.length === 4 && hayEquiposAsignados;
-  
-  // Verificar si el usuario es participante de la sala
   const esParticipante = jugadores.some(j => j.id === usuario?.id_usuario?.toString());
+
+  // Early return después de todos los hooks
+  if (!sala) return null;
 
   const copiarCodigo = () => {
     if (sala.codigoInvitacion) {
@@ -61,8 +73,6 @@ export default function SalaEspera({ isOpen, onClose, sala, onIniciarPartido }: 
       setTimeout(() => setCopiado(false), 2000);
     }
   };
-
-  const [mensajeExito, setMensajeExito] = useState<string | null>(null);
 
   const handleAsignarEquipos = async (equipos: { [key: string]: number }) => {
     if (!esCreador) return;
@@ -73,15 +83,15 @@ export default function SalaEspera({ isOpen, onClose, sala, onIniciarPartido }: 
       setMostrarAsignacion(false);
       
       // Mostrar mensaje de éxito
-      setMensajeExito('¡Equipos asignados correctamente!');
+      setMensajeExito('¡Equipos asignados! Ya puedes iniciar el partido.');
       
-      // Recargar salas para actualizar la vista
+      // Recargar salas para actualizar la vista (esto actualizará el contexto y el useMemo obtendrá la sala actualizada)
       await cargarSalas();
       
-      // Ocultar mensaje después de 2 segundos
+      // Ocultar mensaje después de 3 segundos
       setTimeout(() => {
         setMensajeExito(null);
-      }, 2000);
+      }, 3000);
     } catch (error: any) {
       console.error('Error al asignar equipos:', error);
       alert(error.message || 'Error al asignar equipos');
@@ -229,9 +239,7 @@ export default function SalaEspera({ isOpen, onClose, sala, onIniciarPartido }: 
                   </div>
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2">
-                      <p className="text-textPrimary font-semibold text-sm md:text-base truncate">
-                        {jugador.nombre}
-                      </p>
+                      <PlayerLink id={jugador.id} nombre={jugador.nombre} nombreUsuario={jugador.nombreUsuario} size="md" className="truncate" />
                       {esCreador && (
                         <span className="text-accent text-xs font-bold">Anfitrión</span>
                       )}
@@ -266,13 +274,13 @@ export default function SalaEspera({ isOpen, onClose, sala, onIniciarPartido }: 
             <div className="grid grid-cols-2 gap-3">
               <div className="bg-primary/10 rounded-lg p-3">
                 <p className="text-primary font-bold text-xs mb-2">EQUIPO A</p>
-                <p className="text-textPrimary text-xs">{sala.equipoA.jugador1.nombre}</p>
-                <p className="text-textPrimary text-xs">{sala.equipoA.jugador2.nombre}</p>
+                <PlayerLink id={sala.equipoA.jugador1.id} nombre={sala.equipoA.jugador1.nombre} nombreUsuario={sala.equipoA.jugador1.nombreUsuario} size="sm" className="block" />
+                <PlayerLink id={sala.equipoA.jugador2.id} nombre={sala.equipoA.jugador2.nombre} nombreUsuario={sala.equipoA.jugador2.nombreUsuario} size="sm" className="block" />
               </div>
               <div className="bg-secondary/10 rounded-lg p-3">
                 <p className="text-secondary font-bold text-xs mb-2">EQUIPO B</p>
-                <p className="text-textPrimary text-xs">{sala.equipoB.jugador1.nombre}</p>
-                <p className="text-textPrimary text-xs">{sala.equipoB.jugador2.nombre}</p>
+                <PlayerLink id={sala.equipoB.jugador1.id} nombre={sala.equipoB.jugador1.nombre} nombreUsuario={sala.equipoB.jugador1.nombreUsuario} size="sm" className="block" />
+                <PlayerLink id={sala.equipoB.jugador2.id} nombre={sala.equipoB.jugador2.nombre} nombreUsuario={sala.equipoB.jugador2.nombreUsuario} size="sm" className="block" />
               </div>
             </div>
           </div>

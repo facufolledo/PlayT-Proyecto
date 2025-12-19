@@ -104,6 +104,29 @@ class Torneo(Base):
     )
 
 
+class TorneoCategoria(Base):
+    """
+    Categorías dentro de un torneo (8va, 6ta, 4ta, Libre, etc.)
+    Un torneo puede tener múltiples categorías, cada una con sus propias zonas y parejas.
+    """
+    __tablename__ = "torneo_categorias"
+    
+    id = Column(BigInteger, primary_key=True, autoincrement=True)
+    torneo_id = Column(BigInteger, ForeignKey("torneos.id", ondelete="CASCADE"), nullable=False)
+    nombre = Column(String(50), nullable=False, comment="8va, 6ta, 4ta, Libre, etc.")
+    genero = Column(String(20), default="masculino", comment="masculino, femenino, mixto")
+    max_parejas = Column(Integer, default=16)
+    estado = Column(String(30), default="inscripcion")  # inscripcion, armando_zonas, fase_grupos, fase_eliminacion, finalizado
+    orden = Column(Integer, default=0, comment="Orden de visualización")
+    created_at = Column(DateTime, server_default=func.current_timestamp())
+    updated_at = Column(DateTime, server_default=func.current_timestamp(), onupdate=func.current_timestamp())
+    
+    __table_args__ = (
+        Index('idx_torneo_categorias_torneo', 'torneo_id'),
+        Index('idx_torneo_categorias_estado', 'estado'),
+    )
+
+
 class TorneoOrganizador(Base):
     __tablename__ = "torneos_organizadores"
     
@@ -123,24 +146,29 @@ class TorneoPareja(Base):
     
     id = Column(BigInteger, primary_key=True, autoincrement=True)
     torneo_id = Column(BigInteger, ForeignKey("torneos.id", ondelete="CASCADE"), nullable=False)
+    categoria_id = Column(BigInteger, ForeignKey("torneo_categorias.id", ondelete="CASCADE"), nullable=True)
     jugador1_id = Column(BigInteger, ForeignKey("usuarios.id_usuario"), nullable=False)
     jugador2_id = Column(BigInteger, ForeignKey("usuarios.id_usuario"), nullable=False)
-    estado = Column(String(20), default="inscripta")  # Cambiado de Enum a String
-    categoria_asignada = Column(String(50))
+    estado = Column(String(20), default="pendiente")  # pendiente, inscripta, confirmada, baja
+    categoria_asignada = Column(String(50))  # Deprecado, usar categoria_id
     observaciones = Column(Text)
+    
+    # Campos para confirmación de pareja
+    codigo_confirmacion = Column(String(8), nullable=True)  # Código único para confirmar
+    confirmado_jugador1 = Column(Boolean, default=True)  # El que inscribe siempre confirma
+    confirmado_jugador2 = Column(Boolean, default=False)  # El compañero debe confirmar
+    fecha_expiracion = Column(DateTime, nullable=True)  # Expira en 48hs
+    creado_por_id = Column(BigInteger, nullable=True)  # Quién creó la inscripción
+    
     created_at = Column(DateTime, server_default=func.current_timestamp())
     updated_at = Column(DateTime, server_default=func.current_timestamp(), onupdate=func.current_timestamp())
     
-    # Relationships - Comentados temporalmente
-    # torneo = relationship("Torneo", back_populates="parejas")
-    # jugador1 = relationship("Usuario", foreign_keys=[jugador1_id])
-    # jugador2 = relationship("Usuario", foreign_keys=[jugador2_id])
-    # zona_asignacion = relationship("TorneoZonaPareja", back_populates="pareja", uselist=False)
-    
     __table_args__ = (
         Index('idx_torneos_parejas_torneo', 'torneo_id'),
+        Index('idx_torneos_parejas_categoria', 'categoria_id'),
         Index('idx_torneos_parejas_estado', 'estado'),
         Index('idx_torneos_parejas_jugadores', 'jugador1_id', 'jugador2_id'),
+        Index('idx_torneos_parejas_codigo', 'codigo_confirmacion'),
     )
 
 
@@ -149,14 +177,14 @@ class TorneoZona(Base):
     
     id = Column(BigInteger, primary_key=True, autoincrement=True)
     torneo_id = Column(BigInteger, ForeignKey("torneos.id", ondelete="CASCADE"), nullable=False)
+    categoria_id = Column(BigInteger, ForeignKey("torneo_categorias.id", ondelete="CASCADE"), nullable=True)  # Nueva columna
     nombre = Column(String(50), nullable=False, comment="Zona A, Zona B, etc.")
     numero_orden = Column(Integer, nullable=False)
     created_at = Column(DateTime, server_default=func.current_timestamp())
     
-    # Relationships - Comentados temporalmente
-    # torneo = relationship("Torneo", back_populates="zonas")
-    # parejas_asignadas = relationship("TorneoZonaPareja", back_populates="zona")
-    # tabla_posiciones = relationship("TorneoTablaPosiciones", back_populates="zona")
+    __table_args__ = (
+        Index('idx_torneo_zonas_categoria', 'categoria_id'),
+    )
 
 
 class TorneoZonaPareja(Base):

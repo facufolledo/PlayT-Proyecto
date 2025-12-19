@@ -10,9 +10,12 @@ from ..schemas.categoria import CategoriaResponse, JugadoresPorCategoriaResponse
 router = APIRouter(prefix="/categorias", tags=["Categorías"])
 
 @router.get("/", response_model=List[CategoriaResponse])
-async def get_categorias(sexo: str = "masculino", db: Session = Depends(get_db)):
-    """Obtener todas las categorías filtradas por sexo"""
-    categorias = db.query(Categoria).filter(Categoria.sexo == sexo).order_by(Categoria.rating_min.asc()).all()
+async def get_categorias(sexo: str = None, db: Session = Depends(get_db)):
+    """Obtener todas las categorías, opcionalmente filtradas por sexo"""
+    query = db.query(Categoria)
+    if sexo:
+        query = query.filter(Categoria.sexo == sexo)
+    categorias = query.order_by(Categoria.sexo, Categoria.rating_min.asc()).all()
     return categorias
 
 @router.get("/{categoria_id}", response_model=CategoriaResponse)

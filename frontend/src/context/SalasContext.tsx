@@ -29,6 +29,24 @@ function convertirSalaBackendAFrontend(salaBackend: SalaCompleta): Sala {
   const equipoB = jugadores.filter(j => j.equipo === 2);
   const hayEquiposAsignados = equipoA.length > 0 && equipoB.length > 0;
   
+  // El backend puede devolver "id" o "id_usuario" dependiendo del endpoint
+  const getJugadorId = (j: any): string => {
+    return (j.id || j.id_usuario)?.toString() || '';
+  };
+  
+  const getJugadorNombre = (j: any): string => {
+    // El backend puede enviar nombre completo o separado
+    // Priorizar nombre completo ya construido, luego nombre + apellido, luego nombre_usuario
+    if (j.nombre && j.nombre.trim()) return j.nombre.trim();
+    if (j.nombre_usuario) return j.nombre_usuario;
+    return 'Usuario';
+  };
+  
+  // Obtener nombre_usuario del jugador
+  const getJugadorNombreUsuario = (j: any): string | undefined => {
+    return j.nombre_usuario || undefined;
+  };
+  
   return {
     id: salaBackend.id_sala,
     nombre: salaBackend.nombre,
@@ -36,21 +54,24 @@ function convertirSalaBackendAFrontend(salaBackend: SalaCompleta): Sala {
     estado: salaBackend.estado as any,
     codigoInvitacion: salaBackend.codigo_invitacion,
     jugadores: jugadores.map(j => ({
-      id: j.id_usuario?.toString() || '',
-      nombre: j.nombre || j.nombre_usuario || `${j.nombre} ${j.apellido}`.trim() || 'Usuario',
+      id: getJugadorId(j),
+      nombre: getJugadorNombre(j),
+      nombreUsuario: getJugadorNombreUsuario(j),
       rating: j.rating || 1500,
-      esCreador: j.id_usuario === salaBackend.id_creador
+      esCreador: getJugadorId(j) === salaBackend.id_creador?.toString()
     })),
     equiposAsignados: hayEquiposAsignados,
     equipoA: {
       jugador1: equipoA[0] ? {
-        id: equipoA[0].id_usuario?.toString() || '',
-        nombre: equipoA[0].nombre || equipoA[0].nombre_usuario || `${equipoA[0].nombre} ${equipoA[0].apellido}` || 'Usuario',
+        id: getJugadorId(equipoA[0]),
+        nombre: getJugadorNombre(equipoA[0]),
+        nombreUsuario: getJugadorNombreUsuario(equipoA[0]),
         rating: equipoA[0].rating || 1500
       } : { id: '', nombre: '' },
       jugador2: equipoA[1] ? {
-        id: equipoA[1].id_usuario?.toString() || '',
-        nombre: equipoA[1].nombre || equipoA[1].nombre_usuario || `${equipoA[1].nombre} ${equipoA[1].apellido}` || 'Usuario',
+        id: getJugadorId(equipoA[1]),
+        nombre: getJugadorNombre(equipoA[1]),
+        nombreUsuario: getJugadorNombreUsuario(equipoA[1]),
         rating: equipoA[1].rating || 1500
       } : { id: '', nombre: '' },
       puntos: 0,
@@ -58,13 +79,15 @@ function convertirSalaBackendAFrontend(salaBackend: SalaCompleta): Sala {
     },
     equipoB: {
       jugador1: equipoB[0] ? {
-        id: equipoB[0].id_usuario?.toString() || '',
-        nombre: equipoB[0].nombre || equipoB[0].nombre_usuario || `${equipoB[0].nombre} ${equipoB[0].apellido}` || 'Usuario',
+        id: getJugadorId(equipoB[0]),
+        nombre: getJugadorNombre(equipoB[0]),
+        nombreUsuario: getJugadorNombreUsuario(equipoB[0]),
         rating: equipoB[0].rating || 1500
       } : { id: '', nombre: '' },
       jugador2: equipoB[1] ? {
-        id: equipoB[1].id_usuario?.toString() || '',
-        nombre: equipoB[1].nombre || equipoB[1].nombre_usuario || `${equipoB[1].nombre} ${equipoB[1].apellido}` || 'Usuario',
+        id: getJugadorId(equipoB[1]),
+        nombre: getJugadorNombre(equipoB[1]),
+        nombreUsuario: getJugadorNombreUsuario(equipoB[1]),
         rating: equipoB[1].rating || 1500
       } : { id: '', nombre: '' },
       puntos: 0,
@@ -76,6 +99,7 @@ function convertirSalaBackendAFrontend(salaBackend: SalaCompleta): Sala {
     resultado: salaBackend.resultado,
     cambiosElo: salaBackend.cambios_elo,
     eloAplicado: salaBackend.elo_aplicado,
+    usuariosConfirmados: salaBackend.usuarios_confirmados || [],
     formato: 'best_of_3',
     createdAt: salaBackend.creado_en
   };
@@ -233,17 +257,9 @@ export function SalasProvider({ children }: { children: ReactNode }) {
       // Verificar que no sea el creador (el creador no confirma su propio resultado)
       if (sala.creador_id?.toString() === jugadorId) return false;
       
-      // Verificar si el equipo del jugador ya confirmó
-      const jugador = sala.jugadores?.find(j => j.id === jugadorId);
-      if (jugador) {
-        // Determinar en qué equipo está el jugador
-        const enEquipoA = sala.equipoA?.jugador1?.id === jugadorId || sala.equipoA?.jugador2?.id === jugadorId;
-        const enEquipoB = sala.equipoB?.jugador1?.id === jugadorId || sala.equipoB?.jugador2?.id === jugadorId;
-        
-        // Si su equipo ya confirmó, no mostrar como pendiente
-        if (enEquipoA && sala.equipoA?.confirmado) return false;
-        if (enEquipoB && sala.equipoB?.confirmado) return false;
-      }
+      // Verificar si el usuario ya confirmó (usando el nuevo campo del backend)
+      const jugadorIdNum = parseInt(jugadorId);
+      if (sala.usuariosConfirmados?.includes(jugadorIdNum)) return false;
       
       return true;
     });

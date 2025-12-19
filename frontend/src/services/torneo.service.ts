@@ -55,6 +55,7 @@ export interface ParejaInscripcion {
   jugador1_id: number;
   jugador2_id: number;
   nombre_pareja: string;
+  categoria_id?: number;
 }
 
 export interface Pareja {
@@ -64,7 +65,7 @@ export interface Pareja {
   jugador1_id: number;
   jugador2_id: number;
   nombre_pareja: string;
-  estado: 'inscripta' | 'confirmada' | 'baja';
+  estado: 'pendiente' | 'inscripta' | 'confirmada' | 'baja' | 'rechazada' | 'expirada';
   jugador1_nombre?: string;
   jugador2_nombre?: string;
 }
@@ -77,6 +78,25 @@ export interface EstadisticasTorneo {
   partidos_pendientes: number;
   zonas: number;
   fase_actual: string;
+}
+
+// Tipos para categorías
+export interface CategoriaCreate {
+  nombre: string;
+  genero: string;
+  max_parejas: number;
+  orden?: number;
+}
+
+export interface Categoria {
+  id: number;
+  torneo_id: number;
+  nombre: string;
+  genero: string;
+  max_parejas: number;
+  estado: string;
+  orden: number;
+  parejas_inscritas: number;
 }
 
 class TorneoService {
@@ -149,8 +169,8 @@ class TorneoService {
   // Inscripciones
   async inscribirPareja(
     torneoId: number,
-    data: { jugador1_id: number; jugador2_id: number; nombre_pareja: string }
-  ): Promise<Pareja> {
+    data: { jugador1_id: number; jugador2_id: number; nombre_pareja?: string; categoria_id?: number }
+  ): Promise<{ pareja_id: number; codigo_confirmacion: string; fecha_expiracion: string; mensaje: string }> {
     const response = await axios.post(
       `${API_URL}/torneos/${torneoId}/inscribir`,
       data,
@@ -159,11 +179,98 @@ class TorneoService {
     return response.data;
   }
 
-  async listarParejas(torneoId: number, estado?: string): Promise<Pareja[]> {
+  // Confirmación de pareja
+  async confirmarParejaPorCodigo(codigo: string): Promise<{ mensaje: string; pareja_id: number; torneo_id: number }> {
+    const response = await axios.post(
+      `${API_URL}/torneos/confirmar-pareja/${codigo}`,
+      {},
+      this.getAuthHeaders()
+    );
+    return response.data;
+  }
+
+  async rechazarInvitacion(parejaId: number, motivo?: string): Promise<{ mensaje: string }> {
+    const response = await axios.post(
+      `${API_URL}/torneos/rechazar-invitacion/${parejaId}`,
+      {},
+      { ...this.getAuthHeaders(), params: { motivo } }
+    );
+    return response.data;
+  }
+
+  async obtenerMisInvitaciones(): Promise<{
+    invitaciones: Array<{
+      pareja_id: number;
+      torneo_id: number;
+      torneo_nombre: string;
+      companero_id: number;
+      companero_nombre: string;
+      fecha_expiracion: string;
+      codigo: string;
+    }>;
+  }> {
+    const response = await axios.get(`${API_URL}/torneos/mis-invitaciones`, this.getAuthHeaders());
+    return response.data;
+  }
+
+  async obtenerMisTorneos(): Promise<{
+    torneos: Array<{
+      id: number;
+      nombre: string;
+      descripcion: string;
+      categoria: string;
+      genero: string;
+      estado: string;
+      fecha_inicio: string;
+      fecha_fin: string;
+      lugar: string;
+      mi_inscripcion: {
+        pareja_id: number;
+        estado_inscripcion: string;
+        categoria_id: number | null;
+      };
+    }>;
+  }> {
+    const response = await axios.get(`${API_URL}/torneos/mis-torneos`, this.getAuthHeaders());
+    return response.data;
+  }
+
+  async listarParejas(torneoId: number, estado?: string, categoriaId?: number): Promise<Pareja[]> {
     const response = await axios.get(`${API_URL}/torneos/${torneoId}/parejas`, {
-      params: { estado },
+      params: { estado, categoria_id: categoriaId },
     });
     return response.data;
+  }
+
+  // Categorías
+  async listarCategorias(torneoId: number): Promise<Categoria[]> {
+    const response = await axios.get(`${API_URL}/torneos/${torneoId}/categorias`);
+    return response.data;
+  }
+
+  async crearCategoria(torneoId: number, data: CategoriaCreate): Promise<Categoria> {
+    const response = await axios.post(
+      `${API_URL}/torneos/${torneoId}/categorias`,
+      data,
+      this.getAuthHeaders()
+    );
+    return response.data;
+  }
+
+  async actualizarCategoria(torneoId: number, categoriaId: number, data: CategoriaCreate): Promise<any> {
+    const response = await axios.put(
+      `${API_URL}/torneos/${torneoId}/categorias/${categoriaId}`,
+      data,
+      this.getAuthHeaders()
+    );
+    return response.data;
+  }
+
+  async eliminarCategoria(torneoId: number, categoriaId: number): Promise<void> {
+    await axios.delete(
+      `${API_URL}/torneos/${torneoId}/categorias/${categoriaId}`,
+      this.getAuthHeaders()
+    );
   }
 
   async confirmarPareja(torneoId: number, parejaId: number): Promise<Pareja> {
@@ -197,12 +304,24 @@ class TorneoService {
     return response.data;
   }
 
+  async cambiarCategoriaPareja(torneoId: number, parejaId: number, categoriaId: number): Promise<Pareja> {
+    const response = await axios.put(
+      `${API_URL}/torneos/${torneoId}/parejas/${parejaId}`,
+      { categoria_id: categoriaId },
+      this.getAuthHeaders()
+    );
+    return response.data;
+  }
+
   // Zonas
-  async generarZonas(torneoId: number, parejasConfirmadas: number[]): Promise<any> {
+  async generarZonas(torneoId: number, parejasConfirmadas: number[], categoriaId?: number): Promise<any> {
     const response = await axios.post(
       `${API_URL}/torneos/${torneoId}/zonas/generar`,
       { parejas_confirmadas: parejasConfirmadas },
-      this.getAuthHeaders()
+      {
+        ...this.getAuthHeaders(),
+        params: categoriaId ? { categoria_id: categoriaId } : {}
+      }
     );
     return response.data;
   }
@@ -267,13 +386,17 @@ class TorneoService {
     return response.data;
   }
 
-  async listarPlayoffs(torneoId: number): Promise<any> {
-    const response = await axios.get(`${API_URL}/torneos/${torneoId}/playoffs`);
+  async listarPlayoffs(torneoId: number, categoriaId?: number): Promise<any> {
+    const response = await axios.get(`${API_URL}/torneos/${torneoId}/playoffs`, {
+      params: categoriaId ? { categoria_id: categoriaId } : {}
+    });
     return response.data;
   }
 
-  async listarPartidosPlayoffs(torneoId: number): Promise<any> {
-    const response = await axios.get(`${API_URL}/torneos/${torneoId}/playoffs/partidos`);
+  async listarPartidosPlayoffs(torneoId: number, categoriaId?: number): Promise<any> {
+    const response = await axios.get(`${API_URL}/torneos/${torneoId}/playoffs/partidos`, {
+      params: categoriaId ? { categoria_id: categoriaId } : {}
+    });
     return response.data;
   }
 
@@ -357,10 +480,22 @@ class TorneoService {
     fecha_inicio?: string;
     fecha_fin?: string;
     duracion_partido_minutos?: number;
+    hora_inicio_semana?: string;
+    hora_fin_semana?: string;
+    hora_inicio_finde?: string;
+    hora_fin_finde?: string;
   }): Promise<any> {
     const response = await axios.post(
       `${API_URL}/torneos/${torneoId}/programar-automatico`,
       params || {},
+      this.getAuthHeaders()
+    );
+    return response.data;
+  }
+
+  async limpiarProgramacion(torneoId: number): Promise<any> {
+    const response = await axios.delete(
+      `${API_URL}/torneos/${torneoId}/limpiar-programacion`,
       this.getAuthHeaders()
     );
     return response.data;
@@ -445,129 +580,17 @@ class TorneoService {
     return errores;
   }
 
-  // ============================================
-  // CANCHAS Y PROGRAMACIÓN
-  // ============================================
-
-  // Canchas
-  async crearCancha(torneoId: number, nombre: string): Promise<any> {
-    const response = await axios.post(
-      `${API_URL}/torneos/${torneoId}/canchas`,
-      null,
-      {
-        ...this.getAuthHeaders(),
-        params: { nombre }
-      }
-    );
-    return response.data;
+  // Categorías del sistema (de la tabla categorias)
+  async obtenerCategoriasDelSistema(): Promise<{ id: number; nombre: string; sexo: string }[]> {
+    const response = await axios.get(`${API_URL}/categorias`);
+    // Mapear id_categoria a id para consistencia
+    return response.data.map((cat: any) => ({
+      id: cat.id_categoria,
+      nombre: cat.nombre,
+      sexo: cat.sexo || 'masculino'
+    }));
   }
 
-  async listarCanchas(torneoId: number): Promise<any[]> {
-    const response = await axios.get(`${API_URL}/torneos/${torneoId}/canchas`);
-    return response.data;
-  }
-
-  async eliminarCancha(torneoId: number, canchaId: number): Promise<void> {
-    await axios.delete(
-      `${API_URL}/torneos/${torneoId}/canchas/${canchaId}`,
-      this.getAuthHeaders()
-    );
-  }
-
-  // Slots de horarios
-  async crearSlots(
-    torneoId: number,
-    fecha: string,
-    horaInicio: string,
-    horaFin: string,
-    duracionMinutos: number = 90,
-    canchaIds?: number[]
-  ): Promise<any> {
-    const response = await axios.post(
-      `${API_URL}/torneos/${torneoId}/slots`,
-      null,
-      {
-        ...this.getAuthHeaders(),
-        params: {
-          fecha,
-          hora_inicio: horaInicio,
-          hora_fin: horaFin,
-          duracion_minutos: duracionMinutos,
-          cancha_ids: canchaIds
-        }
-      }
-    );
-    return response.data;
-  }
-
-  async listarSlots(torneoId: number, fecha?: string, soloDisponibles: boolean = false): Promise<any[]> {
-    const response = await axios.get(`${API_URL}/torneos/${torneoId}/slots`, {
-      params: { fecha, solo_disponibles: soloDisponibles }
-    });
-    return response.data;
-  }
-
-  // Programación automática
-  async programarPartidos(torneoId: number): Promise<any> {
-    const response = await axios.post(
-      `${API_URL}/torneos/${torneoId}/programar-partidos`,
-      {},
-      this.getAuthHeaders()
-    );
-    return response.data;
-  }
-
-  async reprogramarPartido(torneoId: number, partidoId: number, slotId: number): Promise<any> {
-    const response = await axios.post(
-      `${API_URL}/torneos/${torneoId}/partidos/${partidoId}/reprogramar`,
-      null,
-      {
-        ...this.getAuthHeaders(),
-        params: { slot_id: slotId }
-      }
-    );
-    return response.data;
-  }
-
-  // Bloqueos horarios
-  async crearBloqueo(
-    torneoId: number,
-    jugadorId: number,
-    fecha: string,
-    horaDesde: string,
-    horaHasta: string,
-    motivo?: string
-  ): Promise<any> {
-    const response = await axios.post(
-      `${API_URL}/torneos/${torneoId}/bloqueos`,
-      null,
-      {
-        ...this.getAuthHeaders(),
-        params: {
-          jugador_id: jugadorId,
-          fecha,
-          hora_desde: horaDesde,
-          hora_hasta: horaHasta,
-          motivo
-        }
-      }
-    );
-    return response.data;
-  }
-
-  async listarBloqueos(torneoId: number, jugadorId?: number): Promise<any[]> {
-    const response = await axios.get(`${API_URL}/torneos/${torneoId}/bloqueos`, {
-      params: { jugador_id: jugadorId }
-    });
-    return response.data;
-  }
-
-  async eliminarBloqueo(torneoId: number, bloqueoId: number): Promise<void> {
-    await axios.delete(
-      `${API_URL}/torneos/${torneoId}/bloqueos/${bloqueoId}`,
-      this.getAuthHeaders()
-    );
-  }
 }
 
 // Exportar instancia por defecto para compatibilidad con Context

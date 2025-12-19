@@ -7,16 +7,17 @@ from datetime import datetime
 
 
 class SetSchema(BaseModel):
-    """Schema para un set de pádel"""
-    gamesEquipoA: int = Field(..., ge=0, le=7, description="Games del equipo A")
-    gamesEquipoB: int = Field(..., ge=0, le=7, description="Games del equipo B")
+    """Schema para un set de pádel (normal o supertiebreak)"""
+    gamesEquipoA: int = Field(..., ge=0, le=99, description="Games/Puntos del equipo A")
+    gamesEquipoB: int = Field(..., ge=0, le=99, description="Games/Puntos del equipo B")
     ganador: Optional[Literal["equipoA", "equipoB"]] = None
     completado: bool = False
+    esSuperTiebreak: bool = False  # Indica si es supertiebreak (a 10 puntos)
     
     @validator('gamesEquipoA', 'gamesEquipoB')
     def validar_games(cls, v):
-        if v < 0 or v > 7:
-            raise ValueError("Los games deben estar entre 0 y 7")
+        if v < 0 or v > 99:
+            raise ValueError("Los games/puntos deben estar entre 0 y 99")
         return v
 
 

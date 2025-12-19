@@ -30,13 +30,15 @@ export interface SalaResponse {
 }
 
 export interface JugadorSala {
-  id_usuario: number;
-  nombre_usuario: string;
+  id?: string | number;  // El backend puede devolver "id" en listar_salas
+  id_usuario?: number;   // O "id_usuario" en obtener_sala
+  nombre_usuario?: string;
   nombre: string;
-  apellido: string;
+  apellido?: string;
   rating: number;
   equipo: number | null;
-  orden: number;
+  orden?: number;
+  esCreador?: boolean;
 }
 
 export interface SalaCompleta extends SalaResponse {
@@ -50,6 +52,7 @@ export interface SalaCompleta extends SalaResponse {
     cambio_elo: number;
   }>;
   elo_aplicado?: boolean;
+  usuarios_confirmados?: number[];  // IDs de usuarios que ya confirmaron
 }
 
 class SalaService {

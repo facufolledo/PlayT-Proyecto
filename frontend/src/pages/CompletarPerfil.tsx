@@ -1,20 +1,40 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
 import { User, Calendar, Hash, MapPin, Phone, Trophy } from 'lucide-react';
 import Button from '../components/Button';
 import Input from '../components/Input';
 import Card from '../components/Card';
-import { authService, PerfilCompleto } from '../services/auth.service';
+import { PerfilCompleto } from '../services/auth.service';
 import { useAuth } from '../context/AuthContext';
 
 const CATEGORIAS = ['Principiantes', '8va', '7ma', '6ta', '5ta', '4ta', 'Libre'];
 
 export default function CompletarPerfil() {
   const navigate = useNavigate();
-  const { usuario, firebaseUser, completeProfile } = useAuth();
+  const { firebaseUser, completeProfile } = useAuth();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  // Polling para verificar si el email fue verificado
+  useEffect(() => {
+    if (!firebaseUser || firebaseUser.emailVerified) return;
+
+    const checkEmailVerification = async () => {
+      try {
+        await firebaseUser.reload();
+        if (firebaseUser.emailVerified) {
+          // Forzar refresh del token
+          await firebaseUser.getIdToken(true);
+        }
+      } catch (err) {
+        console.error('Error checking email verification:', err);
+      }
+    };
+
+    // Verificar cada 3 segundos
+    const interval = setInterval(checkEmailVerification, 3000);
+    return () => clearInterval(interval);
+  }, [firebaseUser]);
   
   const [formData, setFormData] = useState<PerfilCompleto>({
     nombre: '',
@@ -59,9 +79,9 @@ export default function CompletarPerfil() {
             <p className="text-textSecondary text-sm md:text-base">
               Necesitamos algunos datos para crear tu cuenta
             </p>
-            {(usuario || firebaseUser) && (
+            {firebaseUser && (
               <p className="text-primary text-xs md:text-sm mt-2">
-                Registrado como: {usuario?.email || firebaseUser?.email}
+                Registrado como: {firebaseUser.email}
               </p>
             )}
           </div>

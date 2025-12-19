@@ -5,18 +5,25 @@ import Button from '../components/Button';
 import ModalCrearTorneo from '../components/ModalCrearTorneo';
 import TorneoCard from '../components/TorneoCard';
 import SkeletonLoader from '../components/SkeletonLoader';
-import { Plus, Filter, Trophy } from 'lucide-react';
+import InvitacionesPendientes from '../components/InvitacionesPendientes';
+import { Plus, Filter, Trophy, User } from 'lucide-react';
 import { useTorneos } from '../context/TorneosContext';
+import { useAuth } from '../context/AuthContext';
 
 export default function Torneos() {
-  const { torneos, puedeCrearTorneos, esAdministrador, loading } = useTorneos();
+  const { torneos, misTorneos, puedeCrearTorneos, esAdministrador, loading } = useTorneos();
+  const { usuario } = useAuth();
   const [modalCrearOpen, setModalCrearOpen] = useState(false);
-  const [filtro, setFiltro] = useState<'todos' | 'activo' | 'programado' | 'finalizado'>('todos');
+  const [filtro, setFiltro] = useState<'todos' | 'activo' | 'programado' | 'finalizado' | 'mis-torneos'>('todos');
   const [filtroGenero, setFiltroGenero] = useState<'todos' | 'masculino' | 'femenino' | 'mixto'>('todos');
   const [mostrarTodos, setMostrarTodos] = useState(false);
   const ITEMS_POR_PAGINA = 20;
   
   const puedeCrear = puedeCrearTorneos || esAdministrador;
+  
+  // IDs de mis torneos para filtrar
+  const misTorneosIds = new Set(misTorneos.map(t => t.id));
+  const misTorneosFiltrados = torneos.filter(t => misTorneosIds.has(parseInt(t.id)));
 
   const torneosActivos = torneos.filter(t => t.estado === 'activo');
   const torneosProgramados = torneos.filter(t => t.estado === 'programado');
@@ -25,6 +32,8 @@ export default function Torneos() {
   // Filtrar por estado
   let torneosFiltrados = filtro === 'todos' 
     ? torneos 
+    : filtro === 'mis-torneos'
+    ? misTorneosFiltrados
     : torneos.filter(t => t.estado === filtro);
 
   // Filtrar por género
@@ -68,10 +77,14 @@ export default function Torneos() {
         )}
       </motion.div>
 
+      {/* Invitaciones pendientes */}
+      <InvitacionesPendientes />
+
       {/* Estadísticas compactas */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+      <div className="grid grid-cols-2 md:grid-cols-5 gap-2">
         {[
           { label: 'Total', value: torneos.length, color: 'from-cyan-500 to-blue-500', icon: '🏆' },
+          { label: 'Mis Torneos', value: misTorneosFiltrados.length, color: 'from-green-500 to-emerald-500', icon: '👤' },
           { label: 'En Curso', value: torneosActivos.length, color: 'from-secondary to-pink-500', icon: '⚡' },
           { label: 'Programados', value: torneosProgramados.length, color: 'from-primary to-blue-500', icon: '📅' },
           { label: 'Finalizados', value: torneosFinalizados.length, color: 'from-accent to-yellow-400', icon: '✅' }
@@ -106,14 +119,15 @@ export default function Torneos() {
             <Filter size={12} className="md:w-3.5 md:h-3.5" />
             <span className="text-[10px] md:text-xs font-bold">Estado:</span>
           </div>
-          {(['todos', 'activo', 'programado', 'finalizado'] as const).map((f) => (
+          {(['todos', 'mis-torneos', 'activo', 'programado', 'finalizado'] as const).map((f) => (
             <Button
               key={f}
               variant={filtro === f ? 'accent' : 'secondary'}
               onClick={() => setFiltro(f)}
-              className="text-[10px] md:text-xs px-2 md:px-2.5 py-0.5 md:py-1"
+              className={`text-[10px] md:text-xs px-2 md:px-2.5 py-0.5 md:py-1 ${f === 'mis-torneos' ? 'flex items-center gap-1' : ''}`}
             >
-              {f === 'todos' ? 'Todos' : f === 'activo' ? 'En Curso' : f === 'programado' ? 'Programados' : 'Finalizados'}
+              {f === 'mis-torneos' && <User size={12} />}
+              {f === 'todos' ? 'Todos' : f === 'mis-torneos' ? 'Mis Torneos' : f === 'activo' ? 'En Curso' : f === 'programado' ? 'Programados' : 'Finalizados'}
             </Button>
           ))}
         </div>

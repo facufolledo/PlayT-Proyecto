@@ -4,6 +4,7 @@ Controller para endpoints de torneos
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from typing import List, Optional
+from pydantic import BaseModel
 
 from ..database.config import get_db
 from ..services.torneo_service import TorneoService
@@ -313,6 +314,155 @@ def obtener_estadisticas(
 
 
 # ============================================
+# ENDPOINTS DE CATEGORÍAS
+# ============================================
+
+class CategoriaCreateBody(BaseModel):
+    nombre: str
+    genero: str = "masculino"
+    max_parejas: int = 16
+    orden: int = 0
+
+
+@router.post("/{torneo_id}/categorias", status_code=status.HTTP_201_CREATED)
+def crear_categoria(
+    torneo_id: int,
+    categoria_data: CategoriaCreateBody,
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(get_current_user)
+):
+    """Crea una nueva categoría en el torneo (8va, 6ta, 4ta, Libre, etc.)"""
+    from ..models.torneo_models import TorneoCategoria
+    from ..services.torneo_zona_service import TorneoZonaService
+    
+    try:
+        if not TorneoZonaService._es_organizador(db, torneo_id, current_user.id_usuario):
+            raise HTTPException(status_code=403, detail="No tienes permisos")
+        
+        categoria = TorneoCategoria(
+            torneo_id=torneo_id,
+            nombre=categoria_data.nombre,
+            genero=categoria_data.genero,
+            max_parejas=categoria_data.max_parejas,
+            orden=categoria_data.orden
+        )
+        db.add(categoria)
+        db.commit()
+        db.refresh(categoria)
+        
+        return {
+            "id": categoria.id,
+            "torneo_id": categoria.torneo_id,
+            "nombre": categoria.nombre,
+            "genero": categoria.genero,
+            "max_parejas": categoria.max_parejas,
+            "estado": categoria.estado,
+            "orden": categoria.orden,
+            "parejas_inscritas": 0
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/{torneo_id}/categorias")
+def listar_categorias(
+    torneo_id: int,
+    db: Session = Depends(get_db)
+):
+    """Lista todas las categorías del torneo con conteo de parejas"""
+    from ..models.torneo_models import TorneoCategoria, TorneoPareja
+    
+    categorias = db.query(TorneoCategoria).filter(
+        TorneoCategoria.torneo_id == torneo_id
+    ).order_by(TorneoCategoria.orden).all()
+    
+    resultado = []
+    for cat in categorias:
+        parejas_count = db.query(TorneoPareja).filter(
+            TorneoPareja.categoria_id == cat.id,
+            TorneoPareja.estado.in_(['inscripta', 'confirmada'])
+        ).count()
+        
+        resultado.append({
+            "id": cat.id,
+            "torneo_id": cat.torneo_id,
+            "nombre": cat.nombre,
+            "genero": cat.genero,
+            "max_parejas": cat.max_parejas,
+            "estado": cat.estado,
+            "orden": cat.orden,
+            "parejas_inscritas": parejas_count
+        })
+    
+    return resultado
+
+
+@router.put("/{torneo_id}/categorias/{categoria_id}")
+def actualizar_categoria(
+    torneo_id: int,
+    categoria_id: int,
+    categoria_data: CategoriaCreateBody,
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(get_current_user)
+):
+    """Actualiza una categoría del torneo"""
+    from ..models.torneo_models import TorneoCategoria
+    from ..services.torneo_zona_service import TorneoZonaService
+    
+    if not TorneoZonaService._es_organizador(db, torneo_id, current_user.id_usuario):
+        raise HTTPException(status_code=403, detail="No tienes permisos")
+    
+    categoria = db.query(TorneoCategoria).filter(
+        TorneoCategoria.id == categoria_id,
+        TorneoCategoria.torneo_id == torneo_id
+    ).first()
+    
+    if not categoria:
+        raise HTTPException(status_code=404, detail="Categoría no encontrada")
+    
+    categoria.nombre = categoria_data.nombre
+    categoria.genero = categoria_data.genero
+    categoria.max_parejas = categoria_data.max_parejas
+    categoria.orden = categoria_data.orden
+    db.commit()
+    
+    return {"message": "Categoría actualizada", "id": categoria.id}
+
+
+@router.delete("/{torneo_id}/categorias/{categoria_id}")
+def eliminar_categoria(
+    torneo_id: int,
+    categoria_id: int,
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(get_current_user)
+):
+    """Elimina una categoría (solo si no tiene parejas inscritas)"""
+    from ..models.torneo_models import TorneoCategoria, TorneoPareja
+    from ..services.torneo_zona_service import TorneoZonaService
+    
+    if not TorneoZonaService._es_organizador(db, torneo_id, current_user.id_usuario):
+        raise HTTPException(status_code=403, detail="No tienes permisos")
+    
+    # Verificar que no tenga parejas
+    parejas_count = db.query(TorneoPareja).filter(
+        TorneoPareja.categoria_id == categoria_id
+    ).count()
+    
+    if parejas_count > 0:
+        raise HTTPException(status_code=400, detail=f"No se puede eliminar: hay {parejas_count} parejas inscritas")
+    
+    db.query(TorneoCategoria).filter(
+        TorneoCategoria.id == categoria_id,
+        TorneoCategoria.torneo_id == torneo_id
+    ).delete()
+    db.commit()
+    
+    return {"message": "Categoría eliminada"}
+
+
+# ============================================
 # ENDPOINTS DE INSCRIPCIONES
 # ============================================
 
@@ -324,18 +474,157 @@ def inscribir_pareja(
     current_user: Usuario = Depends(get_current_user)
 ):
     """
-    Inscribe una pareja en el torneo
+    Inscribe una pareja en el torneo (requiere confirmación del compañero)
     
-    Cualquier jugador puede inscribirse mientras el torneo esté en período de inscripción
+    Retorna un código que el compañero debe usar para confirmar.
+    También se envía notificación push al compañero.
     """
-    from ..services.torneo_inscripcion_service import TorneoInscripcionService
+    from ..services.torneo_confirmacion_service import TorneoConfirmacionService
     
     try:
         user_id = current_user.id_usuario
-        pareja = TorneoInscripcionService.inscribir_pareja(db, torneo_id, pareja_data, user_id)
-        return _pareja_to_dict(db, pareja)
+        resultado = TorneoConfirmacionService.crear_inscripcion_pendiente(
+            db=db,
+            torneo_id=torneo_id,
+            jugador1_id=pareja_data.jugador1_id,
+            jugador2_id=pareja_data.jugador2_id,
+            categoria_id=getattr(pareja_data, 'categoria_id', None),
+            creador_id=user_id,
+            observaciones=pareja_data.observaciones
+        )
+        return resultado
     except ValueError as e:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
+
+
+@router.post("/confirmar-pareja/{codigo}")
+def confirmar_pareja_por_codigo(
+    codigo: str,
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(get_current_user)
+):
+    """
+    Confirma una inscripción usando el código recibido
+    """
+    from ..services.torneo_confirmacion_service import TorneoConfirmacionService
+    
+    try:
+        pareja = TorneoConfirmacionService.confirmar_por_codigo(
+            db=db,
+            codigo=codigo,
+            user_id=current_user.id_usuario
+        )
+        return {
+            "mensaje": "Inscripción confirmada exitosamente",
+            "pareja_id": pareja.id,
+            "torneo_id": pareja.torneo_id
+        }
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+
+
+@router.post("/rechazar-invitacion/{pareja_id}")
+def rechazar_invitacion(
+    pareja_id: int,
+    motivo: Optional[str] = None,
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(get_current_user)
+):
+    """
+    Rechaza una invitación de pareja
+    """
+    from ..services.torneo_confirmacion_service import TorneoConfirmacionService
+    
+    try:
+        TorneoConfirmacionService.rechazar_invitacion(
+            db=db,
+            pareja_id=pareja_id,
+            user_id=current_user.id_usuario,
+            motivo=motivo
+        )
+        return {"mensaje": "Invitación rechazada"}
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+
+
+@router.get("/mis-invitaciones")
+def obtener_mis_invitaciones(
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(get_current_user)
+):
+    """
+    Obtiene las invitaciones pendientes del usuario actual
+    """
+    from ..services.torneo_confirmacion_service import TorneoConfirmacionService
+    
+    invitaciones = TorneoConfirmacionService.obtener_invitaciones_pendientes(
+        db=db,
+        user_id=current_user.id_usuario
+    )
+    return {"invitaciones": invitaciones}
+
+
+@router.get("/mis-torneos")
+def obtener_mis_torneos(
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(get_current_user)
+):
+    """
+    Obtiene los torneos donde el usuario está inscripto (como jugador1 o jugador2)
+    """
+    from ..models.torneo_models import TorneoPareja, Torneo
+    from sqlalchemy import or_
+    
+    try:
+        # Buscar parejas donde el usuario participa
+        parejas = db.query(TorneoPareja).filter(
+            or_(
+                TorneoPareja.jugador1_id == current_user.id_usuario,
+                TorneoPareja.jugador2_id == current_user.id_usuario
+            ),
+            TorneoPareja.estado.in_(['pendiente', 'inscripta', 'confirmada'])
+        ).all()
+        
+        if not parejas:
+            return {"torneos": []}
+        
+        # Obtener IDs únicos de torneos
+        torneo_ids = list(set(p.torneo_id for p in parejas))
+        
+        # Obtener info de los torneos
+        torneos = db.query(Torneo).filter(Torneo.id.in_(torneo_ids)).all()
+        
+        # Crear dict de parejas por torneo para incluir estado de inscripción
+        parejas_por_torneo = {}
+        for p in parejas:
+            parejas_por_torneo[p.torneo_id] = {
+                "pareja_id": p.id,
+                "estado_inscripcion": p.estado.value if hasattr(p.estado, 'value') else str(p.estado),
+                "categoria_id": p.categoria_id
+            }
+        
+        resultado = []
+        for torneo in torneos:
+            info_pareja = parejas_por_torneo.get(torneo.id, {})
+            resultado.append({
+                "id": torneo.id,
+                "nombre": torneo.nombre,
+                "descripcion": torneo.descripcion,
+                "tipo": torneo.tipo.value if hasattr(torneo.tipo, 'value') else str(torneo.tipo),
+                "categoria": torneo.categoria,
+                "genero": torneo.genero or 'masculino',
+                "estado": torneo.estado.value if hasattr(torneo.estado, 'value') else str(torneo.estado),
+                "fecha_inicio": torneo.fecha_inicio.isoformat() if torneo.fecha_inicio else None,
+                "fecha_fin": torneo.fecha_fin.isoformat() if torneo.fecha_fin else None,
+                "lugar": torneo.lugar,
+                "mi_inscripcion": info_pareja
+            })
+        
+        return {"torneos": resultado}
     except Exception as e:
         import traceback
         traceback.print_exc()
@@ -346,35 +635,68 @@ def inscribir_pareja(
 def listar_parejas(
     torneo_id: int,
     estado: Optional[str] = None,
+    categoria_id: Optional[int] = None,
     db: Session = Depends(get_db)
 ):
     """
     Lista todas las parejas inscritas en el torneo
     
     - **estado**: Filtrar por estado (inscripta, confirmada, baja)
+    - **categoria_id**: Filtrar por categoría (opcional)
     """
-    from ..services.torneo_inscripcion_service import TorneoInscripcionService
-    from ..models.playt_models import Usuario
+    from ..models.torneo_models import TorneoPareja, TorneoCategoria
+    from ..models.playt_models import PerfilUsuario
     
     try:
-        parejas = TorneoInscripcionService.listar_parejas(db, torneo_id, estado)
+        # Query optimizada
+        query = db.query(TorneoPareja).filter(TorneoPareja.torneo_id == torneo_id)
         
-        # Construir respuesta con datos de jugadores
-        from ..models.playt_models import PerfilUsuario
+        if estado:
+            query = query.filter(TorneoPareja.estado == estado)
+        
+        if categoria_id:
+            query = query.filter(TorneoPareja.categoria_id == categoria_id)
+        
+        parejas = query.all()
+        
+        if not parejas:
+            return []
+        
+        # PRE-CARGAR perfiles y categorías (optimización)
+        jugadores_ids = set()
+        categoria_ids = set()
+        for p in parejas:
+            jugadores_ids.add(p.jugador1_id)
+            jugadores_ids.add(p.jugador2_id)
+            if p.categoria_id:
+                categoria_ids.add(p.categoria_id)
+        
+        perfiles = db.query(PerfilUsuario).filter(
+            PerfilUsuario.id_usuario.in_(jugadores_ids)
+        ).all()
+        perfiles_dict = {p.id_usuario: p for p in perfiles}
+        
+        categorias = db.query(TorneoCategoria).filter(
+            TorneoCategoria.id.in_(categoria_ids)
+        ).all() if categoria_ids else []
+        categorias_dict = {c.id: c for c in categorias}
         
         resultado = []
         for pareja in parejas:
-            # Obtener perfiles de jugadores
-            perfil1 = db.query(PerfilUsuario).filter(PerfilUsuario.id_usuario == pareja.jugador1_id).first()
-            perfil2 = db.query(PerfilUsuario).filter(PerfilUsuario.id_usuario == pareja.jugador2_id).first()
+            perfil1 = perfiles_dict.get(pareja.jugador1_id)
+            perfil2 = perfiles_dict.get(pareja.jugador2_id)
+            categoria = categorias_dict.get(pareja.categoria_id) if pareja.categoria_id else None
             
             jugador1_nombre = f"{perfil1.nombre} {perfil1.apellido}" if perfil1 else f"Usuario {pareja.jugador1_id}"
             jugador2_nombre = f"{perfil2.nombre} {perfil2.apellido}" if perfil2 else f"Usuario {pareja.jugador2_id}"
             
             resultado.append({
                 "id": pareja.id,
-                "id_pareja": pareja.id,  # Alias para compatibilidad
+                "id_pareja": pareja.id,
                 "torneo_id": pareja.torneo_id,
+                "categoria_id": pareja.categoria_id,
+                "categoria_nombre": categoria.nombre if categoria else None,
+                "categoria_genero": categoria.genero if categoria else None,
                 "jugador1_id": pareja.jugador1_id,
                 "jugador2_id": pareja.jugador2_id,
                 "jugador1_nombre": jugador1_nombre,
@@ -551,6 +873,7 @@ def generar_zonas(
     torneo_id: int,
     num_zonas: Optional[int] = None,
     balancear_por_rating: bool = True,
+    categoria_id: Optional[int] = None,
     db: Session = Depends(get_db),
     current_user: Usuario = Depends(get_current_user)
 ):
@@ -561,17 +884,18 @@ def generar_zonas(
     
     - **num_zonas**: Número de zonas (opcional, se calcula automáticamente)
     - **balancear_por_rating**: Si True, distribuye parejas por rating
+    - **categoria_id**: ID de categoría (opcional, si se pasa genera solo para esa categoría)
     """
     from ..services.torneo_zona_service import TorneoZonaService
     
     try:
         user_id = current_user.id_usuario
         zonas = TorneoZonaService.generar_zonas_automaticas(
-            db, torneo_id, user_id, num_zonas, balancear_por_rating
+            db, torneo_id, user_id, num_zonas, balancear_por_rating, categoria_id
         )
         return {
             "message": "Zonas generadas exitosamente",
-            "zonas": [{"id": z.id, "nombre": z.nombre, "numero": z.numero_orden} for z in zonas]
+            "zonas": [{"id": z.id, "nombre": z.nombre, "numero": z.numero_orden, "categoria_id": z.categoria_id} for z in zonas]
         }
     except ValueError as e:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
@@ -730,70 +1054,80 @@ def generar_fixture(
 def listar_partidos_torneo(
     torneo_id: int,
     zona_id: Optional[int] = None,
+    categoria_id: Optional[int] = None,
     db: Session = Depends(get_db)
 ):
     """
     Lista todos los partidos del torneo
     
     - **zona_id**: Filtrar por zona (opcional)
+    - **categoria_id**: Filtrar por categoría (opcional)
     """
-    from ..models.playt_models import Partido
+    from ..models.playt_models import Partido, PerfilUsuario
+    from ..models.torneo_models import TorneoPareja
     
     try:
         query = db.query(Partido).filter(Partido.id_torneo == torneo_id)
         
-        # Filtrar por zona si se especifica
         if zona_id is not None:
             query = query.filter(Partido.zona_id == zona_id)
         
+        if categoria_id is not None:
+            query = query.filter(Partido.categoria_id == categoria_id)
+        
         partidos = query.all()
         
-        # Construir respuesta con nombres de parejas
-        from ..models.playt_models import PerfilUsuario
-        from ..models.torneo_models import TorneoPareja
+        if not partidos:
+            return {"total": 0, "partidos": []}
         
-        resultado = []
-        for p in partidos:
-            # Obtener información de las parejas
-            pareja1 = db.query(TorneoPareja).filter(TorneoPareja.id == p.pareja1_id).first() if p.pareja1_id else None
-            pareja2 = db.query(TorneoPareja).filter(TorneoPareja.id == p.pareja2_id).first() if p.pareja2_id else None
-            
-            pareja1_nombre = "TBD"
-            pareja2_nombre = "TBD"
-            
-            if pareja1:
-                perfil1_1 = db.query(PerfilUsuario).filter(PerfilUsuario.id_usuario == pareja1.jugador1_id).first()
-                perfil1_2 = db.query(PerfilUsuario).filter(PerfilUsuario.id_usuario == pareja1.jugador2_id).first()
-                nombre1_1 = f"{perfil1_1.nombre} {perfil1_1.apellido}" if perfil1_1 else f"Jugador {pareja1.jugador1_id}"
-                nombre1_2 = f"{perfil1_2.nombre} {perfil1_2.apellido}" if perfil1_2 else f"Jugador {pareja1.jugador2_id}"
-                pareja1_nombre = f"{nombre1_1} / {nombre1_2}"
-            
-            if pareja2:
-                perfil2_1 = db.query(PerfilUsuario).filter(PerfilUsuario.id_usuario == pareja2.jugador1_id).first()
-                perfil2_2 = db.query(PerfilUsuario).filter(PerfilUsuario.id_usuario == pareja2.jugador2_id).first()
-                nombre2_1 = f"{perfil2_1.nombre} {perfil2_1.apellido}" if perfil2_1 else f"Jugador {pareja2.jugador1_id}"
-                nombre2_2 = f"{perfil2_2.nombre} {perfil2_2.apellido}" if perfil2_2 else f"Jugador {pareja2.jugador2_id}"
-                pareja2_nombre = f"{nombre2_1} / {nombre2_2}"
-            
-            resultado.append({
+        # PRE-CARGAR todas las parejas del torneo (optimización)
+        parejas = db.query(TorneoPareja).filter(TorneoPareja.torneo_id == torneo_id).all()
+        parejas_dict = {p.id: p for p in parejas}
+        
+        # PRE-CARGAR todos los perfiles de jugadores involucrados
+        jugadores_ids = set()
+        for p in parejas:
+            jugadores_ids.add(p.jugador1_id)
+            jugadores_ids.add(p.jugador2_id)
+        
+        perfiles = db.query(PerfilUsuario).filter(
+            PerfilUsuario.id_usuario.in_(jugadores_ids)
+        ).all() if jugadores_ids else []
+        perfiles_dict = {p.id_usuario: p for p in perfiles}
+        
+        # Helper para obtener nombre de pareja
+        def get_nombre_pareja(pareja_id):
+            if not pareja_id:
+                return "TBD"
+            pareja = parejas_dict.get(pareja_id)
+            if not pareja:
+                return "TBD"
+            p1 = perfiles_dict.get(pareja.jugador1_id)
+            p2 = perfiles_dict.get(pareja.jugador2_id)
+            n1 = f"{p1.nombre} {p1.apellido}" if p1 else f"Jugador {pareja.jugador1_id}"
+            n2 = f"{p2.nombre} {p2.apellido}" if p2 else f"Jugador {pareja.jugador2_id}"
+            return f"{n1} / {n2}"
+        
+        resultado = [
+            {
                 "id_partido": p.id_partido,
                 "pareja1_id": p.pareja1_id,
                 "pareja2_id": p.pareja2_id,
-                "pareja1_nombre": pareja1_nombre,
-                "pareja2_nombre": pareja2_nombre,
+                "pareja1_nombre": get_nombre_pareja(p.pareja1_id),
+                "pareja2_nombre": get_nombre_pareja(p.pareja2_id),
                 "zona_id": p.zona_id,
+                "categoria_id": getattr(p, 'categoria_id', None),
                 "fase": p.fase,
                 "estado": p.estado,
                 "fecha_hora": p.fecha_hora.isoformat() if p.fecha_hora else None,
                 "cancha_id": p.cancha_id,
                 "ganador_pareja_id": p.ganador_pareja_id,
                 "resultado_padel": p.resultado_padel
-            })
+            }
+            for p in partidos
+        ]
         
-        return {
-            "total": len(resultado),
-            "partidos": resultado
-        }
+        return {"total": len(resultado), "partidos": resultado}
     except Exception as e:
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
 
@@ -985,77 +1319,71 @@ def generar_playoffs(
 @router.get("/{torneo_id}/playoffs")
 def listar_partidos_playoffs(
     torneo_id: int,
+    categoria_id: Optional[int] = None,
     db: Session = Depends(get_db)
 ):
     """
     Lista todos los partidos de playoffs agrupados por fase
     
-    Returns:
-        Diccionario con partidos por fase:
-        {
-            '16avos': [...],
-            '8vos': [...],
-            '4tos': [...],
-            'semis': [...],
-            'final': [...]
-        }
+    - **categoria_id**: Filtrar por categoría (opcional)
     """
     from ..services.torneo_playoff_service import TorneoPlayoffService
     from ..models.playt_models import PerfilUsuario
     from ..models.torneo_models import TorneoPareja
     
     try:
-        partidos_por_fase = TorneoPlayoffService.listar_partidos_playoffs(db, torneo_id)
+        partidos_por_fase = TorneoPlayoffService.listar_partidos_playoffs(db, torneo_id, categoria_id)
         
-        # Agregar nombres de parejas a cada partido
+        # PRE-CARGAR todas las parejas y perfiles (optimización)
+        parejas = db.query(TorneoPareja).filter(TorneoPareja.torneo_id == torneo_id).all()
+        parejas_dict = {p.id: p for p in parejas}
+        
+        jugadores_ids = set()
+        for p in parejas:
+            jugadores_ids.add(p.jugador1_id)
+            jugadores_ids.add(p.jugador2_id)
+        
+        perfiles = db.query(PerfilUsuario).filter(
+            PerfilUsuario.id_usuario.in_(jugadores_ids)
+        ).all() if jugadores_ids else []
+        perfiles_dict = {p.id_usuario: p for p in perfiles}
+        
+        def get_nombre_pareja(pareja_id):
+            if not pareja_id:
+                return None
+            pareja = parejas_dict.get(pareja_id)
+            if not pareja:
+                return None
+            p1 = perfiles_dict.get(pareja.jugador1_id)
+            p2 = perfiles_dict.get(pareja.jugador2_id)
+            n1 = f"{p1.nombre} {p1.apellido}" if p1 else f"Jugador {pareja.jugador1_id}"
+            n2 = f"{p2.nombre} {p2.apellido}" if p2 else f"Jugador {pareja.jugador2_id}"
+            return f"{n1} / {n2}"
+        
         resultado = {}
         for fase, partidos in partidos_por_fase.items():
-            resultado[fase] = []
-            for p in partidos:
-                # Obtener información de las parejas
-                pareja1_nombre = None
-                pareja2_nombre = None
-                
-                if p.pareja1_id:
-                    pareja1 = db.query(TorneoPareja).filter(TorneoPareja.id == p.pareja1_id).first()
-                    if pareja1:
-                        perfil1_1 = db.query(PerfilUsuario).filter(PerfilUsuario.id_usuario == pareja1.jugador1_id).first()
-                        perfil1_2 = db.query(PerfilUsuario).filter(PerfilUsuario.id_usuario == pareja1.jugador2_id).first()
-                        nombre1_1 = f"{perfil1_1.nombre} {perfil1_1.apellido}" if perfil1_1 else f"Jugador {pareja1.jugador1_id}"
-                        nombre1_2 = f"{perfil1_2.nombre} {perfil1_2.apellido}" if perfil1_2 else f"Jugador {pareja1.jugador2_id}"
-                        pareja1_nombre = f"{nombre1_1} / {nombre1_2}"
-                
-                if p.pareja2_id:
-                    pareja2 = db.query(TorneoPareja).filter(TorneoPareja.id == p.pareja2_id).first()
-                    if pareja2:
-                        perfil2_1 = db.query(PerfilUsuario).filter(PerfilUsuario.id_usuario == pareja2.jugador1_id).first()
-                        perfil2_2 = db.query(PerfilUsuario).filter(PerfilUsuario.id_usuario == pareja2.jugador2_id).first()
-                        nombre2_1 = f"{perfil2_1.nombre} {perfil2_1.apellido}" if perfil2_1 else f"Jugador {pareja2.jugador1_id}"
-                        nombre2_2 = f"{perfil2_2.nombre} {perfil2_2.apellido}" if perfil2_2 else f"Jugador {pareja2.jugador2_id}"
-                        pareja2_nombre = f"{nombre2_1} / {nombre2_2}"
-                
-                resultado[fase].append({
+            resultado[fase] = [
+                {
                     "id": p.id_partido,
                     "numero_partido": p.numero_partido,
                     "pareja1_id": p.pareja1_id,
                     "pareja2_id": p.pareja2_id,
-                    "pareja1_nombre": pareja1_nombre,
-                    "pareja2_nombre": pareja2_nombre,
+                    "pareja1_nombre": get_nombre_pareja(p.pareja1_id),
+                    "pareja2_nombre": get_nombre_pareja(p.pareja2_id),
                     "ganador_id": p.ganador_pareja_id,
                     "resultado": p.resultado_padel,
                     "fase": fase,
+                    "categoria_id": getattr(p, 'categoria_id', None),
                     "estado": p.estado.value if hasattr(p.estado, 'value') else str(p.estado)
-                })
+                }
+                for p in partidos
+            ]
         
-        # Aplanar todos los partidos en una lista para el frontend
         todos_partidos = []
-        for fase_key, partidos_fase in resultado.items():
+        for partidos_fase in resultado.values():
             todos_partidos.extend(partidos_fase)
         
-        return {
-            "partidos": todos_partidos,
-            "por_fase": resultado
-        }
+        return {"partidos": todos_partidos, "por_fase": resultado}
     except Exception as e:
         import traceback
         traceback.print_exc()
@@ -1069,12 +1397,9 @@ def listar_todos_partidos_playoffs(
 ):
     """
     Lista todos los partidos de playoffs en una sola lista (sin agrupar)
-    
-    Útil para mostrar el bracket completo
     """
-    from ..models.torneo_models import FasePartido
+    from ..models.torneo_models import FasePartido, TorneoPareja
     from ..models.playt_models import Partido, PerfilUsuario
-    from ..models.torneo_models import TorneoPareja
     
     try:
         partidos = db.query(Partido).filter(
@@ -1082,47 +1407,53 @@ def listar_todos_partidos_playoffs(
             Partido.fase != FasePartido.ZONA.value
         ).order_by(Partido.numero_partido).all()
         
-        resultado = []
-        for p in partidos:
-            # Obtener información de las parejas
-            pareja1_nombre = None
-            pareja2_nombre = None
-            
-            if p.pareja1_id:
-                pareja1 = db.query(TorneoPareja).filter(TorneoPareja.id == p.pareja1_id).first()
-                if pareja1:
-                    perfil1_1 = db.query(PerfilUsuario).filter(PerfilUsuario.id_usuario == pareja1.jugador1_id).first()
-                    perfil1_2 = db.query(PerfilUsuario).filter(PerfilUsuario.id_usuario == pareja1.jugador2_id).first()
-                    nombre1_1 = f"{perfil1_1.nombre} {perfil1_1.apellido}" if perfil1_1 else f"Jugador {pareja1.jugador1_id}"
-                    nombre1_2 = f"{perfil1_2.nombre} {perfil1_2.apellido}" if perfil1_2 else f"Jugador {pareja1.jugador2_id}"
-                    pareja1_nombre = f"{nombre1_1} / {nombre1_2}"
-            
-            if p.pareja2_id:
-                pareja2 = db.query(TorneoPareja).filter(TorneoPareja.id == p.pareja2_id).first()
-                if pareja2:
-                    perfil2_1 = db.query(PerfilUsuario).filter(PerfilUsuario.id_usuario == pareja2.jugador1_id).first()
-                    perfil2_2 = db.query(PerfilUsuario).filter(PerfilUsuario.id_usuario == pareja2.jugador2_id).first()
-                    nombre2_1 = f"{perfil2_1.nombre} {perfil2_1.apellido}" if perfil2_1 else f"Jugador {pareja2.jugador1_id}"
-                    nombre2_2 = f"{perfil2_2.nombre} {perfil2_2.apellido}" if perfil2_2 else f"Jugador {pareja2.jugador2_id}"
-                    pareja2_nombre = f"{nombre2_1} / {nombre2_2}"
-            
-            resultado.append({
+        if not partidos:
+            return {"total": 0, "partidos": []}
+        
+        # PRE-CARGAR parejas y perfiles (optimización)
+        parejas = db.query(TorneoPareja).filter(TorneoPareja.torneo_id == torneo_id).all()
+        parejas_dict = {p.id: p for p in parejas}
+        
+        jugadores_ids = set()
+        for p in parejas:
+            jugadores_ids.add(p.jugador1_id)
+            jugadores_ids.add(p.jugador2_id)
+        
+        perfiles = db.query(PerfilUsuario).filter(
+            PerfilUsuario.id_usuario.in_(jugadores_ids)
+        ).all() if jugadores_ids else []
+        perfiles_dict = {p.id_usuario: p for p in perfiles}
+        
+        def get_nombre_pareja(pareja_id):
+            if not pareja_id:
+                return None
+            pareja = parejas_dict.get(pareja_id)
+            if not pareja:
+                return None
+            p1 = perfiles_dict.get(pareja.jugador1_id)
+            p2 = perfiles_dict.get(pareja.jugador2_id)
+            n1 = f"{p1.nombre} {p1.apellido}" if p1 else f"Jugador {pareja.jugador1_id}"
+            n2 = f"{p2.nombre} {p2.apellido}" if p2 else f"Jugador {pareja.jugador2_id}"
+            return f"{n1} / {n2}"
+        
+        resultado = [
+            {
                 "id": p.id_partido,
                 "numero_partido": p.numero_partido,
                 "pareja1_id": p.pareja1_id,
                 "pareja2_id": p.pareja2_id,
-                "pareja1_nombre": pareja1_nombre,
-                "pareja2_nombre": pareja2_nombre,
+                "pareja1_nombre": get_nombre_pareja(p.pareja1_id),
+                "pareja2_nombre": get_nombre_pareja(p.pareja2_id),
                 "ganador_id": p.ganador_pareja_id,
                 "resultado": p.resultado_padel,
-                "fase": p.fase if p.fase else None,
-                "estado": p.estado if p.estado else None
-            })
+                "fase": p.fase,
+                "categoria_id": getattr(p, 'categoria_id', None),
+                "estado": p.estado
+            }
+            for p in partidos
+        ]
         
-        return {
-            "total": len(resultado),
-            "partidos": resultado
-        }
+        return {"total": len(resultado), "partidos": resultado}
     except Exception as e:
         import traceback
         traceback.print_exc()
@@ -1133,10 +1464,14 @@ def listar_todos_partidos_playoffs(
 # ENDPOINTS DE CANCHAS Y PROGRAMACIÓN
 # ============================================
 
+class CanchaCreate(BaseModel):
+    nombre: str
+    activa: bool = True
+
 @router.post("/{torneo_id}/canchas")
 def crear_cancha(
     torneo_id: int,
-    nombre: str,
+    cancha_data: CanchaCreate,
     db: Session = Depends(get_db),
     current_user: Usuario = Depends(get_current_user)
 ):
@@ -1144,6 +1479,10 @@ def crear_cancha(
     Crea una cancha para el torneo
     
     Solo organizadores pueden crear canchas
+    
+    Body:
+    - nombre: Nombre de la cancha
+    - activa: Si está activa (default: true)
     """
     from ..models.torneo_models import TorneoCancha
     from ..services.torneo_zona_service import TorneoZonaService
@@ -1154,8 +1493,8 @@ def crear_cancha(
         
         cancha = TorneoCancha(
             torneo_id=torneo_id,
-            nombre=nombre,
-            activa=True
+            nombre=cancha_data.nombre,
+            activa=cancha_data.activa
         )
         db.add(cancha)
         db.commit()
@@ -1352,25 +1691,93 @@ def listar_slots(
     
     slots = query.order_by(TorneoSlot.fecha_hora_inicio, TorneoSlot.cancha_id).all()
     
-    resultado = []
-    for s in slots:
-        cancha = db.query(TorneoCancha).filter(TorneoCancha.id == s.cancha_id).first()
-        resultado.append({
+    # PRE-CARGAR todas las canchas de una vez (optimización)
+    canchas = db.query(TorneoCancha).filter(TorneoCancha.torneo_id == torneo_id).all()
+    canchas_dict = {c.id: c.nombre for c in canchas}
+    
+    resultado = [
+        {
             "id": s.id,
             "cancha_id": s.cancha_id,
-            "cancha_nombre": cancha.nombre if cancha else None,
+            "cancha_nombre": canchas_dict.get(s.cancha_id),
             "fecha_hora_inicio": s.fecha_hora_inicio.isoformat() if s.fecha_hora_inicio else None,
             "fecha_hora_fin": s.fecha_hora_fin.isoformat() if s.fecha_hora_fin else None,
             "ocupado": s.ocupado,
             "partido_id": s.partido_id
-        })
+        }
+        for s in slots
+    ]
     
     return resultado
 
 
+class ProgramacionParams(BaseModel):
+    fecha_inicio: Optional[str] = None
+    fecha_fin: Optional[str] = None
+    duracion_partido_minutos: int = 90
+    # Horarios para días de semana (Lun-Vie)
+    hora_inicio_semana: Optional[str] = "17:00"
+    hora_fin_semana: Optional[str] = "22:00"
+    # Horarios para fin de semana (Sab-Dom)
+    hora_inicio_finde: Optional[str] = "09:00"
+    hora_fin_finde: Optional[str] = "21:00"
+
+
+@router.delete("/{torneo_id}/limpiar-programacion")
+def limpiar_programacion(
+    torneo_id: int,
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(get_current_user)
+):
+    """
+    Limpia toda la programación del torneo:
+    - Elimina todos los slots
+    - Desprograma todos los partidos (quita fecha_hora y cancha_id)
+    
+    Solo organizadores pueden limpiar la programación
+    """
+    from ..models.torneo_models import TorneoSlot
+    from ..models.playt_models import Partido
+    from ..services.torneo_zona_service import TorneoZonaService
+    
+    try:
+        if not TorneoZonaService._es_organizador(db, torneo_id, current_user.id_usuario):
+            raise HTTPException(status_code=403, detail="No tienes permisos")
+        
+        # Contar antes de borrar
+        slots_count = db.query(TorneoSlot).filter(TorneoSlot.torneo_id == torneo_id).count()
+        
+        # Desprogramar partidos (quitar fecha y cancha, pero no borrarlos)
+        partidos_desprogramados = db.query(Partido).filter(
+            Partido.id_torneo == torneo_id,
+            Partido.cancha_id != None
+        ).update({
+            "cancha_id": None,
+            "fecha_hora": None
+        }, synchronize_session=False)
+        
+        # Eliminar todos los slots
+        db.query(TorneoSlot).filter(TorneoSlot.torneo_id == torneo_id).delete(synchronize_session=False)
+        
+        db.commit()
+        
+        return {
+            "message": "Programación limpiada exitosamente",
+            "slots_eliminados": slots_count,
+            "partidos_desprogramados": partidos_desprogramados
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 @router.post("/{torneo_id}/programar-partidos")
+@router.post("/{torneo_id}/programar-automatico")  # Alias para compatibilidad con frontend
 def programar_partidos_automatico(
     torneo_id: int,
+    params: Optional[ProgramacionParams] = None,
     db: Session = Depends(get_db),
     current_user: Usuario = Depends(get_current_user)
 ):
@@ -1381,15 +1788,124 @@ def programar_partidos_automatico(
     - Disponibilidad de slots
     - Bloqueos horarios de jugadores
     - Que una pareja no juegue dos partidos seguidos
+    - Horarios diferentes para días de semana vs fin de semana
+    
+    Parámetros opcionales en body:
+    - fecha_inicio: Fecha de inicio para crear slots
+    - fecha_fin: Fecha de fin para crear slots
+    - duracion_partido_minutos: Duración de cada partido (default: 90)
+    - hora_inicio_semana/hora_fin_semana: Horarios Lun-Vie (default: 17:00-22:00)
+    - hora_inicio_finde/hora_fin_finde: Horarios Sab-Dom (default: 09:00-21:00)
     """
     from ..models.torneo_models import TorneoSlot, TorneoCancha, TorneoBloqueoJugador, TorneoPareja
     from ..models.playt_models import Partido
     from ..services.torneo_zona_service import TorneoZonaService
     from datetime import datetime, timedelta
     
+    # Extraer parámetros del body si existen
+    fecha_inicio = params.fecha_inicio if params else None
+    fecha_fin = params.fecha_fin if params else None
+    duracion_minutos = params.duracion_partido_minutos if params else 90
+    hora_inicio_semana = params.hora_inicio_semana if params else "17:00"
+    hora_fin_semana = params.hora_fin_semana if params else "22:00"
+    hora_inicio_finde = params.hora_inicio_finde if params else "09:00"
+    hora_fin_finde = params.hora_fin_finde if params else "21:00"
+    
     try:
         if not TorneoZonaService._es_organizador(db, torneo_id, current_user.id_usuario):
             raise HTTPException(status_code=403, detail="No tienes permisos")
+        
+        # Si se proporcionan fechas, crear slots automáticamente
+        if fecha_inicio and fecha_fin:
+            canchas = db.query(TorneoCancha).filter(
+                TorneoCancha.torneo_id == torneo_id,
+                TorneoCancha.activa == True
+            ).all()
+            
+            if not canchas:
+                raise HTTPException(status_code=400, detail="No hay canchas configuradas. Crea canchas primero.")
+            
+            # Crear slots para cada día y cancha
+            from datetime import datetime, time
+            fecha_actual = datetime.strptime(fecha_inicio, "%Y-%m-%d").date()
+            fecha_final = datetime.strptime(fecha_fin, "%Y-%m-%d").date()
+            
+            # Parsear horarios configurados
+            def parse_hora(hora_str):
+                parts = hora_str.split(":")
+                return time(int(parts[0]), int(parts[1]))
+            
+            h_inicio_semana = parse_hora(hora_inicio_semana)
+            h_fin_semana = parse_hora(hora_fin_semana)
+            h_inicio_finde = parse_hora(hora_inicio_finde)
+            h_fin_finde = parse_hora(hora_fin_finde)
+            
+            # Detectar si cruza medianoche (hora fin es 00:00 o menor que inicio)
+            # En ese caso, 00:00 significa medianoche del día siguiente
+            cruza_medianoche_semana = h_fin_semana <= h_inicio_semana
+            cruza_medianoche_finde = h_fin_finde <= h_inicio_finde
+            
+            # PRE-CARGAR slots existentes para evitar queries individuales
+            slots_existentes = db.query(TorneoSlot).filter(
+                TorneoSlot.torneo_id == torneo_id
+            ).all()
+            slots_existentes_set = {
+                (s.cancha_id, s.fecha_hora_inicio) for s in slots_existentes
+            }
+            
+            slots_creados = 0
+            nuevos_slots = []
+            while fecha_actual <= fecha_final:
+                # Determinar si es fin de semana (5=Sábado, 6=Domingo)
+                dia_semana = fecha_actual.weekday()
+                es_finde = dia_semana >= 5
+                
+                # Seleccionar horarios según el día
+                if es_finde:
+                    hora_inicio_dia = h_inicio_finde
+                    hora_fin_dia = h_fin_finde
+                    cruza_medianoche = cruza_medianoche_finde
+                else:
+                    hora_inicio_dia = h_inicio_semana
+                    hora_fin_dia = h_fin_semana
+                    cruza_medianoche = cruza_medianoche_semana
+                
+                # Generar slots dinámicamente según duración del partido
+                hora_actual = datetime.combine(fecha_actual, hora_inicio_dia)
+                
+                # Si cruza medianoche, el límite es al día siguiente
+                if cruza_medianoche:
+                    hora_limite = datetime.combine(fecha_actual + timedelta(days=1), hora_fin_dia)
+                else:
+                    hora_limite = datetime.combine(fecha_actual, hora_fin_dia)
+                
+                while hora_actual + timedelta(minutes=duracion_minutos) <= hora_limite:
+                    for cancha in canchas:
+                        inicio = hora_actual
+                        fin = hora_actual + timedelta(minutes=duracion_minutos)
+                        
+                        # Verificar en memoria si ya existe
+                        if (cancha.id, inicio) not in slots_existentes_set:
+                            nuevo_slot = TorneoSlot(
+                                torneo_id=torneo_id,
+                                cancha_id=cancha.id,
+                                fecha_hora_inicio=inicio,
+                                fecha_hora_fin=fin,
+                                ocupado=False
+                            )
+                            nuevos_slots.append(nuevo_slot)
+                            slots_creados += 1
+                    
+                    # Avanzar al siguiente slot
+                    hora_actual += timedelta(minutes=duracion_minutos)
+                
+                fecha_actual += timedelta(days=1)
+            
+            # Insertar todos los slots de una vez
+            if nuevos_slots:
+                for slot in nuevos_slots:
+                    db.add(slot)
+                db.flush()
         
         # Obtener partidos pendientes sin programar
         partidos = db.query(Partido).filter(
@@ -1399,7 +1915,7 @@ def programar_partidos_automatico(
         ).all()
         
         if not partidos:
-            return {"message": "No hay partidos pendientes para programar", "programados": 0}
+            return {"message": "No hay partidos pendientes para programar", "programados": 0, "sin_programar": 0, "partidos_sin_slot_detalle": []}
         
         # Obtener slots disponibles ordenados por fecha
         slots = db.query(TorneoSlot).filter(
@@ -1408,7 +1924,7 @@ def programar_partidos_automatico(
         ).order_by(TorneoSlot.fecha_hora_inicio).all()
         
         if not slots:
-            raise HTTPException(status_code=400, detail="No hay slots disponibles. Crea slots primero.")
+            raise HTTPException(status_code=400, detail="No hay slots disponibles. Verifica que los horarios de inicio sean menores a los de fin.")
         
         # Obtener bloqueos de jugadores
         bloqueos = db.query(TorneoBloqueoJugador).filter(
@@ -1426,49 +1942,100 @@ def programar_partidos_automatico(
                 "hora_hasta": b.hora_hasta
             })
         
+        # PRE-CARGAR todas las parejas del torneo (optimización)
+        todas_parejas = db.query(TorneoPareja).filter(
+            TorneoPareja.torneo_id == torneo_id
+        ).all()
+        parejas_dict = {p.id: p for p in todas_parejas}
+        
+        # PRE-CARGAR todos los perfiles de usuarios involucrados (optimización)
+        from ..models.playt_models import PerfilUsuario
+        jugadores_ids = set()
+        for p in todas_parejas:
+            jugadores_ids.add(p.jugador1_id)
+            jugadores_ids.add(p.jugador2_id)
+        
+        perfiles = db.query(PerfilUsuario).filter(
+            PerfilUsuario.id_usuario.in_(jugadores_ids)
+        ).all()
+        perfiles_dict = {p.id_usuario: p for p in perfiles}
+        
+        # Helper para obtener nombres de parejas (usa cache)
+        def obtener_nombre_pareja(pareja):
+            if not pareja:
+                return "Pareja desconocida"
+            perfil1 = perfiles_dict.get(pareja.jugador1_id)
+            perfil2 = perfiles_dict.get(pareja.jugador2_id)
+            nombre1 = f"{perfil1.nombre} {perfil1.apellido}" if perfil1 else f"Jugador {pareja.jugador1_id}"
+            nombre2 = f"{perfil2.nombre} {perfil2.apellido}" if perfil2 else f"Jugador {pareja.jugador2_id}"
+            return f"{nombre1} / {nombre2}"
+        
         # Tracking de último partido por pareja (para evitar partidos seguidos)
         ultimo_partido_pareja = {}
         
         partidos_programados = 0
         partidos_no_programados = []
         
+        # Contador de partidos de playoffs sin parejas definidas
+        partidos_playoffs_pendientes = 0
+        
         for partido in partidos:
             programado = False
+            razon_no_programado = "Sin slots disponibles"
+            
+            # Verificar si es un partido de playoffs sin parejas definidas aún
+            if partido.pareja1_id is None or partido.pareja2_id is None:
+                # Es un partido de playoffs esperando clasificados
+                partidos_playoffs_pendientes += 1
+                continue  # No intentar programar, es normal
+            
+            # Obtener parejas del cache
+            pareja1 = parejas_dict.get(partido.pareja1_id)
+            pareja2 = parejas_dict.get(partido.pareja2_id)
+            
+            if not pareja1 or not pareja2:
+                # Esto sería un error de datos (pareja_id existe pero no se encuentra)
+                partidos_no_programados.append({
+                    "partido_id": partido.id_partido,
+                    "pareja1_nombre": obtener_nombre_pareja(pareja1) if pareja1 else f"Pareja #{partido.pareja1_id}",
+                    "pareja2_nombre": obtener_nombre_pareja(pareja2) if pareja2 else f"Pareja #{partido.pareja2_id}",
+                    "razon": "Error: pareja no encontrada en base de datos"
+                })
+                continue
             
             for slot in slots:
                 if slot.ocupado:
                     continue
                 
-                # Verificar que las parejas no tengan bloqueo en ese horario
-                pareja1 = db.query(TorneoPareja).filter(TorneoPareja.id == partido.pareja1_id).first()
-                pareja2 = db.query(TorneoPareja).filter(TorneoPareja.id == partido.pareja2_id).first()
-                
-                if not pareja1 or not pareja2:
-                    continue
-                
                 # Verificar bloqueos de los 4 jugadores
                 jugadores = [pareja1.jugador1_id, pareja1.jugador2_id, pareja2.jugador1_id, pareja2.jugador2_id]
                 tiene_bloqueo = False
+                jugador_bloqueado = None
                 
                 for jugador_id in jugadores:
                     if _jugador_tiene_bloqueo(bloqueos_por_jugador, jugador_id, slot):
                         tiene_bloqueo = True
+                        jugador_bloqueado = jugador_id
                         break
                 
                 if tiene_bloqueo:
+                    razon_no_programado = f"Bloqueo horario de jugador"
                     continue
                 
                 # Verificar que ninguna pareja jugó en el slot anterior
                 slot_inicio = slot.fecha_hora_inicio
+                pareja_sin_descanso = None
                 for pareja_id in [partido.pareja1_id, partido.pareja2_id]:
                     if pareja_id in ultimo_partido_pareja:
                         ultimo_fin = ultimo_partido_pareja[pareja_id]
                         # Dar al menos 30 minutos de descanso
                         if slot_inicio < ultimo_fin + timedelta(minutes=30):
                             tiene_bloqueo = True
+                            pareja_sin_descanso = pareja_id
                             break
                 
                 if tiene_bloqueo:
+                    razon_no_programado = "Pareja necesita descanso entre partidos"
                     continue
                 
                 # Asignar slot al partido
@@ -1486,15 +2053,27 @@ def programar_partidos_automatico(
                 break
             
             if not programado:
-                partidos_no_programados.append(partido.id_partido)
+                partidos_no_programados.append({
+                    "partido_id": partido.id_partido,
+                    "pareja1_nombre": obtener_nombre_pareja(pareja1),
+                    "pareja2_nombre": obtener_nombre_pareja(pareja2),
+                    "razon": razon_no_programado
+                })
         
         db.commit()
         
+        # Construir mensaje
+        mensaje = f"Se programaron {partidos_programados} partidos"
+        if partidos_playoffs_pendientes > 0:
+            mensaje += f" ({partidos_playoffs_pendientes} partidos de playoffs esperan clasificados)"
+        
         return {
-            "message": f"Se programaron {partidos_programados} partidos",
+            "message": mensaje,
             "programados": partidos_programados,
             "sin_programar": len(partidos_no_programados),
-            "partidos_sin_slot": partidos_no_programados[:10]  # Mostrar solo los primeros 10
+            "playoffs_pendientes": partidos_playoffs_pendientes,
+            "partidos_sin_slot": [p["partido_id"] for p in partidos_no_programados[:10]],
+            "partidos_sin_slot_detalle": partidos_no_programados[:10]
         }
     except HTTPException:
         raise

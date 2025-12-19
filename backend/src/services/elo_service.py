@@ -2,6 +2,10 @@ import math
 from typing import Dict, Any, List, Tuple
 from datetime import datetime, timedelta
 from .elo_config import EloConfig, Desenlace, clamp
+from ..utils.logger import Loggers
+
+logger = Loggers.elo()
+
 
 class EloService:
     """
@@ -416,12 +420,28 @@ class EloService:
                 actual_score_a = 0.5
                 actual_score_b = 0.5
         else:
-            # Partido normal
+            # Partido normal - CORREGIDO: El ganador SIEMPRE debe tener score > 0.5
+            # Determinar quién ganó basándose en sets
+            team_a_won = sets_a > sets_b
+            
+            # Calcular score base por sets (proporcional)
             sets_score_a = self.calculate_sets_score(sets_a, sets_b)
             total_games = games_a + games_b
             games_margin = self.calculate_games_margin(games_a, games_b, total_games)
-            actual_score_a = self.calculate_final_score(sets_score_a, games_margin)
-            actual_score_b = 1.0 - actual_score_a
+            
+            # Score ajustado por margen de games
+            raw_score_a = self.calculate_final_score(sets_score_a, games_margin)
+            
+            # CRÍTICO: Asegurar que el ganador tenga score >= 0.6 y perdedor <= 0.4
+            # Esto evita que el ganador pierda puntos por tener expectativa alta
+            if team_a_won:
+                # A ganó: su score debe ser al menos 0.6 (victoria clara)
+                actual_score_a = max(0.6, raw_score_a)
+                actual_score_b = 1.0 - actual_score_a
+            else:
+                # B ganó: score de A debe ser máximo 0.4
+                actual_score_a = min(0.4, raw_score_a)
+                actual_score_b = 1.0 - actual_score_a
         
         # 4. Calcular multiplicadores y factores K con volatilidad
         sets_multiplier = self.calculate_sets_multiplier(sets_a, sets_b)
@@ -482,11 +502,13 @@ class EloService:
                 team_b_k = 0.0
                 break  # Si cualquier jugador excede el límite, el equipo no gana puntos
         
-        # 5. Calcular delta base
+        # 5. Calcular delta base - CORREGIDO: Calcular independientemente para cada equipo
         delta_base_a = self.calculate_base_delta(
             team_a_k, actual_score_a, expected_a, sets_multiplier
         )
-        delta_base_b = -delta_base_a  # Simetría
+        delta_base_b = self.calculate_base_delta(
+            team_b_k, actual_score_b, expected_b, sets_multiplier
+        )
         
         # 6. Aplicar suavizador de derrotas
         loss_softener_a = self.calculate_loss_softener(

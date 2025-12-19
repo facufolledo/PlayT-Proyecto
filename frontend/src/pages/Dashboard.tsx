@@ -3,7 +3,9 @@ import { motion, useReducedMotion } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
 import Card from '../components/Card';
 import Button from '../components/Button';
-import { Trophy, Users, Zap, Target, TrendingUp } from 'lucide-react';
+import BuscadorUsuarios from '../components/BuscadorUsuarios';
+import { Trophy, Users, Zap, Target, TrendingUp, Search } from 'lucide-react';
+
 import { useSalas } from '../context/SalasContext';
 import { useTorneos } from '../context/TorneosContext';
 import { useAuth } from '../context/AuthContext';
@@ -169,13 +171,22 @@ export default function Dashboard() {
           transition={shouldReduceMotion ? { duration: 0 } : { duration: 0.4, ease: "easeOut" }}
           className="relative mb-2"
         >
-          <div className="flex items-center gap-2 md:gap-3 mb-2 md:mb-3">
-            <div className="h-0.5 md:h-1 w-8 md:w-12 bg-gradient-to-r from-primary to-secondary rounded-full" />
-            <h1 className="text-2xl md:text-5xl font-black text-textPrimary tracking-tight">
-              Bienvenido de vuelta
-            </h1>
+          <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-2 md:mb-3">
+            <div>
+              <div className="flex items-center gap-2 md:gap-3 mb-1">
+                <div className="h-0.5 md:h-1 w-8 md:w-12 bg-gradient-to-r from-primary to-secondary rounded-full" />
+                <h1 className="text-2xl md:text-5xl font-black text-textPrimary tracking-tight">
+                  Bienvenido de vuelta
+                </h1>
+              </div>
+              <p className="text-textSecondary text-xs md:text-base ml-10 md:ml-15">Aquí está tu resumen de rendimiento</p>
+            </div>
+            
+            {/* Buscador de jugadores */}
+            <div className="w-full md:w-72">
+              <BuscadorUsuarios placeholder="Buscar jugadores..." />
+            </div>
           </div>
-          <p className="text-textSecondary text-xs md:text-base ml-10 md:ml-15">Aquí está tu resumen de rendimiento</p>
         </motion.div>
 
       {/* Stats Cards estilo eSports */}

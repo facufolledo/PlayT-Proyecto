@@ -1,35 +1,14 @@
 import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { X, Plus, Minus, Trophy, CheckCircle, Flag, Crown } from 'lucide-react';
-import Modal from './Modal';
 import Button from './Button';
 import ModalExito from './ModalExito';
 import ModalConfirmacionExitosa from './ModalConfirmacionExitosa';
-import ErrorMessage from './ErrorMessage';
+import { PlayerLink } from './UserLink';
 import { Sala } from '../utils/types';
 import { useSalas } from '../context/SalasContext';
 import { useAuth } from '../context/AuthContext';
 import { salaService } from '../services/sala.service';
-import { 
-  Set, 
-  SuperTiebreak, 
-  FormatoPartido, 
-  ResultadoPartido 
-} from '../utils/padelTypes';
-import {
-  validarSet,
-  setCompleto,
-  requiereTiebreak,
-  validarSuperTiebreak,
-  supertiebreakCompleto,
-  ganadorSet,
-  ganadorSuperTiebreak,
-  contarSetsGanados,
-  requiereSuperTiebreak,
-  puedeIncrementarGame,
-  puedeIncrementarPunto,
-  obtenerMensajeError
-} from '../utils/padelValidation';
 
 interface MarcadorPadelProps {
   isOpen: boolean;
@@ -37,800 +16,392 @@ interface MarcadorPadelProps {
   sala: Sala | null;
 }
 
+interface Set {
+  gamesEquipoA: number;
+  gamesEquipoB: number;
+  ganador: 'equipoA' | 'equipoB' | null;
+  completado: boolean;
+  esSuperTiebreak?: boolean;
+}
+
 export default function MarcadorPadel({ isOpen, onClose, sala }: MarcadorPadelProps) {
-  const { updateSala, cargarSalas } = useSalas();
+  const { cargarSalas } = useSalas();
   const { usuario, reloadUser } = useAuth();
   
-  // Usar el formato de la sala o best_of_3 por defecto
-  const formatoSala = sala?.formato === 'best_of_3_supertiebreak' ? 'best_of_3' : 'best_of_3';
-  const usarSupertiebreak = sala?.formato === 'best_of_3_supertiebreak';
-  
-  const [formato, setFormato] = useState<FormatoPartido>(formatoSala);
   const [sets, setSets] = useState<Set[]>([
-    { gamesEquipoA: 0, gamesEquipoB: 0, completado: false },
-    { gamesEquipoA: 0, gamesEquipoB: 0, completado: false },
-    { gamesEquipoA: 0, gamesEquipoB: 0, completado: false }
+    { gamesEquipoA: 0, gamesEquipoB: 0, ganador: null, completado: false },
+    { gamesEquipoA: 0, gamesEquipoB: 0, ganador: null, completado: false }
   ]);
-  const [supertiebreak, setSupertiebreak] = useState<SuperTiebreak>({
-    puntosEquipoA: 0,
-    puntosEquipoB: 0,
-    completado: false
-  });
-  const [error, setError] = useState('');
-  const [mostrarSupertiebreak, setMostrarSupertiebreak] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [resultadoCargado, setResultadoCargado] = useState(false);
+  const [error, setError] = useState('');
   const [mostrarModalExito, setMostrarModalExito] = useState(false);
   const [mostrarModalConfirmacion, setMostrarModalConfirmacion] = useState(false);
   const [datosConfirmacion, setDatosConfirmacion] = useState<any>(null);
-  const [jugadoresFaltantes, setJugadoresFaltantes] = useState<string[]>([]);
 
-  // Auto-cerrar modal de éxito después de 2 segundos
-  useEffect(() => {
-    if (mostrarModalExito) {
-      const timer = setTimeout(() => {
-        setMostrarModalExito(false);
-        onClose(); // Cerrar el marcador también
-      }, 2000);
-      return () => clearTimeout(timer);
-    }
-  }, [mostrarModalExito, onClose]);
-
-  // Cargar resultado desde el backend cuando se abre el modal
-  useEffect(() => {
-    const cargarResultado = async () => {
-      if (!sala || !isOpen) return;
-      
-      console.log('=== CARGANDO RESULTADO ===');
-      console.log('Sala ID:', sala.id);
-      console.log('Estado:', sala.estado);
-      console.log('Estado confirmación:', sala.estadoConfirmacion);
-      console.log('Resultado en sala:', sala.resultado);
-      console.log('Es creador:', esCreador);
-      
-      // Si la sala tiene resultado, cargarlo
-      if (sala.resultado) {
-        const resultado = sala.resultado;
-        console.log('Cargando resultado desde sala.resultado:', resultado);
-        setFormato(resultado.formato || 'best_of_3');
-        setSets(resultado.sets || [
-          { gamesEquipoA: 0, gamesEquipoB: 0, completado: false },
-          { gamesEquipoA: 0, gamesEquipoB: 0, completado: false },
-          { gamesEquipoA: 0, gamesEquipoB: 0, completado: false }
-        ]);
-        
-        if (resultado.supertiebreak) {
-          setSupertiebreak(resultado.supertiebreak);
-          setMostrarSupertiebreak(true);
-        }
-        
-        setResultadoCargado(true);
-        return;
-      }
-      
-      // Si no hay resultado en sala pero hay estado de confirmación, intentar cargar desde backend
-      if (sala.estadoConfirmacion && sala.estadoConfirmacion !== 'sin_resultado') {
-        try {
-          console.log('Intentando cargar resultado desde backend...');
-          const data = await salaService.obtenerResultado(parseInt(sala.id));
-          console.log('Resultado del backend:', data);
-          
-          if (data.resultado) {
-            const resultado = data.resultado;
-            setFormato(resultado.formato || 'best_of_3');
-            setSets(resultado.sets || []);
-            
-            if (resultado.supertiebreak) {
-              setSupertiebreak(resultado.supertiebreak);
-              setMostrarSupertiebreak(true);
-            }
-            
-            setResultadoCargado(true);
-          }
-        } catch (error) {
-          console.log('Error al cargar resultado:', error);
-        }
-      }
-    };
-    
-    // Resetear cuando se abre el modal
-    if (isOpen) {
-      setResultadoCargado(false);
-      cargarResultado();
-      
-      // Cargar estado de confirmaciones si es creador y está pendiente
-      const esCreadorSala = usuario?.id_usuario?.toString() === sala?.creador_id?.toString();
-      const estaPendiente = sala?.estadoConfirmacion === 'pendiente_confirmacion';
-      
-      if (esCreadorSala && estaPendiente) {
-        salaService.obtenerEstadoConfirmaciones(parseInt(sala.id))
-          .then(estado => {
-            setJugadoresFaltantes(estado.jugadores_faltantes || []);
-          })
-          .catch(error => {
-            console.error('Error al cargar estado de confirmaciones:', error);
-          });
-      }
-    }
-  }, [sala, isOpen, usuario]);
-
-  if (!sala) return null;
-
-  const esCreador = usuario?.id_usuario?.toString() === sala.creador_id?.toString();
-  const yaConfirmado = sala.estadoConfirmacion === 'confirmado';
-  const pendienteConfirmacion = sala.estadoConfirmacion === 'pendiente_confirmacion';
-  // El creador puede editar si no está confirmado (incluso si está pendiente)
+  const esCreador = usuario?.id_usuario?.toString() === sala?.creador_id?.toString();
+  const yaConfirmado = sala?.estadoConfirmacion === 'confirmado';
+  const pendienteConfirmacion = sala?.estadoConfirmacion === 'pendiente_confirmacion';
   const puedeEditar = esCreador && !yaConfirmado;
 
-  // Actualizar games de un set
-  const handleUpdateGames = (setIndex: number, equipo: 'equipoA' | 'equipoB', delta: number) => {
-    setError('');
-    const newSets = [...sets];
-    const currentSet = newSets[setIndex];
-
-    const newGamesA = equipo === 'equipoA' 
-      ? Math.max(0, currentSet.gamesEquipoA + delta)
-      : currentSet.gamesEquipoA;
-    const newGamesB = equipo === 'equipoB'
-      ? Math.max(0, currentSet.gamesEquipoB + delta)
-      : currentSet.gamesEquipoB;
-
-    // Validar si se puede hacer el cambio
-    if (delta > 0) {
-      const puede = puedeIncrementarGame(currentSet.gamesEquipoA, currentSet.gamesEquipoB);
-      if (equipo === 'equipoA' && !puede.equipoA) {
-        setError('No se puede incrementar más este set');
-        return;
-      }
-      if (equipo === 'equipoB' && !puede.equipoB) {
-        setError('No se puede incrementar más este set');
-        return;
-      }
+  useEffect(() => {
+    if (isOpen && sala?.resultado?.sets) {
+      const setsExistentes = sala.resultado.sets.map((s: any) => ({
+        gamesEquipoA: s.gamesEquipoA || 0,
+        gamesEquipoB: s.gamesEquipoB || 0,
+        ganador: s.ganador || null,
+        completado: s.completado || false,
+        esSuperTiebreak: s.esSuperTiebreak || false
+      }));
+      setSets(setsExistentes.length >= 2 ? setsExistentes : [
+        { gamesEquipoA: 0, gamesEquipoB: 0, ganador: null, completado: false },
+        { gamesEquipoA: 0, gamesEquipoB: 0, ganador: null, completado: false }
+      ]);
+    } else if (isOpen) {
+      setSets([
+        { gamesEquipoA: 0, gamesEquipoB: 0, ganador: null, completado: false },
+        { gamesEquipoA: 0, gamesEquipoB: 0, ganador: null, completado: false }
+      ]);
     }
+  }, [isOpen, sala?.resultado]);
 
-    // Actualizar el set
-    currentSet.gamesEquipoA = newGamesA;
-    currentSet.gamesEquipoB = newGamesB;
+  if (!isOpen || !sala) return null;
 
-    // Verificar si el set está completo
-    if (setCompleto(newGamesA, newGamesB)) {
-      currentSet.completado = true;
-      currentSet.ganador = ganadorSet(newGamesA, newGamesB) || undefined;
-      
-      // Verificar si se debe jugar supertiebreak
-      // Si el formato es best_of_3_supertiebreak y hay empate 1-1, mostrar supertiebreak
-      if (setIndex === 1 && requiereSuperTiebreak(newSets) && usarSupertiebreak) {
-        setMostrarSupertiebreak(true);
-      }
-      
-      // Si el formato es best_of_3_supertiebreak y ya no hay empate, ocultar supertiebreak
-      if (!requiereSuperTiebreak(newSets)) {
-        setMostrarSupertiebreak(false);
-      }
+  // Validar set normal (6 games)
+  const validarSetNormal = (gamesA: number, gamesB: number): boolean => {
+    const mayor = Math.max(gamesA, gamesB);
+    const menor = Math.min(gamesA, gamesB);
+    if (mayor === 6 && menor <= 4) return true;
+    if (mayor === 7 && menor === 5) return true;
+    if (mayor === 7 && menor === 6) return true;
+    return false;
+  };
+
+  // Validar supertiebreak (10 puntos, diferencia de 2)
+  const validarSuperTiebreak = (puntosA: number, puntosB: number): boolean => {
+    const mayor = Math.max(puntosA, puntosB);
+    const menor = Math.min(puntosA, puntosB);
+    // Gana con 10+ y diferencia de 2
+    if (mayor >= 10 && (mayor - menor) >= 2) return true;
+    return false;
+  };
+
+  const actualizarGames = (setIndex: number, equipo: 'A' | 'B', delta: number) => {
+    if (!puedeEditar) return;
+    const nuevosSets = [...sets];
+    const set = nuevosSets[setIndex];
+    const esSuperTiebreak = set.esSuperTiebreak;
+    const maxValor = esSuperTiebreak ? 99 : 7; // Supertiebreak puede ir más alto
+    
+    if (equipo === 'A') {
+      set.gamesEquipoA = Math.max(0, Math.min(maxValor, set.gamesEquipoA + delta));
     } else {
-      currentSet.completado = false;
-      currentSet.ganador = undefined;
+      set.gamesEquipoB = Math.max(0, Math.min(maxValor, set.gamesEquipoB + delta));
     }
+    
+    // Validar según tipo
+    const esValido = esSuperTiebreak 
+      ? validarSuperTiebreak(set.gamesEquipoA, set.gamesEquipoB)
+      : validarSetNormal(set.gamesEquipoA, set.gamesEquipoB);
+    
+    if (esValido) {
+      set.ganador = set.gamesEquipoA > set.gamesEquipoB ? 'equipoA' : 'equipoB';
+      set.completado = true;
+    } else {
+      set.ganador = null;
+      set.completado = false;
+    }
+    setSets(nuevosSets);
+  };
 
-    setSets(newSets);
-
-    // Iniciar partido si estaba programado
-    if (sala.estado === 'programada') {
-      updateSala(sala.id, { estado: 'activa' });
+  const agregarTercerSet = (esSuperTiebreak: boolean) => {
+    if (sets.length < 3) {
+      setSets([...sets, { gamesEquipoA: 0, gamesEquipoB: 0, ganador: null, completado: false, esSuperTiebreak }]);
     }
   };
 
-  // Actualizar puntos del supertiebreak
-  const handleUpdatePuntos = (equipo: 'equipoA' | 'equipoB', delta: number) => {
-    setError('');
-    const newPuntosA = equipo === 'equipoA'
-      ? Math.max(0, supertiebreak.puntosEquipoA + delta)
-      : supertiebreak.puntosEquipoA;
-    const newPuntosB = equipo === 'equipoB'
-      ? Math.max(0, supertiebreak.puntosEquipoB + delta)
-      : supertiebreak.puntosEquipoB;
-
-    // Validar si se puede hacer el cambio
-    if (delta > 0) {
-      const puede = puedeIncrementarPunto(supertiebreak.puntosEquipoA, supertiebreak.puntosEquipoB);
-      if (equipo === 'equipoA' && !puede.equipoA) {
-        setError('El supertiebreak ya está completo');
-        return;
-      }
-      if (equipo === 'equipoB' && !puede.equipoB) {
-        setError('El supertiebreak ya está completo');
-        return;
-      }
+  const quitarTercerSet = () => {
+    if (sets.length > 2) {
+      setSets(sets.slice(0, 2));
     }
-
-    const newSupertiebreak = {
-      puntosEquipoA: newPuntosA,
-      puntosEquipoB: newPuntosB,
-      completado: supertiebreakCompleto(newPuntosA, newPuntosB),
-      ganador: ganadorSuperTiebreak(newPuntosA, newPuntosB) || undefined
-    };
-
-    setSupertiebreak(newSupertiebreak);
   };
 
-  // Guardar resultado (solo creador)
+  const validarResultado = (): string | null => {
+    const setsCompletados = sets.filter(s => s.completado);
+    if (setsCompletados.length < 2) return 'Completa al menos 2 sets';
+    const setsA = setsCompletados.filter(s => s.ganador === 'equipoA').length;
+    const setsB = setsCompletados.filter(s => s.ganador === 'equipoB').length;
+    if (setsA < 2 && setsB < 2) return 'Debe haber un ganador (2 sets)';
+    return null;
+  };
+
+  const setsGanadosA = sets.filter(s => s.completado && s.ganador === 'equipoA').length;
+  const setsGanadosB = sets.filter(s => s.completado && s.ganador === 'equipoB').length;
+  
+  // Construir nombres de equipos con los jugadores disponibles
+  const getNombreEquipo = (equipo: any, fallback: string) => {
+    const j1 = equipo?.jugador1?.nombre;
+    const j2 = equipo?.jugador2?.nombre;
+    if (j1 && j2) return `${j1} / ${j2}`;
+    if (j1) return j1;
+    if (j2) return j2;
+    return fallback;
+  };
+  
+  // Renderizar nombres de equipo como links clickeables
+  const renderEquipoLinks = (equipo: any, fallback: string) => {
+    const j1 = equipo?.jugador1;
+    const j2 = equipo?.jugador2;
+    if (j1?.nombre && j2?.nombre) {
+      return (
+        <span className="flex items-center gap-1 flex-wrap justify-center">
+          <PlayerLink id={j1.id} nombre={j1.nombre} nombreUsuario={j1.nombreUsuario} size="sm" />
+          <span>/</span>
+          <PlayerLink id={j2.id} nombre={j2.nombre} nombreUsuario={j2.nombreUsuario} size="sm" />
+        </span>
+      );
+    }
+    if (j1?.nombre) return <PlayerLink id={j1.id} nombre={j1.nombre} nombreUsuario={j1.nombreUsuario} size="sm" />;
+    if (j2?.nombre) return <PlayerLink id={j2.id} nombre={j2.nombre} nombreUsuario={j2.nombreUsuario} size="sm" />;
+    return <span>{fallback}</span>;
+  };
+  
+  const equipoANombre = getNombreEquipo(sala.equipoA, 'Equipo A');
+  const equipoBNombre = getNombreEquipo(sala.equipoB, 'Equipo B');
+
   const handleGuardarResultado = async () => {
-    setError('');
-    setLoading(true);
-
-    // Validar que todos los sets necesarios estén completos
-    const setsGanados = contarSetsGanados(sets);
-    const partidoCompleto = setsGanados.equipoA === 2 || setsGanados.equipoB === 2 ||
-      (mostrarSupertiebreak && supertiebreak.completado);
-
-    if (!partidoCompleto) {
-      setError('Debes completar el partido antes de guardar el resultado');
-      setLoading(false);
-      return;
-    }
-
-    // Determinar ganador
-    let ganador: 'equipoA' | 'equipoB';
-    if (mostrarSupertiebreak && supertiebreak.completado) {
-      ganador = supertiebreak.ganador!;
-    } else {
-      ganador = setsGanados.equipoA > setsGanados.equipoB ? 'equipoA' : 'equipoB';
-    }
-
+    const err = validarResultado();
+    if (err) { setError(err); return; }
     try {
-      // Preparar datos en el formato correcto para el backend
-      const resultadoBackend = {
-        formato: formato,
-        sets: sets.filter(s => s.completado).map(s => ({
-          gamesEquipoA: s.gamesEquipoA,
-          gamesEquipoB: s.gamesEquipoB,
-          ganador: s.ganador,
-          completado: s.completado
-        })),
-        supertiebreak: mostrarSupertiebreak ? {
-          puntosEquipoA: supertiebreak.puntosEquipoA,
-          puntosEquipoB: supertiebreak.puntosEquipoB,
-          ganador: supertiebreak.ganador,
-          completado: supertiebreak.completado
-        } : undefined,
-        ganador: ganador,
-        completado: true
-      };
-
-      // Guardar en el backend usando el endpoint de salas
-      const response = await salaService.cargarResultado(parseInt(sala.id), resultadoBackend);
-      
-      if (!response || !response.success) {
-        throw new Error('El servidor no confirmó el guardado del resultado');
-      }
-      
-      // Cerrar el modal inmediatamente
+      setLoading(true); setError('');
+      const ganador = setsGanadosA > setsGanadosB ? 'equipoA' : 'equipoB';
+      await salaService.cargarResultado(parseInt(sala.id), {
+        formato: 'best_of_3', sets: sets.filter(s => s.completado), ganador, completado: true
+      });
       setMostrarModalExito(true);
-      
-      // Recargar salas en segundo plano
-      cargarSalas().catch(err => console.error('Error al recargar salas:', err));
-    } catch (error: any) {
-      console.error('Error al guardar resultado:', error);
-      
-      // Extraer mensaje de error del backend
-      let mensajeError = 'Error al guardar resultado';
-      
-      if (error.response?.data?.detail) {
-        mensajeError = error.response.data.detail;
-      } else if (error.message) {
-        mensajeError = error.message;
-      }
-      
-      setError(mensajeError);
-    } finally {
-      setLoading(false);
-    }
+      cargarSalas();
+    } catch (e: any) { setError(e.message || 'Error al guardar'); }
+    finally { setLoading(false); }
   };
 
-  // Confirmar resultado (rival)
   const handleConfirmarResultado = async () => {
-    if (!usuario) return;
-
-    setLoading(true);
-    setError('');
-
     try {
-      // Confirmar en el backend
+      setLoading(true); setError('');
       const response = await salaService.confirmarResultado(parseInt(sala.id));
-      console.log('Respuesta de confirmación:', response);
-
-      // Recargar salas para actualizar el estado
-      await cargarSalas();
-      
-      // Si el Elo fue aplicado, recargar el usuario para actualizar el rating
-      if (response.elo_aplicado) {
-        await reloadUser();
-        console.log('✅ Usuario recargado después de aplicar Elo');
-      }
-      
-      // Mostrar modal con información de la confirmación
+      if (response.elo_aplicado) await reloadUser();
       setDatosConfirmacion(response);
       setMostrarModalConfirmacion(true);
-    } catch (error: any) {
-      console.error('Error al confirmar resultado:', error);
-      
-      // Extraer mensaje de error del backend
-      let mensajeError = 'Error al confirmar resultado';
-      
-      if (error.response?.data?.detail) {
-        mensajeError = error.response.data.detail;
-      } else if (error.message) {
-        mensajeError = error.message;
-      }
-      
-      setError(mensajeError);
-    } finally {
-      setLoading(false);
-    }
+      cargarSalas();
+    } catch (e: any) { setError(e.message || 'Error al confirmar'); }
+    finally { setLoading(false); }
   };
-
-  // Reportar resultado (rival)
-  const handleReportarResultado = () => {
-    if (!sala.resultado) return;
-
-    const resultado = sala.resultado as ResultadoPartido;
-    resultado.reportadoPor = [
-      ...(resultado.reportadoPor || []),
-      usuario?.id_usuario?.toString() || ''
-    ];
-
-    updateSala(sala.id, {
-      resultado,
-      estadoConfirmacion: 'disputado'
-    });
-
-    onClose();
-  };
-
-  const setsGanados = contarSetsGanados(sets);
 
   return (
     <>
-    <Modal isOpen={isOpen} onClose={onClose}>
-      <div className="bg-cardBg rounded-2xl md:rounded-3xl p-4 md:p-6 w-full max-w-4xl border border-cardBorder shadow-2xl max-h-[90vh] overflow-y-auto">
-        {/* Header */}
-        <div className="flex items-center justify-between mb-4 md:mb-6">
-          <div className="flex-1 min-w-0">
-            <h2 className="text-lg md:text-2xl font-bold text-textPrimary mb-1 truncate">
-              {sala.nombre}
-            </h2>
-            <p className="text-textSecondary text-[10px] md:text-sm leading-tight">
-              <span className="hidden sm:inline">Formato: Best of 3 (6 games) • Set 3: SuperTieBreak a 10</span>
-              <span className="sm:hidden">Best of 3 • ST a 10</span>
-            </p>
-          </div>
-          <motion.button
-            onClick={onClose}
-            whileHover={{ scale: 1.1, rotate: 90 }}
-            whileTap={{ scale: 0.9 }}
-            className="text-textSecondary hover:text-textPrimary transition-colors bg-cardBorder rounded-full p-2 flex-shrink-0 ml-2"
-          >
-            <X size={20} className="md:w-6 md:h-6" />
-          </motion.button>
-        </div>
-
-        {/* Mensaje de error */}
-        {error && (
-          <ErrorMessage
-            message={error}
-            type="error"
-            onClose={() => setError('')}
-            className="mb-4"
-          />
-        )}
-
-        {/* Estado del partido */}
-        {yaConfirmado && (
-          <div className="bg-secondary/10 border border-secondary/50 rounded-lg p-3 mb-4 flex items-center gap-2">
-            <CheckCircle size={18} className="text-secondary flex-shrink-0" />
-            <p className="text-secondary text-sm font-bold">
-              Partido confirmado por ambos jugadores
-            </p>
-          </div>
-        )}
-
-        {pendienteConfirmacion && !esCreador && (
-          <div className="bg-accent/10 border border-accent/50 rounded-lg p-4 mb-4">
-            <div className="flex items-start gap-2 mb-2">
-              <Flag size={20} className="text-accent flex-shrink-0 mt-0.5" />
-              <div>
-                <p className="text-accent text-base font-bold mb-1">
-                  ⚠️ Resultado pendiente de confirmación
-                </p>
-                <p className="text-textSecondary text-sm">
-                  El creador ha cargado el resultado del partido. Por favor, revisa los sets y confirma si es correcto o repórtalo si hay algún error.
-                </p>
-              </div>
+      <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-2 md:p-4">
+        <motion.div
+          initial={{ opacity: 0, scale: 0.95 }}
+          animate={{ opacity: 1, scale: 1 }}
+          className="bg-cardBg rounded-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto shadow-2xl border border-cardBorder"
+        >
+          {/* Header */}
+          <div className="sticky top-0 bg-cardBg/95 backdrop-blur-sm px-4 py-3 border-b border-cardBorder flex items-center justify-between z-10">
+            <div>
+              <h2 className="text-lg font-bold text-textPrimary">{sala.nombre}</h2>
+              <p className="text-textSecondary text-xs">Best of 3 (6 games) • Set 3: SuperTiebreak a 10</p>
             </div>
+            <button onClick={onClose} className="text-textSecondary hover:text-red-500 p-2 rounded-full hover:bg-red-500/10 transition-all">
+              <X size={20} />
+            </button>
           </div>
-        )}
 
-        {pendienteConfirmacion && esCreador && (
-          <div className="bg-gradient-to-r from-primary/20 to-accent/20 border border-primary/50 rounded-lg p-4 mb-4">
-            <div className="flex items-start justify-between gap-3">
-              <div className="flex items-start gap-2 flex-1">
-                <CheckCircle size={20} className="text-primary flex-shrink-0 mt-0.5" />
-                <div className="flex-1">
-                  <p className="text-primary text-sm md:text-base font-bold mb-1">
-                    ¡Resultado guardado!
-                  </p>
-                  <p className="text-textSecondary text-xs md:text-sm mb-2">
-                    Esperando confirmación de los demás jugadores...
-                  </p>
-                  {jugadoresFaltantes.length > 0 && (
-                    <div className="bg-background/50 rounded-lg p-2 mt-2">
-                      <p className="text-accent text-xs font-bold mb-1">
-                        Faltan por confirmar:
-                      </p>
-                      <div className="space-y-1">
-                        {jugadoresFaltantes.map((jugador, index) => (
-                          <div key={index} className="flex items-center gap-2 text-textPrimary text-xs">
-                            <div className="w-1.5 h-1.5 rounded-full bg-accent" />
-                            {jugador}
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  )}
+          <div className="p-4 space-y-4">
+            {/* Estado */}
+            {yaConfirmado && (
+              <div className="bg-green-500/10 border border-green-500/30 rounded-xl px-4 py-2 flex items-center gap-2">
+                <CheckCircle size={18} className="text-green-500" />
+                <span className="text-green-500 text-sm font-bold">Partido confirmado</span>
+              </div>
+            )}
+            {pendienteConfirmacion && !esCreador && (
+              <div className="bg-accent/10 border border-accent/30 rounded-xl px-4 py-3">
+                <p className="text-accent text-sm font-bold">⚠️ Resultado pendiente de confirmación</p>
+                <p className="text-textSecondary text-xs">Revisa y confirma si es correcto</p>
+              </div>
+            )}
+            {pendienteConfirmacion && esCreador && (
+              <div className="bg-primary/10 border border-primary/30 rounded-xl px-4 py-2">
+                <p className="text-primary text-sm font-bold">✓ Resultado guardado</p>
+                <p className="text-textSecondary text-xs">Esperando confirmación de rivales</p>
+              </div>
+            )}
+
+            {/* Marcador Principal */}
+            <div className="bg-background/50 rounded-xl border border-cardBorder overflow-hidden">
+              {/* Equipo A */}
+              <div className="flex items-center justify-between p-3 border-b border-cardBorder/50">
+                <div className="flex items-center gap-2 flex-1 min-w-0">
+                  <div className="text-textPrimary font-bold text-sm truncate">{renderEquipoLinks(sala.equipoA, 'Equipo A')}</div>
+                  {esCreador && <Crown size={14} className="text-accent flex-shrink-0" />}
+                </div>
+                <div className={`w-12 h-12 rounded-lg flex items-center justify-center text-2xl font-black ${setsGanadosA > setsGanadosB ? 'bg-primary text-white' : 'bg-cardBorder text-textPrimary'}`}>
+                  {setsGanadosA}
                 </div>
               </div>
-              <Button
-                variant="ghost"
-                onClick={() => {
-                  // Permitir editar el resultado
-                  setError('');
-                }}
-                className="text-xs px-3 py-1.5 whitespace-nowrap"
-              >
-                Editar
-              </Button>
+              
+              {/* VS */}
+              <div className="flex items-center justify-center py-1 bg-cardBorder/20">
+                <span className="text-textSecondary text-xs font-bold">VS</span>
+              </div>
+              
+              {/* Equipo B */}
+              <div className="flex items-center justify-between p-3">
+                <div className="text-textPrimary font-bold text-sm truncate flex-1">{renderEquipoLinks(sala.equipoB, 'Equipo B')}</div>
+                <div className={`w-12 h-12 rounded-lg flex items-center justify-center text-2xl font-black ${setsGanadosB > setsGanadosA ? 'bg-secondary text-white' : 'bg-cardBorder text-textPrimary'}`}>
+                  {setsGanadosB}
+                </div>
+              </div>
             </div>
-          </div>
-        )}
 
-        {/* Nombres de jugadores */}
-        <div className="grid grid-cols-2 gap-2 md:gap-4 mb-4 md:mb-6">
-          <div className="bg-primary/10 rounded-lg p-2 md:p-3 border border-primary/30">
-            <h3 className="text-primary font-black text-xs md:text-base mb-1 md:mb-2">EQUIPO A</h3>
-            {[sala.equipoA.jugador1, sala.equipoA.jugador2].map((jugador) => {
-              const esCreador = jugador.id === sala.creador_id?.toString();
-              return (
-                <div key={jugador.id} className="flex items-center gap-1 mb-0.5">
-                  <p className="text-textPrimary font-semibold text-[10px] md:text-sm truncate leading-tight flex-1">
-                    {jugador.nombre}
-                  </p>
-                  {esCreador && (
-                    <Crown size={12} className="text-accent flex-shrink-0 md:w-[14px] md:h-[14px]" />
-                  )}
-                </div>
-              );
-            })}
-          </div>
-          <div className="bg-secondary/10 rounded-lg p-2 md:p-3 border border-secondary/30">
-            <h3 className="text-secondary font-black text-xs md:text-base mb-1 md:mb-2">EQUIPO B</h3>
-            {[sala.equipoB.jugador1, sala.equipoB.jugador2].map((jugador) => {
-              const esCreador = jugador.id === sala.creador_id?.toString();
-              return (
-                <div key={jugador.id} className="flex items-center gap-1 mb-0.5">
-                  <p className="text-textPrimary font-semibold text-[10px] md:text-sm truncate leading-tight flex-1">
-                    {jugador.nombre}
-                  </p>
-                  {esCreador && (
-                    <Crown size={12} className="text-accent flex-shrink-0 md:w-[14px] md:h-[14px]" />
-                  )}
-                </div>
-              );
-            })}
-          </div>
-        </div>
-
-        {/* Marcador de sets */}
-        <div className="space-y-2 md:space-y-4 mb-4 md:mb-6">
-          {sets.slice(0, mostrarSupertiebreak ? 2 : 3).map((set, index) => {
-            // No mostrar el tercer set si ya hay ganador (2-0)
-            const hayGanador = setsGanados.equipoA === 2 || setsGanados.equipoB === 2;
-            if (index === 2 && hayGanador) return null;
-            
-            return (
-              <SetDisplay
+            {/* Sets */}
+            {sets.map((set, index) => (
+              <motion.div
                 key={index}
-                setNumber={index + 1}
-                set={set}
-                onUpdateGames={(equipo, delta) => handleUpdateGames(index, equipo, delta)}
-                disabled={!puedeEditar}
-                esCreador={esCreador}
-              />
-            );
-          })}
-
-          {/* SuperTiebreak */}
-          {mostrarSupertiebreak && (
-            <SuperTiebreakDisplay
-              supertiebreak={supertiebreak}
-              onUpdatePuntos={handleUpdatePuntos}
-              disabled={!puedeEditar}
-              esCreador={esCreador}
-            />
-          )}
-        </div>
-
-        {/* Resumen */}
-        <div className="bg-background rounded-lg p-3 md:p-4 mb-3 md:mb-4">
-          <div className="flex items-center justify-between">
-            <div className="text-center flex-1">
-              <p className="text-textSecondary text-[10px] md:text-xs mb-1">Sets Ganados</p>
-              <p className="text-primary text-xl md:text-3xl font-black">{setsGanados.equipoA}</p>
-            </div>
-            <div className="text-textSecondary font-bold text-sm md:text-base">-</div>
-            <div className="text-center flex-1">
-              <p className="text-textSecondary text-[10px] md:text-xs mb-1">Sets Ganados</p>
-              <p className="text-secondary text-xl md:text-3xl font-black">{setsGanados.equipoB}</p>
-            </div>
-          </div>
-        </div>
-
-        {/* Botones de acción */}
-        {!yaConfirmado && (
-          <div className="flex flex-col md:flex-row gap-2 md:gap-3">
-            {esCreador && !pendienteConfirmacion && (
-              <Button
-                variant="primary"
-                onClick={handleGuardarResultado}
-                disabled={loading}
-                className="flex-1 flex items-center justify-center gap-2 text-sm md:text-base py-2.5 md:py-3"
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: index * 0.1 }}
+                className={`rounded-xl border p-4 ${set.completado ? 'bg-green-500/5 border-green-500/30' : 'bg-background/30 border-cardBorder'}`}
               >
-                <Trophy size={16} className="md:w-[18px] md:h-[18px]" />
-                {loading ? 'Guardando...' : 'Guardar Resultado'}
+                <div className="flex items-center justify-between mb-3">
+                  <h3 className="font-bold text-textPrimary text-sm">
+                    {set.esSuperTiebreak ? 'Super Tiebreak' : `Set ${index + 1}`}
+                  </h3>
+                  {set.completado && (
+                    <span className="text-green-500 text-xs font-bold flex items-center gap-1">
+                      <Trophy size={12} /> Válido
+                    </span>
+                  )}
+                </div>
+                
+                <div className="grid grid-cols-2 gap-4">
+                  {/* Equipo A */}
+                  <div>
+                    <label className="text-xs text-textSecondary mb-2 block truncate">{equipoANombre}</label>
+                    <div className="flex items-center gap-1">
+                      <Button variant="ghost" size="sm" onClick={() => actualizarGames(index, 'A', -1)} 
+                        disabled={!puedeEditar} className="p-2 bg-cardBorder/50 hover:bg-primary/20">
+                        <Minus size={14} />
+                      </Button>
+                      <div className={`flex-1 text-center py-2 rounded-lg font-black text-xl ${set.ganador === 'equipoA' ? 'bg-primary/20 text-primary' : 'bg-cardBorder/30 text-textPrimary'}`}>
+                        {set.gamesEquipoA}
+                      </div>
+                      <Button variant="ghost" size="sm" onClick={() => actualizarGames(index, 'A', 1)}
+                        disabled={!puedeEditar} className="p-2 bg-cardBorder/50 hover:bg-primary/20">
+                        <Plus size={14} />
+                      </Button>
+                    </div>
+                  </div>
+                  
+                  {/* Equipo B */}
+                  <div>
+                    <label className="text-xs text-textSecondary mb-2 block truncate">{equipoBNombre}</label>
+                    <div className="flex items-center gap-1">
+                      <Button variant="ghost" size="sm" onClick={() => actualizarGames(index, 'B', -1)}
+                        disabled={!puedeEditar} className="p-2 bg-cardBorder/50 hover:bg-secondary/20">
+                        <Minus size={14} />
+                      </Button>
+                      <div className={`flex-1 text-center py-2 rounded-lg font-black text-xl ${set.ganador === 'equipoB' ? 'bg-secondary/20 text-secondary' : 'bg-cardBorder/30 text-textPrimary'}`}>
+                        {set.gamesEquipoB}
+                      </div>
+                      <Button variant="ghost" size="sm" onClick={() => actualizarGames(index, 'B', 1)}
+                        disabled={!puedeEditar} className="p-2 bg-cardBorder/50 hover:bg-secondary/20">
+                        <Plus size={14} />
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Ganador del set */}
+                {set.completado && (
+                  <div className={`mt-3 py-2 rounded-lg text-center text-xs font-bold ${set.ganador === 'equipoA' ? 'bg-primary/20 text-primary' : 'bg-secondary/20 text-secondary'}`}>
+                    Ganador: {set.ganador === 'equipoA' ? equipoANombre : equipoBNombre}
+                  </div>
+                )}
+              </motion.div>
+            ))}
+
+            {/* Agregar/Quitar 3er set */}
+            {puedeEditar && sets.length < 3 && (
+              <div className="flex gap-2">
+                <Button variant="ghost" onClick={() => agregarTercerSet(false)} className="flex-1 text-xs py-2">
+                  <Plus size={14} className="mr-1" /> 3er Set Normal
+                </Button>
+                <Button variant="ghost" onClick={() => agregarTercerSet(true)} className="flex-1 text-xs py-2 bg-accent/10 hover:bg-accent/20 text-accent">
+                  <Plus size={14} className="mr-1" /> Super Tiebreak (10)
+                </Button>
+              </div>
+            )}
+            {puedeEditar && sets.length > 2 && (
+              <Button variant="ghost" onClick={quitarTercerSet} className="w-full text-xs py-2 text-red-400 hover:bg-red-500/10">
+                <Minus size={14} className="mr-1" /> Quitar 3er Set
               </Button>
             )}
 
-            {!esCreador && pendienteConfirmacion && (
-              <>
-                <Button
-                  variant="primary"
-                  onClick={handleConfirmarResultado}
-                  disabled={loading}
-                  className="flex-1 flex items-center justify-center gap-2 text-sm md:text-base py-2.5 md:py-3"
-                >
-                  <CheckCircle size={16} className="md:w-[18px] md:h-[18px]" />
-                  {loading ? 'Confirmando...' : 'Confirmar Resultado'}
-                </Button>
-                <Button
-                  variant="ghost"
-                  onClick={handleReportarResultado}
-                  disabled={loading}
-                  className="flex-1 flex items-center justify-center gap-2 text-sm md:text-base py-2.5 md:py-3 bg-red-500/20 hover:bg-red-500/30 border-red-500/50"
-                >
-                  <Flag size={16} className="md:w-[18px] md:h-[18px]" />
-                  Reportar
-                </Button>
-              </>
+            {/* Error */}
+            {error && (
+              <div className="bg-red-500/10 border border-red-500/20 rounded-xl px-4 py-3 text-center">
+                <span className="text-red-400 text-sm">⚠ {error}</span>
+              </div>
+            )}
+
+            {/* Acciones */}
+            {!yaConfirmado && (
+              <div className="flex gap-2 pt-2 border-t border-cardBorder">
+                {esCreador && (
+                  <Button 
+                    variant="primary" 
+                    onClick={handleGuardarResultado} 
+                    disabled={loading || validarResultado() !== null}
+                    className="flex-1 py-3"
+                  >
+                    {loading ? 'Guardando...' : <><Trophy size={16} className="mr-2" /> {pendienteConfirmacion ? 'Actualizar Resultado' : 'Guardar Resultado'}</>}
+                  </Button>
+                )}
+                
+                {!esCreador && pendienteConfirmacion && (
+                  <>
+                    <Button variant="primary" onClick={handleConfirmarResultado} disabled={loading} className="flex-1 py-3">
+                      {loading ? 'Confirmando...' : <><CheckCircle size={16} className="mr-2" /> Confirmar Resultado</>}
+                    </Button>
+                    <Button variant="ghost" className="py-3 px-4 bg-red-500/10 hover:bg-red-500/20 text-red-400">
+                      <Flag size={16} />
+                    </Button>
+                  </>
+                )}
+              </div>
             )}
           </div>
-        )}
+        </motion.div>
       </div>
-    </Modal>
 
-    {/* Modal de éxito */}
-    <ModalExito
-      isOpen={mostrarModalExito}
-      onClose={() => {
-        setMostrarModalExito(false);
-        onClose(); // Cerrar el marcador también
-      }}
-      titulo="¡Resultado Guardado!"
-      mensaje="Los rivales ahora pueden ver el resultado y deben confirmarlo para que el Elo se aplique."
-      icono={<Trophy size={48} className="text-white" />}
-    />
-
-    {/* Modal de confirmación exitosa */}
-    {datosConfirmacion && (
-      <ModalConfirmacionExitosa
-        isOpen={mostrarModalConfirmacion}
-        onClose={() => {
-          setMostrarModalConfirmacion(false);
-          onClose(); // Cerrar el marcador también
-        }}
-        confirmacionesTotales={datosConfirmacion.confirmaciones_totales || 0}
-        faltanConfirmar={3 - (datosConfirmacion.confirmaciones_totales || 0)}
-        eloAplicado={datosConfirmacion.elo_aplicado || false}
-        cambioEloEstimado={datosConfirmacion.cambio_elo_usuario || 0}
-        jugadoresFaltantes={datosConfirmacion.jugadores_faltantes || []}
+      <ModalExito
+        isOpen={mostrarModalExito}
+        onClose={() => { setMostrarModalExito(false); onClose(); }}
+        titulo="¡Resultado Guardado!"
+        mensaje="Los rivales deben confirmar el resultado para que el Elo se aplique."
+        icono={<Trophy size={48} className="text-white" />}
       />
-    )}
-  </>
-  );
-}
 
-// Componente para mostrar un set
-interface SetDisplayProps {
-  setNumber: number;
-  set: Set;
-  onUpdateGames: (equipo: 'equipoA' | 'equipoB', delta: number) => void;
-  disabled: boolean;
-  esCreador: boolean;
-}
-
-function SetDisplay({ setNumber, set, onUpdateGames, disabled, esCreador }: SetDisplayProps) {
-  const [editando, setEditando] = useState(false);
-  const puedeModificar = esCreador && !disabled;
-  const puedeEditar = puedeModificar && set.completado && !editando;
-
-  return (
-    <div className={`bg-background rounded-lg p-2 md:p-4 border ${set.completado ? 'border-accent/50' : 'border-cardBorder'}`}>
-      <div className="flex items-center justify-between mb-2 md:mb-3">
-        <h4 className="text-textPrimary font-bold text-xs md:text-base">SET {setNumber}</h4>
-        <div className="flex items-center gap-2">
-          {set.completado && !editando && (
-            <span className="text-accent text-[10px] md:text-xs font-bold flex items-center gap-1">
-              <CheckCircle size={12} className="md:w-[14px] md:h-[14px]" />
-              <span className="hidden sm:inline">Completado</span>
-              <span className="sm:hidden">✓</span>
-            </span>
-          )}
-          {puedeEditar && (
-            <button
-              onClick={() => setEditando(true)}
-              className="text-textSecondary hover:text-primary text-[10px] md:text-xs font-bold transition-colors"
-            >
-              ✏️ Editar
-            </button>
-          )}
-        </div>
-      </div>
-
-      <div className="grid grid-cols-2 gap-2 md:gap-4">
-        {/* Equipo A */}
-        <div className="text-center">
-          <div className={`text-2xl md:text-4xl font-black mb-1.5 md:mb-2 ${set.ganador === 'equipoA' ? 'text-primary' : 'text-textPrimary'}`}>
-            {set.gamesEquipoA}
-          </div>
-          {puedeModificar && (!set.completado || editando) && (
-            <div className="flex gap-1">
-              <button
-                onClick={() => onUpdateGames('equipoA', -1)}
-                disabled={set.gamesEquipoA === 0}
-                className="flex-1 bg-red-500/20 hover:bg-red-500/30 disabled:opacity-30 rounded p-1 md:p-1.5 transition-colors"
-              >
-                <Minus size={12} className="mx-auto md:w-[14px] md:h-[14px]" />
-              </button>
-              <button
-                onClick={() => onUpdateGames('equipoA', 1)}
-                className="flex-1 bg-primary/20 hover:bg-primary/30 rounded p-1 md:p-1.5 transition-colors"
-              >
-                <Plus size={12} className="mx-auto md:w-[14px] md:h-[14px]" />
-              </button>
-            </div>
-          )}
-          {editando && (
-            <button
-              onClick={() => setEditando(false)}
-              className="text-[10px] md:text-xs text-accent font-bold mt-1"
-            >
-              ✓ Listo
-            </button>
-          )}
-        </div>
-
-        {/* Equipo B */}
-        <div className="text-center">
-          <div className={`text-2xl md:text-4xl font-black mb-1.5 md:mb-2 ${set.ganador === 'equipoB' ? 'text-secondary' : 'text-textPrimary'}`}>
-            {set.gamesEquipoB}
-          </div>
-          {puedeModificar && (!set.completado || editando) && (
-            <div className="flex gap-1">
-              <button
-                onClick={() => onUpdateGames('equipoB', -1)}
-                disabled={set.gamesEquipoB === 0}
-                className="flex-1 bg-red-500/20 hover:bg-red-500/30 disabled:opacity-30 rounded p-1 md:p-1.5 transition-colors"
-              >
-                <Minus size={12} className="mx-auto md:w-[14px] md:h-[14px]" />
-              </button>
-              <button
-                onClick={() => onUpdateGames('equipoB', 1)}
-                className="flex-1 bg-secondary/20 hover:bg-secondary/30 rounded p-1 md:p-1.5 transition-colors"
-              >
-                <Plus size={12} className="mx-auto md:w-[14px] md:h-[14px]" />
-              </button>
-            </div>
-          )}
-        </div>
-      </div>
-
-      {requiereTiebreak(set.gamesEquipoA, set.gamesEquipoB) && !set.completado && (
-        <p className="text-accent text-[10px] md:text-xs text-center mt-1.5 md:mt-2">
-          6-6: Debe jugarse tiebreak (resultado 7-6)
-        </p>
+      {datosConfirmacion && (
+        <ModalConfirmacionExitosa
+          isOpen={mostrarModalConfirmacion}
+          onClose={() => { setMostrarModalConfirmacion(false); onClose(); }}
+          confirmacionesTotales={datosConfirmacion.confirmaciones_totales || 0}
+          faltanConfirmar={3 - (datosConfirmacion.confirmaciones_totales || 0)}
+          eloAplicado={datosConfirmacion.elo_aplicado || false}
+          cambioEloEstimado={datosConfirmacion.cambio_elo_usuario || 0}
+          jugadoresFaltantes={datosConfirmacion.jugadores_faltantes || []}
+        />
       )}
-    </div>
-  );
-}
-
-// Componente para mostrar el supertiebreak
-interface SuperTiebreakDisplayProps {
-  supertiebreak: SuperTiebreak;
-  onUpdatePuntos: (equipo: 'equipoA' | 'equipoB', delta: number) => void;
-  disabled: boolean;
-  esCreador: boolean;
-}
-
-function SuperTiebreakDisplay({ supertiebreak, onUpdatePuntos, disabled, esCreador }: SuperTiebreakDisplayProps) {
-  const puedeModificar = esCreador && !disabled;
-
-  return (
-    <div className={`bg-gradient-to-br from-accent/10 to-yellow-500/10 rounded-lg p-2 md:p-4 border ${supertiebreak.completado ? 'border-accent' : 'border-accent/50'}`}>
-      <div className="flex items-center justify-between mb-2 md:mb-3">
-        <h4 className="text-accent font-black text-xs md:text-base">
-          <span className="hidden sm:inline">SUPERTIEBREAK (a 10 puntos)</span>
-          <span className="sm:hidden">SUPERTIEBREAK</span>
-        </h4>
-        {supertiebreak.completado && (
-          <span className="text-accent text-[10px] md:text-xs font-bold flex items-center gap-1">
-            <Trophy size={12} className="md:w-[14px] md:h-[14px]" />
-            <span className="hidden sm:inline">Completado</span>
-            <span className="sm:hidden">✓</span>
-          </span>
-        )}
-      </div>
-
-      <div className="grid grid-cols-2 gap-2 md:gap-4">
-        {/* Equipo A */}
-        <div className="text-center">
-          <div className={`text-3xl md:text-5xl font-black mb-1.5 md:mb-2 ${supertiebreak.ganador === 'equipoA' ? 'text-primary' : 'text-textPrimary'}`}>
-            {supertiebreak.puntosEquipoA}
-          </div>
-          {puedeModificar && !supertiebreak.completado && (
-            <div className="flex gap-1">
-              <button
-                onClick={() => onUpdatePuntos('equipoA', -1)}
-                disabled={supertiebreak.puntosEquipoA === 0}
-                className="flex-1 bg-red-500/20 hover:bg-red-500/30 disabled:opacity-30 rounded p-1 md:p-1.5 transition-colors"
-              >
-                <Minus size={12} className="mx-auto md:w-[14px] md:h-[14px]" />
-              </button>
-              <button
-                onClick={() => onUpdatePuntos('equipoA', 1)}
-                className="flex-1 bg-primary/20 hover:bg-primary/30 rounded p-1 md:p-1.5 transition-colors"
-              >
-                <Plus size={12} className="mx-auto md:w-[14px] md:h-[14px]" />
-              </button>
-            </div>
-          )}
-        </div>
-
-        {/* Equipo B */}
-        <div className="text-center">
-          <div className={`text-3xl md:text-5xl font-black mb-1.5 md:mb-2 ${supertiebreak.ganador === 'equipoB' ? 'text-secondary' : 'text-textPrimary'}`}>
-            {supertiebreak.puntosEquipoB}
-          </div>
-          {puedeModificar && !supertiebreak.completado && (
-            <div className="flex gap-1">
-              <button
-                onClick={() => onUpdatePuntos('equipoB', -1)}
-                disabled={supertiebreak.puntosEquipoB === 0}
-                className="flex-1 bg-red-500/20 hover:bg-red-500/30 disabled:opacity-30 rounded p-1 md:p-1.5 transition-colors"
-              >
-                <Minus size={12} className="mx-auto md:w-[14px] md:h-[14px]" />
-              </button>
-              <button
-                onClick={() => onUpdatePuntos('equipoB', 1)}
-                className="flex-1 bg-secondary/20 hover:bg-secondary/30 rounded p-1 md:p-1.5 transition-colors"
-              >
-                <Plus size={12} className="mx-auto md:w-[14px] md:h-[14px]" />
-              </button>
-            </div>
-          )}
-        </div>
-      </div>
-
-      <p className="text-textSecondary text-[10px] md:text-xs text-center mt-1.5 md:mt-2">
-        Mínimo 10 puntos • Ventaja de 2 puntos
-      </p>
-    </div>
+    </>
   );
 }
