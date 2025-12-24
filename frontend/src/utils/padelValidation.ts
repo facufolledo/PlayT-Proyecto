@@ -138,15 +138,13 @@ export function requiereSuperTiebreak(sets: Set[]): boolean {
 
 /**
  * Valida si se puede incrementar un game
+ * NOTA: Permitimos incrementar libremente para facilitar la carga de resultados.
+ * La validación final se hace al guardar el resultado.
  */
 export function puedeIncrementarGame(gamesA: number, gamesB: number): { equipoA: boolean; equipoB: boolean } {
-  // Si el set ya está completo, no se puede incrementar
-  if (setCompleto(gamesA, gamesB)) {
-    return { equipoA: false, equipoB: false };
-  }
-  
-  // Permitir incrementar libremente hasta 7
-  // Esto permite cualquier combinación válida: 6-4, 7-5, 7-6, etc.
+  // Permitir incrementar libremente hasta 7 para facilitar la carga
+  // Esto permite cargar primero los games de un equipo y luego del otro
+  // Ejemplo: cargar 6-0, luego modificar a 6-4
   const puedeA = gamesA < 7;
   const puedeB = gamesB < 7;
   

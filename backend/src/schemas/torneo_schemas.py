@@ -39,6 +39,36 @@ class EstadoPartidoEnum(str, Enum):
     CANCELADO = "cancelado"
 
 
+# Schemas para Categoría de Torneo
+class CategoriaCreate(BaseModel):
+    nombre: str = Field(..., min_length=1, max_length=50)  # "8va", "6ta", "4ta", "Libre"
+    genero: str = Field(default="masculino")  # masculino, femenino, mixto
+    max_parejas: int = Field(default=16, ge=2, le=64)
+    orden: int = Field(default=0)
+
+
+class CategoriaUpdate(BaseModel):
+    nombre: Optional[str] = Field(None, min_length=1, max_length=50)
+    genero: Optional[str] = None
+    max_parejas: Optional[int] = Field(None, ge=2, le=64)
+    estado: Optional[str] = None
+    orden: Optional[int] = None
+
+
+class CategoriaResponse(BaseModel):
+    id: int
+    torneo_id: int
+    nombre: str
+    genero: str
+    max_parejas: int
+    estado: str
+    orden: int
+    parejas_inscritas: Optional[int] = 0
+    
+    class Config:
+        from_attributes = True
+
+
 # Schemas para Torneo
 class TorneoCreate(BaseModel):
     nombre: str = Field(..., min_length=3, max_length=255)
@@ -97,6 +127,7 @@ class TorneoResponse(BaseModel):
 class ParejaInscripcion(BaseModel):
     jugador1_id: int
     jugador2_id: int
+    categoria_id: Optional[int] = None  # ID de la categoría del torneo
     nombre_pareja: Optional[str] = None
     observaciones: Optional[str] = None
     
@@ -111,6 +142,7 @@ class ParejaUpdate(BaseModel):
     jugador1_id: Optional[int] = None
     jugador2_id: Optional[int] = None
     estado: Optional[EstadoParejaEnum] = None
+    categoria_id: Optional[int] = None  # Para cambiar de categoría
     categoria_asignada: Optional[str] = None
     observaciones: Optional[str] = None
 

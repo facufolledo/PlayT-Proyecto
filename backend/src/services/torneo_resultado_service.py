@@ -59,7 +59,17 @@ class TorneoResultadoService:
         partido.resultado_padel = resultado_data
         partido.estado = 'confirmado'  # Usar 'confirmado' en lugar de 'finalizado'
         partido.ganador_pareja_id = ganador_pareja_id
-        partido.elo_aplicado = False  # Se aplicará después si es necesario
+        
+        # Aplicar ELO y actualizar estadísticas de jugadores
+        try:
+            TorneoResultadoService._aplicar_elo_torneo(db, partido, resultado_data, ganador_pareja_id)
+            partido.elo_aplicado = True
+            logger.info(f"ELO aplicado correctamente para partido {partido.id_partido}")
+        except Exception as e:
+            import traceback
+            logger.error(f"Error aplicando ELO en torneo: {e}")
+            logger.error(f"Traceback: {traceback.format_exc()}")
+            partido.elo_aplicado = False
         
         db.commit()
         db.refresh(partido)
@@ -67,8 +77,74 @@ class TorneoResultadoService:
         # Si es partido de playoffs, avanzar ganador a siguiente fase
         if partido.fase and partido.fase != 'zona':
             TorneoResultadoService._avanzar_ganador_playoff(db, partido, ganador_pareja_id)
+        else:
+            # Si es partido de zona, verificar si se completaron todas las zonas
+            # para auto-generar playoffs
+            TorneoResultadoService._verificar_auto_playoffs(db, partido.id_torneo)
         
         return partido
+    
+    @staticmethod
+    def _verificar_auto_playoffs(db: Session, torneo_id: int) -> bool:
+        """
+        Verifica si todas las zonas están completas y auto-genera playoffs si corresponde
+        
+        Returns:
+            True si se generaron playoffs automáticamente
+        """
+        from ..models.torneo_models import Torneo, TorneoZona
+        
+        # Obtener torneo
+        torneo = db.query(Torneo).filter(Torneo.id == torneo_id).first()
+        if not torneo:
+            return False
+        
+        # Solo auto-generar si está en fase_grupos
+        if str(torneo.estado) not in ['fase_grupos', 'EstadoTorneo.FASE_GRUPOS']:
+            return False
+        
+        # Verificar si ya hay partidos de playoffs
+        partidos_playoffs = db.query(Partido).filter(
+            Partido.id_torneo == torneo_id,
+            Partido.fase != 'zona',
+            Partido.fase.isnot(None)
+        ).count()
+        
+        if partidos_playoffs > 0:
+            # Ya hay playoffs generados
+            return False
+        
+        # Obtener todas las zonas
+        zonas = db.query(TorneoZona).filter(TorneoZona.torneo_id == torneo_id).all()
+        if not zonas:
+            return False
+        
+        # Verificar que todas las zonas estén completas
+        todas_completas = True
+        for zona in zonas:
+            if not TorneoResultadoService.verificar_zona_completa(db, zona.id):
+                todas_completas = False
+                break
+        
+        if not todas_completas:
+            return False
+        
+        # Todas las zonas completas - generar playoffs automáticamente
+        try:
+            from ..services.torneo_playoff_service import TorneoPlayoffService
+            
+            logger.info(f"Auto-generando playoffs para torneo {torneo_id}")
+            TorneoPlayoffService.generar_playoffs(
+                db=db,
+                torneo_id=torneo_id,
+                user_id=torneo.creado_por,  # Usar el creador del torneo
+                clasificados_por_zona=2
+            )
+            logger.info(f"Playoffs auto-generados exitosamente para torneo {torneo_id}")
+            return True
+        except Exception as e:
+            logger.error(f"Error auto-generando playoffs: {e}")
+            return False
     
     @staticmethod
     def _avanzar_ganador_playoff(
@@ -87,14 +163,17 @@ class TorneoResultadoService:
         Returns:
             Partido de siguiente ronda actualizado, o None si es la final
         """
-        from ..models.torneo_models import Torneo, EstadoTorneo
+        from ..models.torneo_models import Torneo
+        
+        logger.info(f"Avanzando ganador {ganador_pareja_id} de partido {partido.id_partido} fase {partido.fase}")
         
         # Si es la final, marcar torneo como finalizado
         if partido.fase == 'final':
             torneo = db.query(Torneo).filter(Torneo.id == partido.id_torneo).first()
             if torneo:
-                torneo.estado = EstadoTorneo.FINALIZADO
+                torneo.estado = 'finalizado'  # String en lugar de Enum
                 db.commit()
+                logger.info(f"Torneo {partido.id_torneo} marcado como finalizado")
             return None
         
         # Determinar siguiente fase
@@ -137,15 +216,34 @@ class TorneoResultadoService:
             db.flush()
         
         # Asignar ganador a la posición correspondiente
+        # Partido impar -> pareja1, Partido par -> pareja2
         if numero_partido % 2 == 1:
-            # Partido impar -> pareja1
             partido_siguiente.pareja1_id = ganador_pareja_id
+            logger.info(f"Asignado ganador {ganador_pareja_id} como pareja1 en partido {partido_siguiente.id_partido} ({siguiente_fase})")
         else:
-            # Partido par -> pareja2
             partido_siguiente.pareja2_id = ganador_pareja_id
+            logger.info(f"Asignado ganador {ganador_pareja_id} como pareja2 en partido {partido_siguiente.id_partido} ({siguiente_fase})")
         
         db.commit()
+        db.refresh(partido_siguiente)
+        
+        logger.info(f"Partido siguiente actualizado: pareja1={partido_siguiente.pareja1_id}, pareja2={partido_siguiente.pareja2_id}")
+        
+        # Verificar si el partido siguiente ya tiene ambas parejas y una es de bye
+        # Si es así, verificar si necesita crear el siguiente partido
+        TorneoResultadoService._verificar_partido_listo(db, partido_siguiente)
+        
         return partido_siguiente
+    
+    @staticmethod
+    def _verificar_partido_listo(db: Session, partido: Partido) -> None:
+        """
+        Verifica si un partido tiene ambas parejas asignadas.
+        Si una pareja viene de bye y la otra acaba de ser asignada,
+        el partido está listo para jugarse.
+        """
+        if partido.pareja1_id and partido.pareja2_id:
+            logger.info(f"Partido {partido.id_partido} ({partido.fase}) listo: {partido.pareja1_id} vs {partido.pareja2_id}")
     
     @staticmethod
     def _validar_resultado(resultado: Dict) -> None:
@@ -382,3 +480,192 @@ class TorneoResultadoService:
         db.refresh(partido)
         
         return partido
+
+    @staticmethod
+    def _aplicar_elo_torneo(
+        db: Session,
+        partido: Partido,
+        resultado_data: Dict,
+        ganador_pareja_id: int
+    ) -> Dict:
+        """
+        Aplica el cálculo de ELO para partidos de torneo y actualiza estadísticas
+        
+        Args:
+            db: Sesión de base de datos
+            partido: Partido finalizado
+            resultado_data: Datos del resultado
+            ganador_pareja_id: ID de la pareja ganadora
+            
+        Returns:
+            Dict con cambios de ELO por jugador
+        """
+        from ..models.playt_models import Usuario, HistorialRating
+        from ..services.elo_service import EloService
+        from sqlalchemy import text
+        
+        # Obtener parejas usando SQL directo para evitar problemas con Enum
+        result1 = db.execute(text(
+            "SELECT id, jugador1_id, jugador2_id FROM torneos_parejas WHERE id = :id"
+        ), {'id': partido.pareja1_id}).fetchone()
+        
+        result2 = db.execute(text(
+            "SELECT id, jugador1_id, jugador2_id FROM torneos_parejas WHERE id = :id"
+        ), {'id': partido.pareja2_id}).fetchone()
+        
+        if not result1 or not result2:
+            raise ValueError("No se encontraron las parejas del partido")
+        
+        # Crear objetos simples con los datos de las parejas
+        class ParejaData:
+            def __init__(self, row):
+                self.id = row[0]
+                self.jugador1_id = row[1]
+                self.jugador2_id = row[2]
+        
+        pareja1 = ParejaData(result1)
+        pareja2 = ParejaData(result2)
+        
+        # Obtener los 4 jugadores
+        jugadores_ids = [
+            pareja1.jugador1_id, pareja1.jugador2_id,
+            pareja2.jugador1_id, pareja2.jugador2_id
+        ]
+        
+        jugadores = {}
+        for jid in jugadores_ids:
+            usuario = db.query(Usuario).filter(Usuario.id_usuario == jid).first()
+            if usuario:
+                jugadores[jid] = usuario
+        
+        if len(jugadores) != 4:
+            raise ValueError("No se encontraron todos los jugadores")
+        
+        # Preparar datos para el servicio ELO
+        team_a_players = [
+            {
+                'id': pareja1.jugador1_id,
+                'id_usuario': pareja1.jugador1_id,
+                'rating': jugadores[pareja1.jugador1_id].rating or 1200,
+                'partidos': jugadores[pareja1.jugador1_id].partidos_jugados or 0
+            },
+            {
+                'id': pareja1.jugador2_id,
+                'id_usuario': pareja1.jugador2_id,
+                'rating': jugadores[pareja1.jugador2_id].rating or 1200,
+                'partidos': jugadores[pareja1.jugador2_id].partidos_jugados or 0
+            }
+        ]
+        
+        team_b_players = [
+            {
+                'id': pareja2.jugador1_id,
+                'id_usuario': pareja2.jugador1_id,
+                'rating': jugadores[pareja2.jugador1_id].rating or 1200,
+                'partidos': jugadores[pareja2.jugador1_id].partidos_jugados or 0
+            },
+            {
+                'id': pareja2.jugador2_id,
+                'id_usuario': pareja2.jugador2_id,
+                'rating': jugadores[pareja2.jugador2_id].rating or 1200,
+                'partidos': jugadores[pareja2.jugador2_id].partidos_jugados or 0
+            }
+        ]
+        
+        # Extraer datos del resultado
+        sets = resultado_data.get('sets', [])
+        sets_a = sum(1 for s in sets if s.get('ganador') == 'equipoA')
+        sets_b = sum(1 for s in sets if s.get('ganador') == 'equipoB')
+        games_a = sum(s.get('gamesEquipoA', 0) for s in sets)
+        games_b = sum(s.get('gamesEquipoB', 0) for s in sets)
+        
+        # Convertir sets al formato esperado por EloService (games_a, games_b)
+        sets_detail = [
+            {
+                'games_a': s.get('gamesEquipoA', 0),
+                'games_b': s.get('gamesEquipoB', 0)
+            }
+            for s in sets
+        ]
+        
+        # Calcular ELO
+        elo_service = EloService()
+        cambios_elo_result = elo_service.calculate_match_ratings(
+            team_a_players=team_a_players,
+            team_b_players=team_b_players,
+            sets_a=sets_a,
+            sets_b=sets_b,
+            games_a=games_a,
+            games_b=games_b,
+            sets_detail=sets_detail,
+            match_type='torneo',
+            match_date=partido.fecha or datetime.now()
+        )
+        
+        # Aplicar cambios de ELO y actualizar estadísticas
+        resultado_elo = {}
+        
+        # Equipo A (pareja1)
+        for i, player_data in enumerate(cambios_elo_result['team_a']['players']):
+            jid = [pareja1.jugador1_id, pareja1.jugador2_id][i]
+            usuario = jugadores[jid]
+            
+            rating_antes = usuario.rating or 1200
+            nuevo_rating = int(round(player_data['new_rating']))
+            cambio = int(round(player_data['rating_change']))
+            
+            # Actualizar usuario
+            usuario.rating = nuevo_rating
+            usuario.partidos_jugados = (usuario.partidos_jugados or 0) + 1
+            
+            # Crear historial de rating
+            historial = HistorialRating(
+                id_usuario=jid,
+                id_partido=partido.id_partido,
+                rating_antes=rating_antes,
+                delta=cambio,
+                rating_despues=nuevo_rating
+            )
+            db.add(historial)
+            
+            resultado_elo[jid] = {
+                'anterior': rating_antes,
+                'nuevo': nuevo_rating,
+                'cambio': cambio
+            }
+        
+        # Equipo B (pareja2)
+        for i, player_data in enumerate(cambios_elo_result['team_b']['players']):
+            jid = [pareja2.jugador1_id, pareja2.jugador2_id][i]
+            usuario = jugadores[jid]
+            
+            rating_antes = usuario.rating or 1200
+            nuevo_rating = int(round(player_data['new_rating']))
+            cambio = int(round(player_data['rating_change']))
+            
+            # Actualizar usuario
+            usuario.rating = nuevo_rating
+            usuario.partidos_jugados = (usuario.partidos_jugados or 0) + 1
+            
+            # Crear historial de rating
+            historial = HistorialRating(
+                id_usuario=jid,
+                id_partido=partido.id_partido,
+                rating_antes=rating_antes,
+                delta=cambio,
+                rating_despues=nuevo_rating
+            )
+            db.add(historial)
+            
+            resultado_elo[jid] = {
+                'anterior': rating_antes,
+                'nuevo': nuevo_rating,
+                'cambio': cambio
+            }
+        
+        # Flush para asegurar que los cambios se persistan
+        db.flush()
+        
+        logger.info(f"ELO aplicado para partido de torneo {partido.id_partido}: {resultado_elo}")
+        
+        return resultado_elo

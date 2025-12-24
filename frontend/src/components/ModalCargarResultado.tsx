@@ -9,7 +9,7 @@ interface ModalCargarResultadoProps {
   onClose: () => void;
   partido: any;
   torneoId: number;
-  onResultadoCargado: () => void;
+  onResultadoCargado: (partidoActualizado?: any) => void;
 }
 
 interface Set {
@@ -132,7 +132,15 @@ export default function ModalCargarResultado({
       };
 
       await torneoService.cargarResultado(torneoId, partido.id_partido, resultado);
-      onResultadoCargado();
+      
+      // Crear partido actualizado con el resultado
+      const partidoActualizado = {
+        ...partido,
+        estado: 'confirmado',
+        resultado_padel: resultado
+      };
+      
+      onResultadoCargado(partidoActualizado);
     } catch (error: any) {
       console.error('Error al cargar resultado:', error);
       setError(error.response?.data?.detail || 'Error al cargar el resultado');

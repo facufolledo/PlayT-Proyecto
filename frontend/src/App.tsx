@@ -27,6 +27,9 @@ const MiPerfil = lazy(() => import('./pages/MiPerfil'));
 const EditarPerfil = lazy(() => import('./pages/EditarPerfil'));
 const MiRanking = lazy(() => import('./pages/MiRanking'));
 const CompletarPerfil = lazy(() => import('./pages/CompletarPerfil'));
+const PerfilPublico = lazy(() => import('./pages/PerfilPublico'));
+const BuscarJugadores = lazy(() => import('./pages/BuscarJugadores'));
+const AdminPanel = lazy(() => import('./pages/AdminPanel'));
 
 // Loading component
 const PageLoader = () => (
@@ -42,7 +45,9 @@ const PageLoader = () => (
 // El usuario decide cuándo entrar a la app
 
 function App() {
-  const basename = import.meta.env.PROD ? '/PlayR' : '/';
+  // En producción (kioskito.click) no necesitamos basename
+  // Solo usar basename si está en un subdirectorio
+  const basename = '/';
   
   return (
     <ErrorBoundary>
@@ -201,12 +206,58 @@ function App() {
                   </PrivateRoute>
                 }
               />
+              {/* Perfil público por ID */}
+              <Route
+                path="/perfil/:id"
+                element={
+                  <PrivateRoute>
+                    <Layout>
+                      <PerfilPublico />
+                    </Layout>
+                  </PrivateRoute>
+                }
+              />
               <Route
                 path="/configuracion"
                 element={
                   <PrivateRoute>
                     <Layout>
                       <div className="text-textPrimary">Configuración - Próximamente</div>
+                    </Layout>
+                  </PrivateRoute>
+                }
+              />
+              {/* Búsqueda de jugadores */}
+              <Route
+                path="/jugadores"
+                element={
+                  <PrivateRoute>
+                    <Layout>
+                      <BuscarJugadores />
+                    </Layout>
+                  </PrivateRoute>
+                }
+              />
+              
+              {/* Panel de Administración - Solo para administradores */}
+              <Route
+                path="/admin"
+                element={
+                  <PrivateRoute>
+                    <Layout>
+                      <AdminPanel />
+                    </Layout>
+                  </PrivateRoute>
+                }
+              />
+              
+              {/* Perfil público de otros usuarios - URL amigable por username */}
+              <Route
+                path="/jugador/:username"
+                element={
+                  <PrivateRoute>
+                    <Layout>
+                      <PerfilPublico />
                     </Layout>
                   </PrivateRoute>
                 }

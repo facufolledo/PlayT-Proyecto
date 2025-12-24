@@ -4,6 +4,7 @@ import { auth } from '../config/firebase';
 import { authService } from '../services/auth.service';
 import { apiService, UsuarioResponse } from '../services/api';
 import { logger } from '../utils/logger';
+import { clientLogger } from '../utils/clientLogger';
 
 interface AuthContextType {
   usuario: UsuarioResponse | null;
@@ -62,12 +63,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             try {
               const currentUser = auth.currentUser;
               if (currentUser) {
-                const newToken = await currentUser.getIdToken(true); // Force refresh
+                const newToken = await currentUser.getIdToken(true);
                 localStorage.setItem('firebase_token', newToken);
-                console.log('🔄 Token de Firebase renovado automáticamente');
               }
             } catch (error) {
-              console.error('Error al renovar token:', error);
+              // Silenciar error
             }
           }, 50 * 60 * 1000); // 50 minutos
 
@@ -123,17 +123,24 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }, [usuario]);
 
-  // Renovar token cuando el usuario vuelve a la pestaña
+  // Renovar token cuando el usuario vuelve a la pestaña (con debounce)
   useEffect(() => {
+    let lastRefresh = 0;
+    const REFRESH_COOLDOWN = 60000; // 1 minuto mínimo entre refreshes
+
     const handleVisibilityChange = async () => {
       if (document.visibilityState === 'visible' && firebaseUser) {
+        const now = Date.now();
+        // Solo renovar si pasó más de 1 minuto desde la última renovación
+        if (now - lastRefresh < REFRESH_COOLDOWN) {
+          return;
+        }
         try {
-          console.log('👁️ Usuario volvió a la pestaña, verificando token...');
-          const newToken = await firebaseUser.getIdToken(true); // Force refresh
+          lastRefresh = now;
+          const newToken = await firebaseUser.getIdToken(true);
           localStorage.setItem('firebase_token', newToken);
-          console.log('✅ Token renovado al volver a la pestaña');
         } catch (error) {
-          console.error('Error al renovar token:', error);
+          // Silenciar error, no es crítico
         }
       }
     };
@@ -147,11 +154,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const login = async (email: string, password: string) => {
     setIsLoading(true);
+    clientLogger.userAction('Login attempt', { email });
     try {
       // Login con Firebase (email/password)
       const user = await authService.loginWithEmail(email, password);
       setFirebaseUser(user);
       console.log('🔥 Firebase user:', user.email);
+      clientLogger.info('Firebase login successful', { email: user.email });
 
       // Recargar el usuario para obtener el estado actualizado de emailVerified
       await user.reload();
@@ -160,6 +169,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (!user.emailVerified) {
         setNeedsProfileCompletion(true);
         localStorage.setItem('needsProfileCompletion', 'true');
+        clientLogger.warn('Email not verified', { email: user.email });
         throw new Error('Debes verificar tu correo electrónico antes de continuar. Revisa tu bandeja de entrada.');
       }
 
@@ -267,14 +277,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const logout = async () => {
     setIsLoading(true);
+    clientLogger.userAction('Logout attempt');
     try {
       await authService.logout();
       setUsuario(null);
       setFirebaseUser(null);
       localStorage.removeItem('access_token');
       localStorage.removeItem('usuario');
+      clientLogger.info('Logout successful');
     } catch (error: any) {
       logger.error('Error en logout:', error);
+      clientLogger.error('Logout failed', { error: error.message });
       throw new Error(error.message || 'Error al cerrar sesión');
     } finally {
       setIsLoading(false);

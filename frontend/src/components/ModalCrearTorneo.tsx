@@ -1,21 +1,21 @@
-import { useState } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, Trophy, Calendar, MapPin, FileText } from 'lucide-react';
+import { X, Trophy, Calendar, MapPin, FileText, Check, Loader2 } from 'lucide-react';
 import Button from './Button';
 import Input from './Input';
 import { useTorneos } from '../context/TorneosContext';
+import { torneoService } from '../services/torneo.service';
 
 interface ModalCrearTorneoProps {
   isOpen: boolean;
   onClose: () => void;
 }
 
-const CATEGORIAS = ['Principiantes', '8va', '7ma', '6ta', '5ta', '4ta', 'Libre'];
-const GENEROS = [
-  { value: 'masculino', label: 'Masculino', icon: '♂' },
-  { value: 'femenino', label: 'Femenino', icon: '♀' },
-  { value: 'mixto', label: 'Mixto', icon: '⚥' },
-];
+interface CategoriaSistema {
+  id: number;
+  nombre: string;
+  sexo: string;
+}
 
 export default function ModalCrearTorneo({ isOpen, onClose }: ModalCrearTorneoProps) {
   const { crearTorneo, loading, error, limpiarError } = useTorneos();
@@ -24,37 +24,104 @@ export default function ModalCrearTorneo({ isOpen, onClose }: ModalCrearTorneoPr
     nombre: '',
     fechaInicio: '',
     fechaFin: '',
-    categoria: '5ta',
-    genero: 'masculino',
     descripcion: '',
     lugar: '',
     canchasDisponibles: 2,
   });
 
+  // Categorías del sistema
+  const [categoriasSistema, setCategoriasSistema] = useState<CategoriaSistema[]>([]);
+  const [loadingCategorias, setLoadingCategorias] = useState(false);
+
+  // Géneros habilitados
+  const [generoMasculino, setGeneroMasculino] = useState(true);
+  const [generoFemenino, setGeneroFemenino] = useState(false);
+  
+  // Categorías seleccionadas por género
+  const [categoriasMasc, setCategoriasMasc] = useState<string[]>([]);
+  const [categoriasFem, setCategoriasFem] = useState<string[]>([]);
+  
+  // Max parejas por defecto
+  const [maxParejas, setMaxParejas] = useState(16);
+  
+  const [creandoCategorias, setCreandoCategorias] = useState(false);
+
+  // Cargar categorías del sistema al abrir
+  useEffect(() => {
+    if (isOpen && categoriasSistema.length === 0) {
+      cargarCategoriasSistema();
+    }
+  }, [isOpen]);
+
+  const cargarCategoriasSistema = async () => {
+    try {
+      setLoadingCategorias(true);
+      const cats = await torneoService.obtenerCategoriasDelSistema();
+      setCategoriasSistema(cats);
+      // Seleccionar primera categoría masculina por defecto
+      const primeraMasc = cats.find(c => c.sexo === 'masculino');
+      if (primeraMasc) {
+        setCategoriasMasc([primeraMasc.nombre]);
+      }
+    } catch (err) {
+      console.error('Error cargando categorías:', err);
+    } finally {
+      setLoadingCategorias(false);
+    }
+  };
+
+  // Filtrar categorías por género
+  const categoriasMasculinas = categoriasSistema.filter(c => c.sexo === 'masculino');
+  const categoriasFemeninas = categoriasSistema.filter(c => c.sexo === 'femenino');
+
+  // Toggle categoría
+  const toggleCategoria = (cat: string, genero: 'masc' | 'fem') => {
+    if (genero === 'masc') {
+      setCategoriasMasc(prev => 
+        prev.includes(cat) ? prev.filter(c => c !== cat) : [...prev, cat]
+      );
+    } else {
+      setCategoriasFem(prev => 
+        prev.includes(cat) ? prev.filter(c => c !== cat) : [...prev, cat]
+      );
+    }
+  };
+
+  // Construir lista de categorías para enviar
+  const categoriasFinales = useMemo(() => {
+    const result: { nombre: string; genero: string; max_parejas: number }[] = [];
+    
+    if (generoMasculino) {
+      categoriasMasc.forEach(cat => {
+        result.push({ nombre: cat, genero: 'masculino', max_parejas: maxParejas });
+      });
+    }
+    
+    if (generoFemenino) {
+      categoriasFem.forEach(cat => {
+        result.push({ nombre: cat, genero: 'femenino', max_parejas: maxParejas });
+      });
+    }
+    
+    return result;
+  }, [generoMasculino, generoFemenino, categoriasMasc, categoriasFem, maxParejas]);
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    if (!formData.nombre.trim()) {
-      return;
-    }
-    
-    if (!formData.fechaInicio || !formData.fechaFin) {
-      return;
-    }
-    
-    if (new Date(formData.fechaInicio) >= new Date(formData.fechaFin)) {
-      return;
-    }
+    if (!formData.nombre.trim()) return;
+    if (!formData.fechaInicio || !formData.fechaFin) return;
+    if (new Date(formData.fechaInicio) >= new Date(formData.fechaFin)) return;
+    if (categoriasFinales.length === 0) return;
     
     try {
       limpiarError();
       
-      // Preparar datos para el backend
       const torneoData = {
         nombre: formData.nombre.trim(),
         descripcion: formData.descripcion?.trim() || undefined,
-        categoria: formData.categoria,
-        genero: formData.genero,
+        categoria: categoriasFinales[0].nombre,
+        genero: categoriasFinales[0].genero,
         fecha_inicio: formData.fechaInicio,
         fecha_fin: formData.fechaFin,
         lugar: formData.lugar?.trim() || undefined,
@@ -66,29 +133,56 @@ export default function ModalCrearTorneo({ isOpen, onClose }: ModalCrearTorneoPr
         }
       };
       
-      await crearTorneo(torneoData);
+      const nuevoTorneo = await crearTorneo(torneoData);
       
-      // Reset form y cerrar
-      setFormData({
-        nombre: '',
-        fechaInicio: '',
-        fechaFin: '',
-        categoria: '5ta',
-        genero: 'masculino',
-        descripcion: '',
-        lugar: '',
-        canchasDisponibles: 2,
-      });
+      if (nuevoTorneo && categoriasFinales.length > 0) {
+        setCreandoCategorias(true);
+        const torneoId = parseInt(nuevoTorneo.id);
+        for (let i = 0; i < categoriasFinales.length; i++) {
+          const cat = categoriasFinales[i];
+          try {
+            await torneoService.crearCategoria(torneoId, {
+              nombre: cat.nombre,
+              genero: cat.genero,
+              max_parejas: cat.max_parejas,
+              orden: i
+            });
+          } catch (err) {
+            console.error('Error creando categoría:', err);
+          }
+        }
+        setCreandoCategorias(false);
+      }
+      
+      // Reset
+      setFormData({ nombre: '', fechaInicio: '', fechaFin: '', descripcion: '', lugar: '', canchasDisponibles: 2 });
+      setGeneroMasculino(true);
+      setGeneroFemenino(false);
+      setCategoriasMasc(['5ta']);
+      setCategoriasFem([]);
       onClose();
     } catch (err: any) {
-      // El error ya se maneja en el context
       console.error('Error al crear torneo:', err);
+      setCreandoCategorias(false);
     }
   };
 
   const handleClose = () => {
     limpiarError();
     onClose();
+  };
+
+  // Cuando se desactiva un género, limpiar sus categorías
+  const toggleGenero = (genero: 'masc' | 'fem') => {
+    if (genero === 'masc') {
+      if (generoMasculino && !generoFemenino) return; // No permitir desactivar ambos
+      setGeneroMasculino(!generoMasculino);
+      if (generoMasculino) setCategoriasMasc([]);
+    } else {
+      if (generoFemenino && !generoMasculino) return;
+      setGeneroFemenino(!generoFemenino);
+      if (generoFemenino) setCategoriasFem([]);
+    }
   };
 
   return (
@@ -108,43 +202,33 @@ export default function ModalCrearTorneo({ isOpen, onClose }: ModalCrearTorneoPr
               initial={{ opacity: 0, scale: 0.9, y: 20 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.9, y: 20 }}
-              className="bg-cardBg rounded-xl sm:rounded-2xl border border-cardBorder shadow-2xl w-full max-w-2xl max-h-[95vh] sm:max-h-[90vh] overflow-y-auto"
+              className="bg-cardBg rounded-xl border border-cardBorder shadow-2xl w-full max-w-lg max-h-[95vh] overflow-y-auto"
             >
-              <div className="sticky top-0 bg-cardBg border-b border-cardBorder p-2 sm:p-4 flex items-center justify-between z-10">
-                <div className="flex items-center gap-1.5 sm:gap-3">
-                  <div className="bg-accent/10 p-1.5 sm:p-2 rounded-lg">
-                    <Trophy className="text-accent w-4 h-4 sm:w-5 sm:h-5" />
+              {/* Header */}
+              <div className="sticky top-0 bg-cardBg border-b border-cardBorder p-3 flex items-center justify-between z-10">
+                <div className="flex items-center gap-2">
+                  <div className="bg-accent/10 p-1.5 rounded-lg">
+                    <Trophy className="text-accent w-4 h-4" />
                   </div>
-                  <div>
-                    <h2 className="text-base sm:text-xl font-bold text-textPrimary">Crear Torneo</h2>
-                    <p className="text-textSecondary text-xs hidden sm:block">Organiza una nueva competencia</p>
-                  </div>
+                  <h2 className="text-base font-bold text-textPrimary">Crear Torneo</h2>
                 </div>
-                <motion.button
-                  whileHover={{ scale: 1.1, rotate: 90 }}
-                  whileTap={{ scale: 0.9 }}
-                  onClick={handleClose}
-                  className="text-textSecondary hover:text-textPrimary transition-colors"
-                >
-                  <X size={18} className="sm:w-5 sm:h-5" />
-                </motion.button>
+                <button onClick={handleClose} className="text-textSecondary hover:text-textPrimary">
+                  <X size={18} />
+                </button>
               </div>
 
-              <form onSubmit={handleSubmit} className="p-2 sm:p-5 space-y-3 sm:space-y-5">
-                {/* Error message */}
+              <form onSubmit={handleSubmit} className="p-3 space-y-4">
                 {error && (
-                  <div className="bg-red-500/10 border border-red-500/50 rounded-lg p-2 sm:p-3 text-red-500 text-xs sm:text-sm">
+                  <div className="bg-red-500/10 border border-red-500/50 rounded-lg p-2 text-red-500 text-xs">
                     {error}
                   </div>
                 )}
 
-                {/* Nombre del torneo */}
+                {/* Nombre */}
                 <div>
-                  <label className="block text-textSecondary text-xs sm:text-sm font-bold mb-1 sm:mb-1.5">
-                    <div className="flex items-center gap-1.5">
-                      <Trophy size={12} className="sm:w-[14px] sm:h-[14px]" />
-                      Nombre del Torneo *
-                    </div>
+                  <label className="block text-textSecondary text-xs font-bold mb-1">
+                    <Trophy size={12} className="inline mr-1" />
+                    Nombre del Torneo *
                   </label>
                   <Input
                     value={formData.nombre}
@@ -155,14 +239,10 @@ export default function ModalCrearTorneo({ isOpen, onClose }: ModalCrearTorneoPr
                 </div>
 
                 {/* Fechas */}
-                <div className="grid grid-cols-2 gap-1.5 sm:gap-3">
+                <div className="grid grid-cols-2 gap-2">
                   <div>
-                    <label className="block text-textSecondary text-xs sm:text-sm font-bold mb-1 sm:mb-1.5">
-                      <div className="flex items-center gap-1">
-                        <Calendar size={12} className="sm:w-[14px] sm:h-[14px]" />
-                        <span className="hidden sm:inline">Fecha de Inicio *</span>
-                        <span className="sm:hidden">Inicio *</span>
-                      </div>
+                    <label className="block text-textSecondary text-xs font-bold mb-1">
+                      <Calendar size={12} className="inline mr-1" />Inicio *
                     </label>
                     <Input
                       type="date"
@@ -172,12 +252,8 @@ export default function ModalCrearTorneo({ isOpen, onClose }: ModalCrearTorneoPr
                     />
                   </div>
                   <div>
-                    <label className="block text-textSecondary text-xs sm:text-sm font-bold mb-1 sm:mb-1.5">
-                      <div className="flex items-center gap-1">
-                        <Calendar size={12} className="sm:w-[14px] sm:h-[14px]" />
-                        <span className="hidden sm:inline">Fecha de Fin *</span>
-                        <span className="sm:hidden">Fin *</span>
-                      </div>
+                    <label className="block text-textSecondary text-xs font-bold mb-1">
+                      <Calendar size={12} className="inline mr-1" />Fin *
                     </label>
                     <Input
                       type="date"
@@ -188,131 +264,214 @@ export default function ModalCrearTorneo({ isOpen, onClose }: ModalCrearTorneoPr
                   </div>
                 </div>
 
-                {/* Categoría */}
+                {/* Géneros del torneo */}
                 <div>
-                  <label className="block text-textSecondary text-xs sm:text-sm font-bold mb-1 sm:mb-1.5">
-                    Categoría *
+                  <label className="block text-textSecondary text-xs font-bold mb-2">
+                    Géneros del Torneo *
                   </label>
-                  <div className="grid grid-cols-3 sm:grid-cols-6 gap-1 sm:gap-2">
-                    {CATEGORIAS.map((cat) => (
-                      <motion.button
-                        key={cat}
-                        type="button"
-                        whileHover={{ scale: 1.05 }}
-                        whileTap={{ scale: 0.95 }}
-                        onClick={() => setFormData({ ...formData, categoria: cat })}
-                        className={`py-1 sm:py-2 px-1.5 sm:px-3 rounded-lg text-xs sm:text-sm font-bold transition-all ${
-                          formData.categoria === cat
-                            ? 'bg-gradient-to-r from-primary to-blue-600 text-white shadow-lg shadow-primary/30'
-                            : 'bg-cardBorder text-textSecondary hover:text-textPrimary'
-                        }`}
-                      >
-                        {cat}
-                      </motion.button>
-                    ))}
+                  <div className="flex gap-2">
+                    <button
+                      type="button"
+                      onClick={() => toggleGenero('masc')}
+                      className={`flex-1 py-2 rounded-lg text-sm font-bold transition-all flex items-center justify-center gap-2 ${
+                        generoMasculino
+                          ? 'bg-blue-500 text-white'
+                          : 'bg-cardBorder text-textSecondary hover:bg-blue-500/20'
+                      }`}
+                    >
+                      {generoMasculino && <Check size={14} />}
+                      ♂ Masculino
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => toggleGenero('fem')}
+                      className={`flex-1 py-2 rounded-lg text-sm font-bold transition-all flex items-center justify-center gap-2 ${
+                        generoFemenino
+                          ? 'bg-pink-500 text-white'
+                          : 'bg-cardBorder text-textSecondary hover:bg-pink-500/20'
+                      }`}
+                    >
+                      {generoFemenino && <Check size={14} />}
+                      ♀ Femenino
+                    </button>
                   </div>
                 </div>
 
-                {/* Género */}
-                <div>
-                  <label className="block text-textSecondary text-xs sm:text-sm font-bold mb-1 sm:mb-1.5">
-                    Género *
-                  </label>
-                  <div className="grid grid-cols-3 gap-1 sm:gap-2">
-                    {GENEROS.map((gen) => (
-                      <motion.button
-                        key={gen.value}
-                        type="button"
-                        whileHover={{ scale: 1.05 }}
-                        whileTap={{ scale: 0.95 }}
-                        onClick={() => setFormData({ ...formData, genero: gen.value })}
-                        className={`py-1 sm:py-2 px-1.5 sm:px-3 rounded-lg text-xs sm:text-sm font-bold transition-all flex items-center justify-center gap-1 ${
-                          formData.genero === gen.value
-                            ? 'bg-gradient-to-r from-primary to-blue-600 text-white shadow-lg shadow-primary/30'
-                            : 'bg-cardBorder text-textSecondary hover:text-textPrimary'
-                        }`}
-                      >
-                        <span className="text-sm sm:text-base">{gen.icon}</span>
-                        <span className="hidden sm:inline">{gen.label}</span>
-                      </motion.button>
-                    ))}
-                  </div>
-                </div>
+                {/* Categorías Masculino */}
+                {generoMasculino && (
+                  <motion.div
+                    initial={{ opacity: 0, height: 0 }}
+                    animate={{ opacity: 1, height: 'auto' }}
+                    className="bg-blue-500/5 border border-blue-500/20 rounded-lg p-3"
+                  >
+                    <label className="block text-blue-400 text-xs font-bold mb-2">
+                      ♂ Categorías Masculino
+                    </label>
+                    {loadingCategorias ? (
+                      <div className="flex items-center gap-2 text-textSecondary text-xs">
+                        <Loader2 size={14} className="animate-spin" />
+                        Cargando...
+                      </div>
+                    ) : categoriasMasculinas.length > 0 ? (
+                      <div className="flex flex-wrap gap-1.5">
+                        {categoriasMasculinas.map((cat) => (
+                          <button
+                            key={cat.id}
+                            type="button"
+                            onClick={() => toggleCategoria(cat.nombre, 'masc')}
+                            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
+                              categoriasMasc.includes(cat.nombre)
+                                ? 'bg-blue-500 text-white'
+                                : 'bg-cardBorder text-textSecondary hover:bg-blue-500/20'
+                            }`}
+                          >
+                            {cat.nombre}
+                          </button>
+                        ))}
+                      </div>
+                    ) : (
+                      <p className="text-[10px] text-textSecondary">No hay categorías masculinas</p>
+                    )}
+                    {categoriasMasc.length === 0 && categoriasMasculinas.length > 0 && (
+                      <p className="text-[10px] text-blue-400/70 mt-2">Seleccioná al menos una categoría</p>
+                    )}
+                  </motion.div>
+                )}
 
-                {/* Lugar */}
-                <div>
-                  <label className="block text-textSecondary text-xs sm:text-sm font-bold mb-1 sm:mb-1.5">
-                    <div className="flex items-center gap-1">
-                      <MapPin size={12} className="sm:w-[14px] sm:h-[14px]" />
-                      Lugar (Opcional)
+                {/* Categorías Femenino */}
+                {generoFemenino && (
+                  <motion.div
+                    initial={{ opacity: 0, height: 0 }}
+                    animate={{ opacity: 1, height: 'auto' }}
+                    className="bg-pink-500/5 border border-pink-500/20 rounded-lg p-3"
+                  >
+                    <label className="block text-pink-400 text-xs font-bold mb-2">
+                      ♀ Categorías Femenino
+                    </label>
+                    {loadingCategorias ? (
+                      <div className="flex items-center gap-2 text-textSecondary text-xs">
+                        <Loader2 size={14} className="animate-spin" />
+                        Cargando...
+                      </div>
+                    ) : categoriasFemeninas.length > 0 ? (
+                      <div className="flex flex-wrap gap-1.5">
+                        {categoriasFemeninas.map((cat) => (
+                          <button
+                            key={cat.id}
+                            type="button"
+                            onClick={() => toggleCategoria(cat.nombre, 'fem')}
+                            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
+                              categoriasFem.includes(cat.nombre)
+                                ? 'bg-pink-500 text-white'
+                                : 'bg-cardBorder text-textSecondary hover:bg-pink-500/20'
+                            }`}
+                          >
+                            {cat.nombre}
+                          </button>
+                        ))}
+                      </div>
+                    ) : (
+                      <p className="text-[10px] text-textSecondary">No hay categorías femeninas</p>
+                    )}
+                    {categoriasFem.length === 0 && categoriasFemeninas.length > 0 && (
+                      <p className="text-[10px] text-pink-400/70 mt-2">Seleccioná al menos una categoría</p>
+                    )}
+                  </motion.div>
+                )}
+
+                {/* Resumen de categorías */}
+                {categoriasFinales.length > 0 && (
+                  <div className="bg-accent/5 border border-accent/20 rounded-lg p-2">
+                    <p className="text-[10px] text-textSecondary mb-1">Categorías a crear:</p>
+                    <div className="flex flex-wrap gap-1">
+                      {categoriasFinales.map((cat, i) => (
+                        <span
+                          key={i}
+                          className={`px-2 py-0.5 rounded text-[10px] font-bold ${
+                            cat.genero === 'masculino' 
+                              ? 'bg-blue-500/20 text-blue-400' 
+                              : 'bg-pink-500/20 text-pink-400'
+                          }`}
+                        >
+                          {cat.nombre} {cat.genero === 'masculino' ? '♂' : '♀'}
+                        </span>
+                      ))}
                     </div>
-                  </label>
-                  <Input
-                    value={formData.lugar}
-                    onChange={(e) => setFormData({ ...formData, lugar: e.target.value })}
-                    placeholder="Ej: Club Central, Cancha 1"
-                  />
-                </div>
+                  </div>
+                )}
 
-                {/* Canchas Disponibles */}
-                <div>
-                  <label className="block text-textSecondary text-xs sm:text-sm font-bold mb-1 sm:mb-1.5">
-                    Canchas Disponibles *
-                  </label>
-                  <div className="flex items-center gap-2">
+                {/* Max parejas y Canchas en una fila */}
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <label className="block text-textSecondary text-xs font-bold mb-1">
+                      Parejas por categoría
+                    </label>
+                    <Input
+                      type="number"
+                      min="4"
+                      max="64"
+                      value={maxParejas}
+                      onChange={(e) => setMaxParejas(parseInt(e.target.value) || 16)}
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-textSecondary text-xs font-bold mb-1">
+                      Canchas disponibles
+                    </label>
                     <Input
                       type="number"
                       min="1"
                       max="10"
                       value={formData.canchasDisponibles}
                       onChange={(e) => setFormData({ ...formData, canchasDisponibles: parseInt(e.target.value) || 1 })}
-                      className="w-16 sm:w-24"
-                      required
                     />
-                    <span className="text-textSecondary text-xs sm:text-sm">
-                      {formData.canchasDisponibles === 1 ? 'cancha' : 'canchas'} <span className="hidden sm:inline">para jugar simultáneamente</span>
-                    </span>
                   </div>
-                  <p className="text-[10px] sm:text-xs text-textSecondary mt-1">
-                    Esto ayuda a programar los partidos de forma eficiente
-                  </p>
+                </div>
+
+                {/* Lugar */}
+                <div>
+                  <label className="block text-textSecondary text-xs font-bold mb-1">
+                    <MapPin size={12} className="inline mr-1" />Lugar (Opcional)
+                  </label>
+                  <Input
+                    value={formData.lugar}
+                    onChange={(e) => setFormData({ ...formData, lugar: e.target.value })}
+                    placeholder="Ej: Club Central"
+                  />
                 </div>
 
                 {/* Descripción */}
                 <div>
-                  <label className="block text-textSecondary text-xs sm:text-sm font-bold mb-1 sm:mb-1.5">
-                    <div className="flex items-center gap-1">
-                      <FileText size={12} className="sm:w-[14px] sm:h-[14px]" />
-                      Descripción (Opcional)
-                    </div>
+                  <label className="block text-textSecondary text-xs font-bold mb-1">
+                    <FileText size={12} className="inline mr-1" />Descripción (Opcional)
                   </label>
                   <textarea
                     value={formData.descripcion}
                     onChange={(e) => setFormData({ ...formData, descripcion: e.target.value })}
-                    placeholder="Describe el torneo, premios, reglas especiales..."
-                    className="w-full bg-background border border-cardBorder rounded-lg px-2 sm:px-3 py-1.5 sm:py-2 text-xs sm:text-sm text-textPrimary placeholder-textSecondary focus:outline-none focus:border-primary transition-colors resize-none"
-                    rows={3}
+                    placeholder="Premios, reglas especiales..."
+                    className="w-full bg-background border border-cardBorder rounded-lg px-2 py-1.5 text-xs text-textPrimary placeholder-textSecondary focus:outline-none focus:border-primary resize-none"
+                    rows={2}
                   />
                 </div>
 
                 {/* Botones */}
-                <div className="flex gap-1.5 sm:gap-3 pt-1 sm:pt-2">
+                <div className="flex gap-2 pt-2">
                   <Button
                     type="button"
                     variant="ghost"
                     onClick={handleClose}
-                    className="flex-1 text-xs sm:text-sm py-2 sm:py-2.5"
-                    disabled={loading}
+                    className="flex-1 text-xs py-2"
+                    disabled={loading || creandoCategorias}
                   >
                     Cancelar
                   </Button>
                   <Button
                     type="submit"
                     variant="accent"
-                    className="flex-1 text-xs sm:text-sm py-2 sm:py-2.5"
-                    disabled={loading}
+                    className="flex-1 text-xs py-2"
+                    disabled={loading || creandoCategorias || categoriasFinales.length === 0}
                   >
-                    {loading ? 'Creando...' : 'Crear Torneo'}
+                    {loading ? 'Creando...' : creandoCategorias ? 'Creando categorías...' : 'Crear Torneo'}
                   </Button>
                 </div>
               </form>

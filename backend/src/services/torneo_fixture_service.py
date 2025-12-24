@@ -348,6 +348,7 @@ class TorneoFixtureService:
                 partido = Partido(
                     id_torneo=zona.torneo_id,
                     zona_id=zona_id,
+                    categoria_id=zona.categoria_id,  # Heredar categoría de la zona
                     pareja1_id=pareja1.id,
                     pareja2_id=pareja2.id,
                     tipo='torneo',

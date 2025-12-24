@@ -11,6 +11,7 @@ from ..models.playt_models import Partido, PartidoJugador, Usuario
 from ..models.confirmacion import Confirmacion
 from ..models.historial_enfrentamiento import HistorialEnfrentamiento
 from ..services.elo_service import EloService
+from ..utils.cache import invalidate_ranking_cache
 
 
 class ConfirmacionService:
@@ -215,9 +216,9 @@ class ConfirmacionService:
             ).first()
             
             if jugador_actual:
-                # Estimación: ganadores +15, perdedores -15 (simplificado)
+                # Estimación: ganadores +8, perdedores -8 (cambio individual en amistosos)
                 gano = (partido.ganador_equipo == jugador_actual.equipo)
-                cambio_elo_usuario = 15 if gano else -15
+                cambio_elo_usuario = 8 if gano else -8
         
         db.commit()
         
@@ -400,6 +401,7 @@ class ConfirmacionService:
             }
         
         # Aplicar cambios (convertir a enteros)
+        # NOTA: Invertimos el signo porque el cálculo estaba dando resultados invertidos
         resultado = {}
         
         for i, j in enumerate(equipo1):
@@ -407,9 +409,9 @@ class ConfirmacionService:
             cambio_key = f'jugador_a_{i}'
             cambio = cambios_elo[cambio_key]
             
-            # Convertir a enteros
-            nuevo_rating = int(round(cambio['nuevo']))
-            cambio_elo_int = int(round(cambio['cambio']))
+            # Convertir a enteros e INVERTIR el signo
+            cambio_elo_int = -int(round(cambio['cambio']))  # INVERTIDO
+            nuevo_rating = int(usuario.rating) + cambio_elo_int  # Calcular desde rating actual
             
             usuario.rating = nuevo_rating
             j.rating_despues = nuevo_rating
@@ -426,9 +428,9 @@ class ConfirmacionService:
             cambio_key = f'jugador_b_{i}'
             cambio = cambios_elo[cambio_key]
             
-            # Convertir a enteros
-            nuevo_rating = int(round(cambio['nuevo']))
-            cambio_elo_int = int(round(cambio['cambio']))
+            # Convertir a enteros e INVERTIR el signo
+            cambio_elo_int = -int(round(cambio['cambio']))  # INVERTIDO
+            nuevo_rating = int(usuario.rating) + cambio_elo_int  # Calcular desde rating actual
             
             usuario.rating = nuevo_rating
             j.rating_despues = nuevo_rating
@@ -442,6 +444,9 @@ class ConfirmacionService:
         
         # Marcar Elo como aplicado
         partido.elo_aplicado = True
+        
+        # Invalidar caché de rankings (los ratings cambiaron)
+        invalidate_ranking_cache()
         
         # CRÍTICO: Crear entradas en historial_rating para TODOS los jugadores
         from ..models.playt_models import HistorialRating

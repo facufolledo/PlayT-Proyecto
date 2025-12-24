@@ -378,35 +378,182 @@ async def buscar_usuarios(
     db: Session = Depends(get_db)
 ):
     """
-    Busca usuarios por nombre o apellido
-    
-    Args:
-        q: Query de búsqueda (nombre o apellido)
-        limit: Número máximo de resultados
+    Busca usuarios por nombre, apellido o nombre de usuario
     """
     if len(q) < 2:
         return []
     
-    # Buscar en perfil_usuarios por nombre o apellido (case insensitive)
     query_lower = f"%{q.lower()}%"
     
-    # Join con perfil_usuarios para buscar por nombre real
-    perfiles = db.query(PerfilUsuario).filter(
+    # Buscar en perfil_usuarios y usuarios
+    perfiles = db.query(PerfilUsuario, Usuario).join(
+        Usuario, PerfilUsuario.id_usuario == Usuario.id_usuario
+    ).filter(
         (PerfilUsuario.nombre.ilike(query_lower)) | 
-        (PerfilUsuario.apellido.ilike(query_lower))
+        (PerfilUsuario.apellido.ilike(query_lower)) |
+        (Usuario.nombre_usuario.ilike(query_lower))
     ).limit(limit).all()
     
-    # Retornar información básica con datos del usuario
     resultado = []
-    for perfil in perfiles:
-        usuario = db.query(Usuario).filter(Usuario.id_usuario == perfil.id_usuario).first()
-        if usuario:
-            resultado.append({
-                "id_usuario": usuario.id_usuario,
-                "nombre": perfil.nombre,
-                "apellido": perfil.apellido,
-                "rating": usuario.rating or 1200,
-                "categoria": usuario.id_categoria
-            })
+    for perfil, usuario in perfiles:
+        # Obtener categoría
+        categoria = db.query(Categoria).filter(
+            Categoria.id_categoria == usuario.id_categoria
+        ).first() if usuario.id_categoria else None
+        
+        resultado.append({
+            "id_usuario": usuario.id_usuario,
+            "nombre_usuario": usuario.nombre_usuario,
+            "nombre": perfil.nombre,
+            "apellido": perfil.apellido,
+            "nombre_completo": f"{perfil.nombre} {perfil.apellido}",
+            "rating": usuario.rating or 1200,
+            "partidos_jugados": usuario.partidos_jugados or 0,
+            "categoria": categoria.nombre if categoria else None,
+            "ciudad": perfil.ciudad,
+            "foto_perfil": perfil.url_avatar
+        })
     
     return resultado
+
+
+@router.get("/@{username}/perfil")
+async def obtener_perfil_por_username(
+    username: str,
+    db: Session = Depends(get_db)
+):
+    """
+    Obtiene el perfil público de un usuario por su username
+    URL amigable: /usuarios/@facufolledo/perfil
+    """
+    usuario = db.query(Usuario).filter(Usuario.nombre_usuario == username).first()
+    if not usuario:
+        raise HTTPException(status_code=404, detail="Usuario no encontrado")
+    
+    perfil = db.query(PerfilUsuario).filter(
+        PerfilUsuario.id_usuario == usuario.id_usuario
+    ).first()
+    
+    if not perfil:
+        raise HTTPException(status_code=404, detail="Perfil no encontrado")
+    
+    categoria = db.query(Categoria).filter(
+        Categoria.id_categoria == usuario.id_categoria
+    ).first() if usuario.id_categoria else None
+    
+    return {
+        "id_usuario": usuario.id_usuario,
+        "nombre_usuario": usuario.nombre_usuario,
+        "nombre": perfil.nombre,
+        "apellido": perfil.apellido,
+        "nombre_completo": f"{perfil.nombre} {perfil.apellido}",
+        "sexo": usuario.sexo,
+        "ciudad": perfil.ciudad,
+        "pais": perfil.pais,
+        "rating": usuario.rating or 1200,
+        "partidos_jugados": usuario.partidos_jugados or 0,
+        "categoria": categoria.nombre if categoria else None,
+        "categoria_id": usuario.id_categoria,
+        "posicion_preferida": perfil.posicion_preferida,
+        "mano_dominante": perfil.mano_habil,
+        "foto_perfil": perfil.url_avatar
+    }
+
+
+@router.get("/{user_id}/perfil")
+async def obtener_perfil_publico(
+    user_id: int,
+    db: Session = Depends(get_db)
+):
+    """
+    Obtiene el perfil público de un usuario por ID (legacy)
+    """
+    usuario = db.query(Usuario).filter(Usuario.id_usuario == user_id).first()
+    if not usuario:
+        raise HTTPException(status_code=404, detail="Usuario no encontrado")
+    
+    perfil = db.query(PerfilUsuario).filter(
+        PerfilUsuario.id_usuario == user_id
+    ).first()
+    
+    if not perfil:
+        raise HTTPException(status_code=404, detail="Perfil no encontrado")
+    
+    # Obtener categoría
+    categoria = db.query(Categoria).filter(
+        Categoria.id_categoria == usuario.id_categoria
+    ).first() if usuario.id_categoria else None
+    
+    return {
+        "id_usuario": usuario.id_usuario,
+        "nombre_usuario": usuario.nombre_usuario,
+        "nombre": perfil.nombre,
+        "apellido": perfil.apellido,
+        "nombre_completo": f"{perfil.nombre} {perfil.apellido}",
+        "sexo": usuario.sexo,
+        "ciudad": perfil.ciudad,
+        "pais": perfil.pais,
+        "rating": usuario.rating or 1200,
+        "partidos_jugados": usuario.partidos_jugados or 0,
+        "categoria": categoria.nombre if categoria else None,
+        "categoria_id": usuario.id_categoria,
+        "posicion_preferida": perfil.posicion_preferida,
+        "mano_dominante": perfil.mano_habil,
+        "foto_perfil": perfil.url_avatar
+    }
+
+
+@router.get("/{user_id}/estadisticas")
+async def obtener_estadisticas_usuario(
+    user_id: int,
+    db: Session = Depends(get_db)
+):
+    """
+    Obtiene estadísticas públicas de un usuario
+    """
+    from ..models.playt_models import Partido, PartidoJugador, ResultadoPartido
+    from sqlalchemy import and_
+    
+    usuario = db.query(Usuario).filter(Usuario.id_usuario == user_id).first()
+    if not usuario:
+        raise HTTPException(status_code=404, detail="Usuario no encontrado")
+    
+    # Obtener partidos del usuario
+    partidos_jugador = db.query(PartidoJugador).filter(
+        PartidoJugador.id_usuario == user_id
+    ).all()
+    
+    partidos_ids = [pj.id_partido for pj in partidos_jugador]
+    
+    # Contar victorias
+    victorias = 0
+    derrotas = 0
+    
+    for pj in partidos_jugador:
+        resultado = db.query(ResultadoPartido).filter(
+            ResultadoPartido.id_partido == pj.id_partido
+        ).first()
+        
+        if resultado and resultado.confirmado:
+            if pj.equipo == 1:
+                if resultado.sets_eq1 > resultado.sets_eq2:
+                    victorias += 1
+                else:
+                    derrotas += 1
+            else:
+                if resultado.sets_eq2 > resultado.sets_eq1:
+                    victorias += 1
+                else:
+                    derrotas += 1
+    
+    total = victorias + derrotas
+    winrate = round((victorias / total * 100), 1) if total > 0 else 0
+    
+    return {
+        "id_usuario": user_id,
+        "partidos_jugados": total,
+        "victorias": victorias,
+        "derrotas": derrotas,
+        "winrate": winrate,
+        "rating": usuario.rating or 1200
+    }

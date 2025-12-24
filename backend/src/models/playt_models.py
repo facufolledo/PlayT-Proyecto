@@ -113,6 +113,7 @@ class Partido(Base):
     origen = Column(String(20), nullable=True)  # auto, manual
     requiere_reprogramacion = Column(Boolean, default=False, nullable=True)
     observaciones = Column(Text, nullable=True)
+    categoria_id = Column(BigInteger, nullable=True)  # FK a torneo_categorias para filtrar por categoría
     
     # Relaciones
     club = relationship("Club", back_populates="partidos")

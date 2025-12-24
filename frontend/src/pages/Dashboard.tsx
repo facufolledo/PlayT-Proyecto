@@ -3,13 +3,15 @@ import { motion, useReducedMotion } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
 import Card from '../components/Card';
 import Button from '../components/Button';
+import BuscadorUsuarios from '../components/BuscadorUsuarios';
+import InvitacionesPendientes from '../components/InvitacionesPendientes';
 import { Trophy, Users, Zap, Target, TrendingUp } from 'lucide-react';
+
 import { useSalas } from '../context/SalasContext';
 import { useTorneos } from '../context/TorneosContext';
 import { useAuth } from '../context/AuthContext';
 import { LineChart, Line, BarChart, Bar, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import axios from 'axios';
-import { parseError } from '../utils/errorHandler';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
 
@@ -169,13 +171,22 @@ export default function Dashboard() {
           transition={shouldReduceMotion ? { duration: 0 } : { duration: 0.4, ease: "easeOut" }}
           className="relative mb-2"
         >
-          <div className="flex items-center gap-2 md:gap-3 mb-2 md:mb-3">
-            <div className="h-0.5 md:h-1 w-8 md:w-12 bg-gradient-to-r from-primary to-secondary rounded-full" />
-            <h1 className="text-2xl md:text-5xl font-black text-textPrimary tracking-tight">
-              Bienvenido de vuelta
-            </h1>
+          <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-2 md:mb-3">
+            <div>
+              <div className="flex items-center gap-2 md:gap-3 mb-1">
+                <div className="h-0.5 md:h-1 w-8 md:w-12 bg-gradient-to-r from-primary to-secondary rounded-full" />
+                <h1 className="text-2xl md:text-5xl font-black text-textPrimary tracking-tight">
+                  Bienvenido de vuelta
+                </h1>
+              </div>
+              <p className="text-textSecondary text-xs md:text-base ml-10 md:ml-15">Aquí está tu resumen de rendimiento</p>
+            </div>
+            
+            {/* Buscador de jugadores */}
+            <div className="w-full md:w-72">
+              <BuscadorUsuarios placeholder="Buscar jugadores..." />
+            </div>
           </div>
-          <p className="text-textSecondary text-xs md:text-base ml-10 md:ml-15">Aquí está tu resumen de rendimiento</p>
         </motion.div>
 
       {/* Stats Cards estilo eSports */}
@@ -233,79 +244,90 @@ export default function Dashboard() {
         })}
       </div>
 
-      {/* Sección de últimos partidos y torneos */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <Card gradient>
-          <div className="flex items-center justify-between mb-6">
-            <h2 className="text-2xl font-bold text-textPrimary flex items-center gap-2">
-              <Target className="text-primary" size={28} />
-              Últimos Partidos
-            </h2>
-            {ultimosPartidos.length > 0 && (
-              <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
-                <Button variant="ghost" onClick={() => navigate('/salas')} className="text-sm">
-                  Ver todos →
+      {/* Sección de invitaciones y últimos partidos */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        {/* Invitaciones Pendientes */}
+        <div className="lg:col-span-1">
+          <InvitacionesPendientes />
+        </div>
+
+        {/* Últimos Partidos */}
+        <div className="lg:col-span-2">
+          <Card gradient>
+            <div className="flex items-center justify-between mb-6">
+              <h2 className="text-2xl font-bold text-textPrimary flex items-center gap-2">
+                <Target className="text-primary" size={28} />
+                Últimos Partidos
+              </h2>
+              {ultimosPartidos.length > 0 && (
+                <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
+                  <Button variant="ghost" onClick={() => navigate('/salas')} className="text-sm">
+                    Ver todos →
+                  </Button>
+                </motion.div>
+              )}
+            </div>
+            {ultimosPartidos.length === 0 ? (
+              <motion.div 
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="text-center py-12 text-textSecondary"
+              >
+                <div className="bg-primary/10 rounded-full w-20 h-20 flex items-center justify-center mx-auto mb-4">
+                  <Users size={40} className="text-primary" />
+                </div>
+                <p className="mb-4 text-lg">No hay partidos registrados aún</p>
+                <Button variant="primary" onClick={() => navigate('/salas')}>
+                  Crear primera sala
                 </Button>
               </motion.div>
-            )}
-          </div>
-          {ultimosPartidos.length === 0 ? (
-            <motion.div 
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              className="text-center py-12 text-textSecondary"
-            >
-              <div className="bg-primary/10 rounded-full w-20 h-20 flex items-center justify-center mx-auto mb-4">
-                <Users size={40} className="text-primary" />
+            ) : (
+              <div className="space-y-3">
+                {ultimosPartidos.map((sala, index) => (
+                  <motion.div
+                    key={sala.id}
+                    initial={{ opacity: 0, x: -20 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    transition={{ delay: index * 0.1 }}
+                    whileHover={{ scale: 1.02, x: 5 }}
+                    className="bg-gradient-to-r from-background to-cardBg rounded-xl p-4 border border-cardBorder hover:border-primary/50 transition-all cursor-pointer group"
+                    onClick={() => navigate('/salas')}
+                  >
+                    <div className="flex items-center justify-between mb-3">
+                      <p className="text-textPrimary font-bold group-hover:text-primary transition-colors">{sala.nombre}</p>
+                      <p className="text-textSecondary text-xs bg-cardBorder px-2 py-1 rounded-full">
+                        {new Date(sala.fecha).toLocaleDateString('es-ES', { day: 'numeric', month: 'short' })}
+                      </p>
+                    </div>
+                    <div className="flex items-center justify-between text-sm">
+                      <div className="flex items-center gap-2 flex-1">
+                        <span className={`${sala.ganador === 'equipoA' ? 'text-primary font-black' : 'text-textSecondary'} truncate`}>
+                          {sala.equipoA.jugador1.nombre} / {sala.equipoA.jugador2.nombre}
+                        </span>
+                        <span className={`${sala.ganador === 'equipoA' ? 'text-primary' : 'text-textPrimary'} font-bold text-lg`}>
+                          {sala.equipoA.puntos}
+                        </span>
+                      </div>
+                      <span className="text-textSecondary mx-3 font-bold">VS</span>
+                      <div className="flex items-center gap-2 flex-1 justify-end">
+                        <span className={`${sala.ganador === 'equipoB' ? 'text-secondary' : 'text-textPrimary'} font-bold text-lg`}>
+                          {sala.equipoB.puntos}
+                        </span>
+                        <span className={`${sala.ganador === 'equipoB' ? 'text-secondary font-black' : 'text-textSecondary'} truncate text-right`}>
+                          {sala.equipoB.jugador1.nombre} / {sala.equipoB.jugador2.nombre}
+                        </span>
+                      </div>
+                    </div>
+                  </motion.div>
+                ))}
               </div>
-              <p className="mb-4 text-lg">No hay partidos registrados aún</p>
-              <Button variant="primary" onClick={() => navigate('/salas')}>
-                Crear primera sala
-              </Button>
-            </motion.div>
-          ) : (
-            <div className="space-y-3">
-              {ultimosPartidos.map((sala, index) => (
-                <motion.div
-                  key={sala.id}
-                  initial={{ opacity: 0, x: -20 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  transition={{ delay: index * 0.1 }}
-                  whileHover={{ scale: 1.02, x: 5 }}
-                  className="bg-gradient-to-r from-background to-cardBg rounded-xl p-4 border border-cardBorder hover:border-primary/50 transition-all cursor-pointer group"
-                  onClick={() => navigate('/salas')}
-                >
-                  <div className="flex items-center justify-between mb-3">
-                    <p className="text-textPrimary font-bold group-hover:text-primary transition-colors">{sala.nombre}</p>
-                    <p className="text-textSecondary text-xs bg-cardBorder px-2 py-1 rounded-full">
-                      {new Date(sala.fecha).toLocaleDateString('es-ES', { day: 'numeric', month: 'short' })}
-                    </p>
-                  </div>
-                  <div className="flex items-center justify-between text-sm">
-                    <div className="flex items-center gap-2 flex-1">
-                      <span className={`${sala.ganador === 'equipoA' ? 'text-primary font-black' : 'text-textSecondary'} truncate`}>
-                        {sala.equipoA.jugador1.nombre} / {sala.equipoA.jugador2.nombre}
-                      </span>
-                      <span className={`${sala.ganador === 'equipoA' ? 'text-primary' : 'text-textPrimary'} font-bold text-lg`}>
-                        {sala.equipoA.puntos}
-                      </span>
-                    </div>
-                    <span className="text-textSecondary mx-3 font-bold">VS</span>
-                    <div className="flex items-center gap-2 flex-1 justify-end">
-                      <span className={`${sala.ganador === 'equipoB' ? 'text-secondary' : 'text-textPrimary'} font-bold text-lg`}>
-                        {sala.equipoB.puntos}
-                      </span>
-                      <span className={`${sala.ganador === 'equipoB' ? 'text-secondary font-black' : 'text-textSecondary'} truncate text-right`}>
-                        {sala.equipoB.jugador1.nombre} / {sala.equipoB.jugador2.nombre}
-                      </span>
-                    </div>
-                  </div>
-                </motion.div>
-              ))}
-            </div>
-          )}
-        </Card>
+            )}
+          </Card>
+        </div>
+      </div>
 
+      {/* Sección de próximos torneos */}
+      <div className="grid grid-cols-1 gap-6">
         <Card gradient>
           <h2 className="text-2xl font-bold text-textPrimary mb-6 flex items-center gap-2">
             <Trophy className="text-accent" size={28} />

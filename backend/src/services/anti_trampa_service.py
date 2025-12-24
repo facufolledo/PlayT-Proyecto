@@ -10,6 +10,9 @@ from sqlalchemy import or_
 
 from ..models.historial_enfrentamiento import HistorialEnfrentamiento
 from ..models.playt_models import Usuario
+from ..utils.logger import Loggers
+
+logger = Loggers.anti_trampa()
 
 
 class AntiTrampaService:

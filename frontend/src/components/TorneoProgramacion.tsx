@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
-import { motion } from 'framer-motion';
-import { Calendar, Clock, MapPin, Plus, Trash2, Zap, AlertCircle } from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
+import { Calendar, Clock, MapPin, Plus, Trash2, Zap, AlertCircle, CheckCircle, XCircle, Loader2 } from 'lucide-react';
 import { torneoService } from '../services/torneo.service';
 import Card from './Card';
 import Button from './Button';
@@ -9,6 +9,21 @@ import SkeletonLoader from './SkeletonLoader';
 interface TorneoProgramacionProps {
   torneoId: number;
   esOrganizador: boolean;
+}
+
+interface PartidoSinSlot {
+  partido_id: number;
+  pareja1_nombre?: string;
+  pareja2_nombre?: string;
+  razon?: string;
+}
+
+interface ResultadoProgramacion {
+  programados: number;
+  sin_programar: number;
+  playoffs_pendientes?: number;
+  partidos_sin_slot: PartidoSinSlot[];
+  message: string;
 }
 
 interface Cancha {
@@ -42,6 +57,17 @@ export default function TorneoProgramacion({ torneoId, esOrganizador }: TorneoPr
   const [fechaInicio, setFechaInicio] = useState('');
   const [fechaFin, setFechaFin] = useState('');
   const [duracionPartido, setDuracionPartido] = useState(90);
+  
+  // Horarios por tipo de día
+  const [horaInicioSemana, setHoraInicioSemana] = useState('17:00'); // Lun-Vie desde las 17
+  const [horaFinSemana, setHoraFinSemana] = useState('22:00');
+  const [horaInicioFinDeSemana, setHoraInicioFinDeSemana] = useState('09:00'); // Sab-Dom desde las 9
+  const [horaFinFinDeSemana, setHoraFinFinDeSemana] = useState('21:00');
+  
+  // Modal resultado programación
+  const [modalResultadoOpen, setModalResultadoOpen] = useState(false);
+  const [resultadoProgramacion, setResultadoProgramacion] = useState<ResultadoProgramacion | null>(null);
+  const [limpiando, setLimpiando] = useState(false);
 
   useEffect(() => {
     cargarDatos();
@@ -128,14 +154,23 @@ export default function TorneoProgramacion({ torneoId, esOrganizador }: TorneoPr
       const resultado = await torneoService.programarPartidosAutomaticamente(torneoId, {
         fecha_inicio: fechaInicio,
         fecha_fin: fechaFin,
-        duracion_partido_minutos: duracionPartido
+        duracion_partido_minutos: duracionPartido,
+        hora_inicio_semana: horaInicioSemana,
+        hora_fin_semana: horaFinSemana,
+        hora_inicio_finde: horaInicioFinDeSemana,
+        hora_fin_finde: horaFinFinDeSemana
       });
       await cargarDatos();
       
-      // Mostrar resultado
-      const mensaje = resultado.mensaje || 'Programación automática completada';
-      const partidosProgramados = resultado.partidos_programados || 0;
-      alert(`${mensaje}\n\nPartidos programados: ${partidosProgramados}`);
+      // Mostrar resultado en modal bonito
+      setResultadoProgramacion({
+        programados: resultado.programados || 0,
+        sin_programar: resultado.sin_programar || 0,
+        playoffs_pendientes: resultado.playoffs_pendientes || 0,
+        partidos_sin_slot: resultado.partidos_sin_slot_detalle || [],
+        message: resultado.message || 'Programación completada'
+      });
+      setModalResultadoOpen(true);
     } catch (error: any) {
       console.error('Error al programar:', error);
       setError(error.response?.data?.detail || error.message || 'Error al programar partidos');
@@ -144,12 +179,36 @@ export default function TorneoProgramacion({ torneoId, esOrganizador }: TorneoPr
     }
   };
 
+  const limpiarProgramacion = async () => {
+    if (!confirm('¿Estás seguro de limpiar toda la programación? Se eliminarán todos los horarios y los partidos quedarán sin fecha asignada.')) {
+      return;
+    }
+
+    try {
+      setLimpiando(true);
+      setError('');
+      const resultado = await torneoService.limpiarProgramacion(torneoId);
+      await cargarDatos();
+      alert(`✅ ${resultado.message}\n\nSlots eliminados: ${resultado.slots_eliminados}\nPartidos desprogramados: ${resultado.partidos_desprogramados}`);
+    } catch (error: any) {
+      console.error('Error al limpiar:', error);
+      setError(error.response?.data?.detail || error.message || 'Error al limpiar programación');
+    } finally {
+      setLimpiando(false);
+    }
+  };
+
   const agruparSlotsPorFecha = () => {
     const grupos: { [fecha: string]: Slot[] } = {};
     slots.forEach(slot => {
-      const fecha = new Date(slot.fecha_hora_inicio).toLocaleDateString('es-ES');
-      if (!grupos[fecha]) grupos[fecha] = [];
-      grupos[fecha].push(slot);
+      const fechaObj = new Date(slot.fecha_hora_inicio);
+      const nombreDia = fechaObj.toLocaleDateString('es-ES', { weekday: 'long' });
+      const fechaFormateada = fechaObj.toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit', year: 'numeric' });
+      // Capitalizar primera letra del día
+      const diaCapitalizado = nombreDia.charAt(0).toUpperCase() + nombreDia.slice(1);
+      const fechaConDia = `${diaCapitalizado} ${fechaFormateada}`;
+      if (!grupos[fechaConDia]) grupos[fechaConDia] = [];
+      grupos[fechaConDia].push(slot);
     });
     return grupos;
   };
@@ -257,6 +316,7 @@ export default function TorneoProgramacion({ torneoId, esOrganizador }: TorneoPr
               Programación Automática
             </h3>
 
+            {/* Fechas y duración */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-3 md:gap-4 mb-4">
               <div>
                 <label className="block text-xs md:text-sm font-bold text-textSecondary mb-2">
@@ -284,7 +344,7 @@ export default function TorneoProgramacion({ torneoId, esOrganizador }: TorneoPr
 
               <div>
                 <label className="block text-xs md:text-sm font-bold text-textSecondary mb-2">
-                  Duración (min)
+                  Duración partido (min)
                 </label>
                 <input
                   type="number"
@@ -298,14 +358,107 @@ export default function TorneoProgramacion({ torneoId, esOrganizador }: TorneoPr
               </div>
             </div>
 
-            <Button
-              variant="accent"
-              onClick={programarAutomaticamente}
-              disabled={programando || !fechaInicio || !fechaFin}
-              className="w-full md:w-auto text-sm md:text-base"
-            >
-              {programando ? 'Programando...' : 'Programar Automáticamente'}
-            </Button>
+            {/* Horarios Lunes a Viernes */}
+            <div className="mb-4">
+              <p className="text-xs md:text-sm font-bold text-textSecondary mb-2">
+                🗓️ Horarios Lunes a Viernes
+              </p>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs text-textSecondary mb-1">Desde</label>
+                  <input
+                    type="time"
+                    value={horaInicioSemana}
+                    onChange={(e) => setHoraInicioSemana(e.target.value)}
+                    className="w-full px-3 py-2 bg-background border border-cardBorder rounded-lg text-textPrimary text-sm"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs text-textSecondary mb-1">Hasta</label>
+                  <input
+                    type="time"
+                    value={horaFinSemana}
+                    onChange={(e) => setHoraFinSemana(e.target.value)}
+                    className="w-full px-3 py-2 bg-background border border-cardBorder rounded-lg text-textPrimary text-sm"
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* Horarios Sábado y Domingo */}
+            <div className="mb-4">
+              <p className="text-xs md:text-sm font-bold text-textSecondary mb-2">
+                🌞 Horarios Sábado y Domingo
+              </p>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs text-textSecondary mb-1">Desde</label>
+                  <input
+                    type="time"
+                    value={horaInicioFinDeSemana}
+                    onChange={(e) => setHoraInicioFinDeSemana(e.target.value)}
+                    className="w-full px-3 py-2 bg-background border border-cardBorder rounded-lg text-textPrimary text-sm"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs text-textSecondary mb-1">Hasta</label>
+                  <input
+                    type="time"
+                    value={horaFinFinDeSemana}
+                    onChange={(e) => setHoraFinFinDeSemana(e.target.value)}
+                    className="w-full px-3 py-2 bg-background border border-cardBorder rounded-lg text-textPrimary text-sm"
+                  />
+                </div>
+              </div>
+            </div>
+
+            <div className="flex flex-col sm:flex-row gap-2">
+              <Button
+                variant="accent"
+                onClick={programarAutomaticamente}
+                disabled={programando || limpiando || !fechaInicio || !fechaFin}
+                className="flex-1 sm:flex-none text-sm md:text-base"
+              >
+                {programando ? (
+                  <span className="flex items-center gap-2">
+                    <Loader2 size={16} className="animate-spin" />
+                    Programando...
+                  </span>
+                ) : (
+                  <>
+                    <Zap size={16} className="mr-1.5" />
+                    Programar Automáticamente
+                  </>
+                )}
+              </Button>
+              
+              {slots.length > 0 && (
+                <Button
+                  variant="ghost"
+                  onClick={limpiarProgramacion}
+                  disabled={programando || limpiando}
+                  className="flex-1 sm:flex-none text-sm md:text-base text-red-500 hover:bg-red-500/10"
+                >
+                  {limpiando ? (
+                    <span className="flex items-center gap-2">
+                      <Loader2 size={16} className="animate-spin" />
+                      Limpiando...
+                    </span>
+                  ) : (
+                    <>
+                      <Trash2 size={16} className="mr-1.5" />
+                      Limpiar Programación
+                    </>
+                  )}
+                </Button>
+              )}
+            </div>
+            
+            {programando && (
+              <p className="text-xs text-textSecondary mt-2">
+                Este proceso puede tardar algunos minutos dependiendo de la cantidad de partidos...
+              </p>
+            )}
           </div>
         </Card>
       )}
@@ -429,6 +582,111 @@ export default function TorneoProgramacion({ torneoId, esOrganizador }: TorneoPr
           </motion.div>
         </div>
       )}
+
+      {/* Modal Resultado Programación */}
+      <AnimatePresence>
+        {modalResultadoOpen && resultadoProgramacion && (
+          <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-3 md:p-4">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              className="bg-card rounded-xl max-w-lg w-full p-4 md:p-6 max-h-[80vh] overflow-y-auto"
+            >
+              {/* Header con icono */}
+              <div className="flex items-center gap-3 mb-4">
+                {resultadoProgramacion.sin_programar === 0 ? (
+                  <div className="w-12 h-12 rounded-full bg-green-500/20 flex items-center justify-center">
+                    <CheckCircle size={24} className="text-green-500" />
+                  </div>
+                ) : (
+                  <div className="w-12 h-12 rounded-full bg-yellow-500/20 flex items-center justify-center">
+                    <AlertCircle size={24} className="text-yellow-500" />
+                  </div>
+                )}
+                <div>
+                  <h3 className="text-lg md:text-xl font-bold text-textPrimary">
+                    Programación Completada
+                  </h3>
+                  <p className="text-sm text-textSecondary">
+                    {resultadoProgramacion.message}
+                  </p>
+                </div>
+              </div>
+
+              {/* Estadísticas */}
+              <div className="grid grid-cols-2 gap-3 mb-4">
+                <div className="p-3 bg-green-500/10 border border-green-500/30 rounded-lg text-center">
+                  <p className="text-2xl font-bold text-green-500">
+                    {resultadoProgramacion.programados}
+                  </p>
+                  <p className="text-xs text-textSecondary">Partidos programados</p>
+                </div>
+                <div className={`p-3 rounded-lg text-center ${
+                  resultadoProgramacion.sin_programar > 0 
+                    ? 'bg-yellow-500/10 border border-yellow-500/30' 
+                    : 'bg-gray-500/10 border border-gray-500/30'
+                }`}>
+                  <p className={`text-2xl font-bold ${
+                    resultadoProgramacion.sin_programar > 0 ? 'text-yellow-500' : 'text-gray-500'
+                  }`}>
+                    {resultadoProgramacion.sin_programar}
+                  </p>
+                  <p className="text-xs text-textSecondary">Sin slot disponible</p>
+                </div>
+              </div>
+
+              {/* Info de playoffs pendientes */}
+              {resultadoProgramacion.playoffs_pendientes && resultadoProgramacion.playoffs_pendientes > 0 && (
+                <div className="mb-4 p-3 bg-blue-500/10 border border-blue-500/30 rounded-lg">
+                  <p className="text-sm text-blue-400">
+                    ℹ️ {resultadoProgramacion.playoffs_pendientes} partidos de playoffs esperan que se definan los clasificados de cada zona
+                  </p>
+                </div>
+              )}
+
+              {/* Detalle de partidos sin slot */}
+              {resultadoProgramacion.sin_programar > 0 && resultadoProgramacion.partidos_sin_slot.length > 0 && (
+                <div className="mb-4">
+                  <h4 className="text-sm font-bold text-textPrimary mb-2 flex items-center gap-2">
+                    <XCircle size={16} className="text-yellow-500" />
+                    Partidos sin programar
+                  </h4>
+                  <div className="space-y-2 max-h-40 overflow-y-auto">
+                    {resultadoProgramacion.partidos_sin_slot.map((partido, idx) => (
+                      <div 
+                        key={partido.partido_id || idx}
+                        className="p-2 bg-yellow-500/5 border border-yellow-500/20 rounded-lg text-sm"
+                      >
+                        <p className="font-medium text-textPrimary">
+                          {partido.pareja1_nombre || 'Pareja 1'} vs {partido.pareja2_nombre || 'Pareja 2'}
+                        </p>
+                        {partido.razon && (
+                          <p className="text-xs text-yellow-500 mt-1">
+                            {partido.razon}
+                          </p>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                  <p className="text-xs text-textSecondary mt-2">
+                    💡 Tip: Agrega más slots de horarios o revisa los bloqueos de los jugadores
+                  </p>
+                </div>
+              )}
+
+              {/* Botón cerrar */}
+              <Button
+                variant="primary"
+                onClick={() => setModalResultadoOpen(false)}
+                className="w-full"
+              >
+                Entendido
+              </Button>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }

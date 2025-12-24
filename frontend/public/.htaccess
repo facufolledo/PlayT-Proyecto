@@ -1,9 +1,9 @@
-# .htaccess para PlayR en subdirectorio /PlayR
+# .htaccess para PlayT en kioskito.click (raíz)
 
 # Habilitar RewriteEngine
 <IfModule mod_rewrite.c>
   RewriteEngine On
-  RewriteBase /PlayR/
+  RewriteBase /
 
   # Forzar HTTPS
   RewriteCond %{HTTPS} off
@@ -12,7 +12,7 @@
   # SPA Routing - Redirigir todo a index.html
   RewriteCond %{REQUEST_FILENAME} !-f
   RewriteCond %{REQUEST_FILENAME} !-d
-  RewriteCond %{REQUEST_URI} !^/PlayR/index\.html
+  RewriteCond %{REQUEST_URI} !^/index\.html
   RewriteRule ^(.*)$ index.html [L,QSA]
 </IfModule>
 
@@ -56,7 +56,7 @@ Options -Indexes
   Header set Cross-Origin-Embedder-Policy "unsafe-none"
   
   # PWA Headers
-  Header set Service-Worker-Allowed "/PlayR/"
+  Header set Service-Worker-Allowed "/"
   
   # Cache control
   <FilesMatch "\.(ico|pdf|flv|jpg|jpeg|png|gif|webp|svg|js|css|swf|woff|woff2|ttf|eot)$">
@@ -75,6 +75,6 @@ AddType text/cache-manifest .appcache
 
 # Service Worker
 <Files "sw.js">
-  Header set Service-Worker-Allowed "/PlayR/"
+  Header set Service-Worker-Allowed "/"
   Header set Cache-Control "no-cache, no-store, must-revalidate"
 </Files>

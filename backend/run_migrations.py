@@ -17,8 +17,16 @@ if not DATABASE_URL:
 # Crear engine
 engine = create_engine(DATABASE_URL)
 
+# Obtener nombre del archivo de migraciones desde argumentos
+import sys
+migration_file = sys.argv[1] if len(sys.argv) > 1 else 'migrations_salas.sql'
+
+if not os.path.exists(migration_file):
+    print(f"❌ Error: Archivo {migration_file} no encontrado")
+    exit(1)
+
 # Leer archivo de migraciones
-with open('migrations_salas.sql', 'r', encoding='utf-8') as f:
+with open(migration_file, 'r', encoding='utf-8') as f:
     sql_script = f.read()
 
 # Ejecutar migraciones
@@ -47,10 +55,7 @@ try:
                         print(f"⚠️  Advertencia: {str(e)[:100]}")
                 current_statement = []
         
-        print("\n✅ Migraciones completadas")
-        print("✅ Tablas creadas:")
-        print("   - salas")
-        print("   - sala_jugadores")
+        print(f"\n✅ Migraciones de {migration_file} completadas")
         
 except Exception as e:
     print(f"❌ Error ejecutando migraciones: {e}")

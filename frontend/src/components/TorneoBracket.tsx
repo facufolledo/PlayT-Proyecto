@@ -1,7 +1,7 @@
-import { useState } from 'react';
+import { useState, useRef, useEffect, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { motion } from 'framer-motion';
-import { Trophy, Edit3, Crown, Star, Sparkles } from 'lucide-react';
+import { Trophy, Edit3, Crown, Star, Sparkles, FastForward } from 'lucide-react';
 import ModalCargarResultado from './ModalCargarResultado';
 
 interface Partido {
@@ -28,56 +28,167 @@ interface TorneoBracketProps {
 export default function TorneoBracket({ partidos, torneoId, esOrganizador, onResultadoCargado }: TorneoBracketProps) {
   const [partidoSeleccionado, setPartidoSeleccionado] = useState<Partido | null>(null);
   const [modalOpen, setModalOpen] = useState(false);
+  const [svgSize, setSvgSize] = useState({ width: 0, height: 0 });
+  const [lines, setLines] = useState<JSX.Element[]>([]);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const matchRefs = useRef<Map<string, HTMLDivElement>>(new Map());
+
   // Agrupar partidos por fase
-  const fases = {
-    '16avos': partidos.filter((p) => p.fase === '16avos'),
-    '8vos': partidos.filter((p) => p.fase === '8vos'),
-    '4tos': partidos.filter((p) => p.fase === '4tos' || p.fase === 'cuartos'),
-    semis: partidos.filter((p) => p.fase === 'semifinal' || p.fase === 'semis'),
-    final: partidos.filter((p) => p.fase === 'final'),
-  };
+  const agruparPorFase = useCallback(() => {
+    const fases: Record<string, Partido[]> = {
+      '16avos': [],
+      '8vos': [],
+      '4tos': [],
+      semis: [],
+      final: [],
+    };
 
-  // Si hay semifinales pero no final, crear partido de final vacío
-  if (fases.semis.length > 0 && fases.final.length === 0) {
-    fases.final = [{
-      id: -1,
-      fase: 'final',
-      estado: 'pendiente',
-      pareja1_nombre: undefined,
-      pareja2_nombre: undefined,
-    }];
-  }
+    partidos.forEach((p) => {
+      let fase = p.fase;
+      if (fase === 'cuartos') fase = '4tos';
+      if (fase === 'semifinal') fase = 'semis';
+      if (fases[fase]) {
+        fases[fase].push(p);
+      }
+    });
 
-  // Si hay cuartos pero no semis, crear semis vacías
-  if (fases['4tos'].length > 0 && fases.semis.length === 0) {
-    const numSemis = Math.ceil(fases['4tos'].length / 2);
-    fases.semis = Array.from({ length: numSemis }, (_, i) => ({
-      id: -100 - i,
-      fase: 'semis',
-      estado: 'pendiente',
-      pareja1_nombre: undefined,
-      pareja2_nombre: undefined,
-    }));
-    fases.final = [{
-      id: -1,
-      fase: 'final',
-      estado: 'pendiente',
-      pareja1_nombre: undefined,
-      pareja2_nombre: undefined,
-    }];
-  }
+    Object.keys(fases).forEach((fase) => {
+      fases[fase].sort((a, b) => (a.numero_partido || 0) - (b.numero_partido || 0));
+    });
 
-  // Determinar qué fases mostrar
+    return fases;
+  }, [partidos]);
+
+  const fases = agruparPorFase();
   const fasesActivas = Object.entries(fases).filter(([, p]) => p.length > 0);
+  const fasesOrden = fasesActivas.map(([nombre]) => nombre);
 
-  // Verificar si hay campeón (final con ganador)
   const partidoFinal = fases.final[0];
   const hayCampeon = partidoFinal?.ganador_id && partidoFinal?.estado === 'confirmado';
-  const nombreCampeon = hayCampeon 
-    ? (partidoFinal.ganador_id === partidoFinal.pareja1_id 
-        ? partidoFinal.pareja1_nombre 
-        : partidoFinal.pareja2_nombre)
+  const nombreCampeon = hayCampeon
+    ? partidoFinal.ganador_id === partidoFinal.pareja1_id
+      ? partidoFinal.pareja1_nombre
+      : partidoFinal.pareja2_nombre
     : null;
+
+  // Calcular líneas SVG - solo horizontales y verticales
+  const calcularLineas = useCallback(() => {
+    if (!containerRef.current) return;
+
+    const containerRect = containerRef.current.getBoundingClientRect();
+    setSvgSize({ width: containerRect.width, height: containerRect.height });
+
+    const newLines: JSX.Element[] = [];
+    const lineColor = 'rgba(99, 102, 241, 0.5)';
+    const lineWidth = 2;
+
+    for (let faseIdx = 0; faseIdx < fasesOrden.length - 1; faseIdx++) {
+      const faseActual = fasesOrden[faseIdx];
+      const faseSiguiente = fasesOrden[faseIdx + 1];
+      const partidosFaseActual = fases[faseActual];
+
+      for (let i = 0; i < partidosFaseActual.length; i += 2) {
+        const match1Ref = matchRefs.current.get(`${faseActual}-${i}`);
+        const match2Ref = matchRefs.current.get(`${faseActual}-${i + 1}`);
+        const nextMatchRef = matchRefs.current.get(`${faseSiguiente}-${Math.floor(i / 2)}`);
+
+        if (!match1Ref || !nextMatchRef) continue;
+
+        const rect1 = match1Ref.getBoundingClientRect();
+        const rect2 = match2Ref?.getBoundingClientRect();
+        const rectNext = nextMatchRef.getBoundingClientRect();
+
+        // Posiciones relativas al container
+        const x1 = rect1.right - containerRect.left;
+        const y1 = rect1.top + rect1.height / 2 - containerRect.top;
+        const y2 = rect2 ? rect2.top + rect2.height / 2 - containerRect.top : y1;
+        const x3 = rectNext.left - containerRect.left;
+        const y3 = rectNext.top + rectNext.height / 2 - containerRect.top;
+
+        // Punto medio horizontal entre las fases
+        const xMid = x1 + (x3 - x1) / 2;
+        // Punto medio vertical entre los dos partidos
+        const yMid = (y1 + y2) / 2;
+
+        // Línea 1: horizontal desde match1 hacia xMid
+        newLines.push(
+          <path
+            key={`l1-${faseActual}-${i}`}
+            d={`M ${x1} ${y1} H ${xMid}`}
+            stroke={lineColor}
+            strokeWidth={lineWidth}
+            fill="none"
+          />
+        );
+
+        // Si hay match2
+        if (rect2) {
+          // Línea 2: horizontal desde match2 hacia xMid
+          newLines.push(
+            <path
+              key={`l2-${faseActual}-${i}`}
+              d={`M ${x1} ${y2} H ${xMid}`}
+              stroke={lineColor}
+              strokeWidth={lineWidth}
+              fill="none"
+            />
+          );
+
+          // Línea 3: vertical conectando y1 con y2 en xMid
+          newLines.push(
+            <path
+              key={`l3-${faseActual}-${i}`}
+              d={`M ${xMid} ${y1} V ${y2}`}
+              stroke={lineColor}
+              strokeWidth={lineWidth}
+              fill="none"
+            />
+          );
+        }
+
+        // Línea 4: horizontal desde xMid,yMid hacia el siguiente partido
+        newLines.push(
+          <path
+            key={`l4-${faseActual}-${i}`}
+            d={`M ${xMid} ${yMid} H ${x3}`}
+            stroke={lineColor}
+            strokeWidth={lineWidth}
+            fill="none"
+          />
+        );
+
+        // Si el siguiente partido no está centrado, agregar línea vertical
+        if (Math.abs(yMid - y3) > 2) {
+          newLines.push(
+            <path
+              key={`l5-${faseActual}-${i}`}
+              d={`M ${x3} ${yMid} V ${y3}`}
+              stroke={lineColor}
+              strokeWidth={lineWidth}
+              fill="none"
+            />
+          );
+        }
+      }
+    }
+
+    setLines(newLines);
+  }, [fases, fasesOrden]);
+
+  useEffect(() => {
+    const timer = setTimeout(calcularLineas, 150);
+    window.addEventListener('resize', calcularLineas);
+    return () => {
+      clearTimeout(timer);
+      window.removeEventListener('resize', calcularLineas);
+    };
+  }, [calcularLineas]);
+
+  const setMatchRef = (fase: string, index: number) => (el: HTMLDivElement | null) => {
+    if (el) {
+      matchRefs.current.set(`${fase}-${index}`, el);
+    }
+  };
 
   const abrirModalResultado = (partido: Partido) => {
     setPartidoSeleccionado(partido);
@@ -90,164 +201,83 @@ export default function TorneoBracket({ partidos, torneoId, esOrganizador, onRes
     onResultadoCargado?.();
   };
 
-  // Componente para un partido individual
-  const PartidoBox = ({
-    partido,
-    esFinal = false,
-  }: {
-    partido: Partido;
-    esFinal?: boolean;
-  }) => {
+  // PartidoBox component
+  const PartidoBox = ({ partido, esFinal = false }: { partido: Partido; esFinal?: boolean }) => {
+    const esBye = partido.estado === 'bye';
     const ganadorA = partido.ganador_id === partido.pareja1_id && partido.pareja1_id;
     const ganadorB = partido.ganador_id === partido.pareja2_id && partido.pareja2_id;
-    const puedeCargarResultado = esOrganizador && partido.estado === 'pendiente' && partido.id > 0 && partido.pareja1_id && partido.pareja2_id;
+    const tieneAmbosEquipos = partido.pareja1_id && partido.pareja2_id;
+    const puedeCargarResultado =
+      esOrganizador && partido.estado === 'pendiente' && partido.id > 0 && tieneAmbosEquipos;
+    const partidoFinalizado = partido.estado === 'confirmado';
 
-    return (
-      <div className={`relative ${esFinal ? 'scale-110' : ''}`}>
-        <div
-          className={`bg-card border-2 rounded-lg overflow-hidden min-w-[160px] ${
-            esFinal ? 'border-accent shadow-lg shadow-accent/20' : 'border-primary/30'
-          }`}
-        >
-          {/* Pareja 1 */}
-          <div
-            className={`flex items-center justify-between px-3 py-2 border-b border-cardBorder ${
-              ganadorA ? 'bg-green-500/20' : 'bg-card'
-            }`}
-          >
-            <div className="flex items-center gap-2 flex-1 min-w-0">
-              {ganadorA && <Trophy size={12} className="text-green-500 flex-shrink-0" />}
-              <span
-                className={`text-xs font-bold truncate ${
-                  ganadorA
-                    ? 'text-green-500'
-                    : partido.pareja1_nombre
-                      ? 'text-textPrimary'
-                      : 'text-textSecondary'
-                }`}
-              >
-                {partido.pareja1_nombre || 'TBD'}
-              </span>
-            </div>
+    if (esBye) {
+      const nombreGanador = partido.pareja1_nombre || partido.pareja2_nombre || 'TBD';
+      return (
+        <div className="bg-card border-2 border-green-500/30 rounded-lg overflow-hidden w-[200px]">
+          <div className="flex items-center gap-2 px-3 py-2.5 border-b border-cardBorder bg-green-500/10">
+            <FastForward size={12} className="text-green-500 flex-shrink-0" />
+            <span className="text-xs font-bold text-green-500 truncate">{nombreGanador}</span>
           </div>
-          {/* Pareja 2 */}
-          <div
-            className={`flex items-center justify-between px-3 py-2 ${
-              ganadorB ? 'bg-green-500/20' : 'bg-card'
-            }`}
-          >
-            <div className="flex items-center gap-2 flex-1 min-w-0">
-              {ganadorB && <Trophy size={12} className="text-green-500 flex-shrink-0" />}
-              <span
-                className={`text-xs font-bold truncate ${
-                  ganadorB
-                    ? 'text-green-500'
-                    : partido.pareja2_nombre
-                      ? 'text-textPrimary'
-                      : 'text-textSecondary'
-                }`}
-              >
-                {partido.pareja2_nombre || 'TBD'}
-              </span>
-            </div>
+          <div className="px-3 py-2.5">
+            <span className="text-xs text-textSecondary italic">BYE</span>
           </div>
-          {/* Botón cargar resultado */}
-          {puedeCargarResultado && (
-            <button
-              onClick={() => abrirModalResultado(partido)}
-              className="w-full py-1.5 bg-accent/20 hover:bg-accent/30 transition-colors flex items-center justify-center gap-1 group"
-            >
-              <Edit3 size={10} className="text-accent group-hover:scale-110 transition-transform" />
-              <span className="text-[10px] font-bold text-accent">Resultado</span>
-            </button>
-          )}
+          <div className="py-1.5 bg-green-500/10 flex items-center justify-center gap-1 border-t border-green-500/20">
+            <FastForward size={10} className="text-green-500" />
+            <span className="text-[10px] font-bold text-green-500">Pasa directo</span>
+          </div>
         </div>
-      </div>
-    );
-  };
-
-  // Componente para una columna de fase con conectores
-  const FaseColumna = ({
-    nombre,
-    partidosFase,
-    indice,
-    totalFases,
-  }: {
-    nombre: string;
-    partidosFase: Partido[];
-    indice: number;
-    totalFases: number;
-  }) => {
-    const esFinal = nombre === 'final';
-    const esUltimaFase = indice === totalFases - 1;
-
-    // Calcular espaciado vertical basado en la ronda
-    const espaciado = Math.pow(2, indice) * 40;
+      );
+    }
 
     return (
-      <div className="flex flex-col items-center">
-        {/* Título de la fase */}
+      <div
+        className={`bg-card border-2 rounded-lg overflow-hidden w-[200px] ${
+          esFinal
+            ? 'border-accent shadow-lg shadow-accent/20'
+            : partidoFinalizado
+              ? 'border-green-500/50'
+              : puedeCargarResultado
+                ? 'border-yellow-500/50'
+                : 'border-primary/30'
+        }`}
+      >
         <div
-          className={`mb-4 px-4 py-1.5 rounded-lg ${
-            esFinal
-              ? 'bg-gradient-to-r from-accent to-primary'
-              : 'bg-primary/10'
-          }`}
+          className={`flex items-center gap-2 px-3 py-2.5 border-b border-cardBorder ${ganadorA ? 'bg-green-500/20' : 'bg-card'}`}
         >
+          {ganadorA && <Trophy size={12} className="text-green-500 flex-shrink-0" />}
           <span
-            className={`text-xs font-bold uppercase ${
-              esFinal ? 'text-white' : 'text-primary'
-            }`}
+            className={`text-xs font-bold truncate ${ganadorA ? 'text-green-500' : partido.pareja1_nombre ? 'text-textPrimary' : 'text-textSecondary'}`}
           >
-            {nombre === 'semis'
-              ? 'Semifinales'
-              : nombre === '4tos'
-                ? 'Cuartos'
-                : nombre === '8vos'
-                  ? 'Octavos'
-                  : nombre === '16avos'
-                    ? '16avos'
-                    : 'Final'}
+            {partido.pareja1_nombre || 'TBD'}
           </span>
         </div>
-
-        {/* Partidos con conectores */}
-        <div
-          className="flex flex-col justify-around flex-1 relative"
-          style={{ gap: `${espaciado}px` }}
-        >
-          {partidosFase.map((partido, idx) => (
-            <motion.div
-              key={partido.id}
-              initial={{ opacity: 0, x: -20 }}
-              animate={{ opacity: 1, x: 0 }}
-              transition={{ delay: indice * 0.1 + idx * 0.05 }}
-              className="relative"
-            >
-              <PartidoBox partido={partido} esFinal={esFinal} />
-
-              {/* Línea horizontal hacia la derecha */}
-              {!esUltimaFase && (
-                <div
-                  className="absolute top-1/2 -right-6 w-6 h-0.5 bg-primary/40"
-                  style={{ transform: 'translateY(-50%)' }}
-                />
-              )}
-
-              {/* Línea vertical conectora (para partidos pares) */}
-              {!esUltimaFase && idx % 2 === 0 && partidosFase.length > 1 && (
-                <div
-                  className="absolute -right-6 bg-primary/40"
-                  style={{
-                    top: '50%',
-                    height: `${espaciado + 52}px`,
-                    width: '2px',
-                  }}
-                />
-              )}
-            </motion.div>
-          ))}
+        <div className={`flex items-center gap-2 px-3 py-2.5 ${ganadorB ? 'bg-green-500/20' : 'bg-card'}`}>
+          {ganadorB && <Trophy size={12} className="text-green-500 flex-shrink-0" />}
+          <span
+            className={`text-xs font-bold truncate ${ganadorB ? 'text-green-500' : partido.pareja2_nombre ? 'text-textPrimary' : 'text-textSecondary'}`}
+          >
+            {partido.pareja2_nombre || 'TBD'}
+          </span>
         </div>
+        {puedeCargarResultado ? (
+          <button
+            onClick={() => abrirModalResultado(partido)}
+            className="w-full py-1.5 bg-gradient-to-r from-accent/30 to-yellow-500/30 hover:from-accent/50 hover:to-yellow-500/50 transition-all flex items-center justify-center gap-1 border-t border-accent/20"
+          >
+            <Edit3 size={10} className="text-accent" />
+            <span className="text-[10px] font-bold text-accent">Cargar Resultado</span>
+          </button>
+        ) : partidoFinalizado ? (
+          <div className="py-1.5 bg-green-500/10 flex items-center justify-center gap-1 border-t border-green-500/20">
+            <Trophy size={10} className="text-green-500" />
+            <span className="text-[10px] font-bold text-green-500">Finalizado</span>
+          </div>
+        ) : !tieneAmbosEquipos && partido.id > 0 ? (
+          <div className="py-1.5 bg-gray-500/10 flex items-center justify-center border-t border-gray-500/20">
+            <span className="text-[10px] text-textSecondary">Esperando clasificados</span>
+          </div>
+        ) : null}
       </div>
     );
   };
@@ -261,163 +291,160 @@ export default function TorneoBracket({ partidos, torneoId, esOrganizador, onRes
     );
   }
 
+
+  // Calcular posición vertical para centrar cada fase
+  const calcularPaddingTop = (faseIdx: number, _numPartidos: number) => {
+    if (faseIdx === 0) return 0;
+    // Cada ronda siguiente debe estar centrada entre los partidos de la anterior
+    // El primer partido de la ronda N debe estar centrado entre partidos 0 y 1 de ronda N-1
+    const alturaPartido = 95; // altura aproximada de cada partido
+    const gapBase = 16;
+    const multiplicadorAnterior = Math.pow(2, faseIdx - 1);
+    const espacioAnterior = (alturaPartido + gapBase) * multiplicadorAnterior;
+    // Centrar: mitad del espacio entre dos partidos de la ronda anterior
+    return espacioAnterior / 2;
+  };
+
   return (
     <div className="w-full">
-      {/* Sección Campeones */}
+      {/* Campeón */}
       {hayCampeon && nombreCampeon && (
-        <motion.div
-          initial={{ opacity: 0, scale: 0.8 }}
-          animate={{ opacity: 1, scale: 1 }}
-          transition={{ duration: 0.5, type: 'spring' }}
-          className="mb-8"
-        >
-          <div className="relative bg-gradient-to-br from-yellow-500/20 via-accent/20 to-yellow-500/20 rounded-2xl p-6 md:p-8 border-2 border-yellow-500/50 shadow-xl shadow-yellow-500/10 overflow-hidden">
-            {/* Decoración de fondo */}
+        <motion.div initial={{ opacity: 0, scale: 0.8 }} animate={{ opacity: 1, scale: 1 }} className="mb-6">
+          <div className="relative bg-gradient-to-br from-yellow-500/20 via-accent/20 to-yellow-500/20 rounded-xl p-5 border-2 border-yellow-500/50 shadow-lg overflow-hidden">
             <div className="absolute inset-0 opacity-10">
-              <div className="absolute top-4 left-4 text-yellow-500">
-                <Star size={40} fill="currentColor" />
-              </div>
-              <div className="absolute top-4 right-4 text-yellow-500">
-                <Star size={40} fill="currentColor" />
-              </div>
-              <div className="absolute bottom-4 left-1/4 text-yellow-500">
-                <Star size={24} fill="currentColor" />
-              </div>
-              <div className="absolute bottom-4 right-1/4 text-yellow-500">
-                <Star size={24} fill="currentColor" />
-              </div>
+              <Star size={32} className="absolute top-3 left-3 text-yellow-500" fill="currentColor" />
+              <Star size={32} className="absolute top-3 right-3 text-yellow-500" fill="currentColor" />
             </div>
-
             <div className="relative text-center">
-              {/* Icono principal */}
-              <motion.div
-                initial={{ y: -20 }}
-                animate={{ y: 0 }}
-                transition={{ delay: 0.2, type: 'spring', stiffness: 200 }}
-                className="flex justify-center mb-4"
-              >
+              <div className="flex justify-center mb-3">
                 <div className="relative">
-                  <div className="absolute -inset-4 bg-yellow-500/30 rounded-full blur-xl" />
-                  <div className="relative bg-gradient-to-br from-yellow-400 to-yellow-600 p-4 rounded-full">
-                    <Trophy size={48} className="text-white" />
+                  <div className="absolute -inset-3 bg-yellow-500/30 rounded-full blur-lg" />
+                  <div className="relative bg-gradient-to-br from-yellow-400 to-yellow-600 p-3 rounded-full">
+                    <Trophy size={32} className="text-white" />
                   </div>
                 </div>
-              </motion.div>
-
-              {/* Título */}
-              <motion.div
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                transition={{ delay: 0.3 }}
-              >
-                <div className="flex items-center justify-center gap-2 mb-2">
-                  <Crown size={24} className="text-yellow-500" />
-                  <h2 className="text-2xl md:text-3xl font-black text-transparent bg-clip-text bg-gradient-to-r from-yellow-400 via-yellow-500 to-yellow-600">
-                    ¡CAMPEONES!
-                  </h2>
-                  <Crown size={24} className="text-yellow-500" />
+              </div>
+              <div className="flex items-center justify-center gap-2 mb-2">
+                <Crown size={18} className="text-yellow-500" />
+                <h2 className="text-xl font-black text-transparent bg-clip-text bg-gradient-to-r from-yellow-400 to-yellow-600">
+                  ¡CAMPEONES!
+                </h2>
+                <Crown size={18} className="text-yellow-500" />
+              </div>
+              <div className="bg-yellow-500/10 rounded-lg p-3 border border-yellow-500/30 inline-block">
+                <div className="flex items-center gap-2">
+                  <Sparkles size={16} className="text-yellow-500" />
+                  <span className="text-base font-bold text-yellow-500">{nombreCampeon}</span>
+                  <Sparkles size={16} className="text-yellow-500" />
                 </div>
-                <p className="text-textSecondary text-sm mb-4">Felicitaciones a los ganadores del torneo</p>
-              </motion.div>
-
-              {/* Nombre del campeón */}
-              <motion.div
-                initial={{ scale: 0.9, opacity: 0 }}
-                animate={{ scale: 1, opacity: 1 }}
-                transition={{ delay: 0.5, type: 'spring' }}
-                className="bg-gradient-to-r from-yellow-500/10 via-yellow-500/20 to-yellow-500/10 rounded-xl p-4 md:p-6 border border-yellow-500/30"
-              >
-                <div className="flex items-center justify-center gap-3">
-                  <Sparkles size={24} className="text-yellow-500 animate-pulse" />
-                  <span className="text-xl md:text-2xl font-bold text-yellow-500">
-                    {nombreCampeon}
-                  </span>
-                  <Sparkles size={24} className="text-yellow-500 animate-pulse" />
-                </div>
-              </motion.div>
-
-              {/* Badge de campeón */}
-              <motion.div
-                initial={{ y: 20, opacity: 0 }}
-                animate={{ y: 0, opacity: 1 }}
-                transition={{ delay: 0.7 }}
-                className="mt-4 inline-flex items-center gap-2 bg-yellow-500/20 px-4 py-2 rounded-full"
-              >
-                <Trophy size={16} className="text-yellow-500" />
-                <span className="text-sm font-bold text-yellow-500">Campeón del Torneo</span>
-                <Trophy size={16} className="text-yellow-500" />
-              </motion.div>
+              </div>
             </div>
           </div>
         </motion.div>
       )}
 
       {/* Header */}
-      <motion.div
-        initial={{ opacity: 0, y: -20 }}
-        animate={{ opacity: 1, y: 0 }}
-        className="text-center mb-8"
-      >
-        <div className="inline-flex items-center gap-3 bg-gradient-to-r from-accent/10 to-primary/10 px-6 py-3 rounded-full">
-          <Trophy className="text-accent" size={24} />
-          <h2 className="text-2xl font-bold text-textPrimary">
-            {hayCampeon ? 'Resultados del Torneo' : 'Fase de Playoffs'}
-          </h2>
-          <Trophy className="text-primary" size={24} />
+      <div className="text-center mb-6">
+        <div className="inline-flex items-center gap-2 bg-gradient-to-r from-accent/10 to-primary/10 px-5 py-2 rounded-full">
+          <Trophy className="text-accent" size={20} />
+          <h2 className="text-lg font-bold text-textPrimary">{hayCampeon ? 'Resultados' : 'Fase de Playoffs'}</h2>
+          <Trophy className="text-primary" size={20} />
         </div>
-        <p className="text-textSecondary mt-2">
-          {hayCampeon ? 'Torneo finalizado' : 'Eliminación directa'}
-        </p>
-      </motion.div>
+        <p className="text-textSecondary mt-1 text-sm">Eliminación directa</p>
+      </div>
 
       {/* Bracket */}
       <div className="overflow-x-auto pb-4">
-        <div className="flex items-center justify-center gap-12 min-w-max px-8">
-          {fasesActivas.map(([nombre, partidosFase], idx) => (
-            <FaseColumna
-              key={nombre}
-              nombre={nombre}
-              partidosFase={partidosFase}
-              indice={idx}
-              totalFases={fasesActivas.length}
-            />
-          ))}
+        <div ref={containerRef} className="relative min-w-max px-4 py-2 mx-auto w-fit">
+          {/* SVG para líneas */}
+          <svg
+            className="absolute inset-0 pointer-events-none"
+            width={svgSize.width || '100%'}
+            height={svgSize.height || '100%'}
+            style={{ zIndex: 0 }}
+          >
+            {lines}
+          </svg>
+
+          {/* Fases */}
+          <div className="relative flex items-start gap-16" style={{ zIndex: 1 }}>
+            {fasesActivas.map(([nombre, partidosFase], faseIdx) => {
+              const esFinal = nombre === 'final';
+              const multiplicador = Math.pow(2, faseIdx);
+              const gap = 16 * multiplicador;
+              const paddingTop = calcularPaddingTop(faseIdx, partidosFase.length);
+
+              return (
+                <div key={nombre} className="flex flex-col items-center">
+                  {/* Título */}
+                  <div
+                    className={`mb-4 px-4 py-1.5 rounded-lg ${esFinal ? 'bg-gradient-to-r from-accent to-primary' : 'bg-primary/10'}`}
+                  >
+                    <span className={`text-xs font-bold uppercase ${esFinal ? 'text-white' : 'text-primary'}`}>
+                      {nombre === 'semis'
+                        ? 'Semifinales'
+                        : nombre === '4tos'
+                          ? 'Cuartos'
+                          : nombre === '8vos'
+                            ? 'Octavos'
+                            : nombre === '16avos'
+                              ? '16avos'
+                              : 'Final'}
+                    </span>
+                  </div>
+
+                  {/* Partidos con padding para centrar */}
+                  <div className="flex flex-col" style={{ gap: `${gap}px`, paddingTop: `${paddingTop}px` }}>
+                    {partidosFase.map((partido, idx) => (
+                      <motion.div
+                        key={partido.id || `${nombre}-${idx}`}
+                        ref={setMatchRef(nombre, idx)}
+                        initial={{ opacity: 0, x: -20 }}
+                        animate={{ opacity: 1, x: 0 }}
+                        transition={{ delay: faseIdx * 0.08 + idx * 0.03 }}
+                      >
+                        <PartidoBox partido={partido} esFinal={esFinal} />
+                      </motion.div>
+                    ))}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
         </div>
       </div>
 
       {/* Leyenda */}
-      <div className="mt-8 flex items-center justify-center gap-6 text-sm">
-        <div className="flex items-center gap-2">
-          <div className="w-3 h-3 rounded-full bg-green-500" />
+      <div className="mt-4 flex flex-wrap items-center justify-center gap-4 text-xs">
+        <div className="flex items-center gap-1.5">
+          <div className="w-2 h-2 rounded-full bg-green-500" />
           <span className="text-textSecondary">Ganador</span>
         </div>
-        <div className="flex items-center gap-2">
-          <div className="w-3 h-3 rounded-full bg-yellow-500" />
+        <div className="flex items-center gap-1.5">
+          <div className="w-2 h-2 rounded-full bg-yellow-500" />
           <span className="text-textSecondary">Pendiente</span>
         </div>
-        <div className="flex items-center gap-2">
-          <div className="w-3 h-3 rounded border border-dashed border-textSecondary" />
-          <span className="text-textSecondary">Por definir</span>
+        <div className="flex items-center gap-1.5">
+          <FastForward size={12} className="text-green-500" />
+          <span className="text-textSecondary">BYE</span>
         </div>
       </div>
 
-      {/* Modal Cargar Resultado - usando portal para evitar problemas de overflow */}
-      {partidoSeleccionado && createPortal(
-        <ModalCargarResultado
-          isOpen={modalOpen}
-          onClose={() => {
-            setModalOpen(false);
-            setPartidoSeleccionado(null);
-          }}
-          partido={{
-            ...partidoSeleccionado,
-            id_partido: partidoSeleccionado.id_partido || partidoSeleccionado.id
-          }}
-          torneoId={torneoId}
-          onResultadoCargado={handleResultadoCargado}
-        />,
-        document.body
-      )}
+      {/* Modal */}
+      {partidoSeleccionado &&
+        createPortal(
+          <ModalCargarResultado
+            isOpen={modalOpen}
+            onClose={() => {
+              setModalOpen(false);
+              setPartidoSeleccionado(null);
+            }}
+            partido={{ ...partidoSeleccionado, id_partido: partidoSeleccionado.id_partido || partidoSeleccionado.id }}
+            torneoId={torneoId}
+            onResultadoCargado={handleResultadoCargado}
+          />,
+          document.body
+        )}
     </div>
   );
 }

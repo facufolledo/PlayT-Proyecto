@@ -8,8 +8,85 @@ from ..database.config import get_db
 from ..models.playt_models import Usuario, PerfilUsuario, Categoria
 from ..schemas.ranking import RankingResponse, TopWeeklyResponse
 from ..auth.auth_utils import get_current_user
+from ..utils.cache import cache, CACHE_TTL
 
 router = APIRouter(prefix="/ranking", tags=["Ranking"])
+
+
+def _get_ranking_from_db(db: Session, limit: int, offset: int, sexo: Optional[str]) -> List[dict]:
+    """Lógica de ranking extraída para poder cachear"""
+    from ..models.playt_models import PartidoJugador, ResultadoPartido, Partido
+    
+    # Subquery para calcular partidos ganados de forma eficiente
+    partidos_ganados_subq = (
+        db.query(
+            PartidoJugador.id_usuario,
+            func.count(PartidoJugador.id_partido).label("partidos_ganados")
+        )
+        .join(ResultadoPartido, PartidoJugador.id_partido == ResultadoPartido.id_partido)
+        .join(Partido, PartidoJugador.id_partido == Partido.id_partido)
+        .filter(
+            Partido.estado == "finalizado",
+            ResultadoPartido.confirmado == True,
+            (
+                ((PartidoJugador.equipo == 1) & (ResultadoPartido.sets_eq1 > ResultadoPartido.sets_eq2)) |
+                ((PartidoJugador.equipo == 2) & (ResultadoPartido.sets_eq2 > ResultadoPartido.sets_eq1))
+            )
+        )
+        .group_by(PartidoJugador.id_usuario)
+        .subquery()
+    )
+    
+    # Query principal con JOIN a la subquery
+    query = (
+        db.query(
+            Usuario.id_usuario,
+            Usuario.nombre_usuario,
+            Usuario.rating,
+            Usuario.partidos_jugados,
+            Usuario.sexo,
+            PerfilUsuario.nombre,
+            PerfilUsuario.apellido,
+            PerfilUsuario.ciudad,
+            PerfilUsuario.pais,
+            PerfilUsuario.url_avatar,
+            Categoria.nombre.label("categoria_nombre"),
+            func.coalesce(partidos_ganados_subq.c.partidos_ganados, 0).label("partidos_ganados")
+        )
+        .join(PerfilUsuario, Usuario.id_usuario == PerfilUsuario.id_usuario, isouter=True)
+        .join(Categoria, Usuario.id_categoria == Categoria.id_categoria, isouter=True)
+        .join(partidos_ganados_subq, Usuario.id_usuario == partidos_ganados_subq.c.id_usuario, isouter=True)
+    )
+    
+    # Filtrar por sexo si se especifica
+    if sexo:
+        if sexo in ['M', 'masculino']:
+            query = query.filter(Usuario.sexo.in_(['M', 'masculino']))
+        elif sexo in ['F', 'femenino']:
+            query = query.filter(Usuario.sexo.in_(['F', 'femenino']))
+    
+    # Ordenar y paginar
+    usuarios = query.order_by(desc(Usuario.rating)).offset(offset).limit(limit).all()
+    
+    # Convertir a dict para poder cachear
+    return [
+        {
+            "id_usuario": u.id_usuario,
+            "nombre_usuario": u.nombre_usuario,
+            "rating": u.rating,
+            "partidos_jugados": u.partidos_jugados,
+            "sexo": u.sexo,
+            "nombre": u.nombre,
+            "apellido": u.apellido,
+            "ciudad": u.ciudad,
+            "pais": u.pais,
+            "url_avatar": u.url_avatar,
+            "categoria_nombre": getattr(u, "categoria_nombre", None),
+            "partidos_ganados": u.partidos_ganados
+        }
+        for u in usuarios
+    ]
+
 
 @router.get("/", response_model=List[RankingResponse])
 async def get_ranking(
@@ -18,82 +95,57 @@ async def get_ranking(
     sexo: Optional[str] = Query(None, description="Filtrar por sexo: M o F"),
     db: Session = Depends(get_db)
 ):
-    """Obtener el ranking general de jugadores"""
+    """Obtener el ranking general de jugadores (con caché de 60s)"""
     
     try:
-        from ..models.playt_models import PartidoJugador, ResultadoPartido, Partido
-        from sqlalchemy import case
+        # Generar cache key
+        cache_key = f"ranking:{limit}:{offset}:{sexo or 'all'}"
         
-        # Subquery para calcular partidos ganados de forma eficiente
-        partidos_ganados_subq = (
-            db.query(
-                PartidoJugador.id_usuario,
-                func.count(PartidoJugador.id_partido).label("partidos_ganados")
-            )
-            .join(ResultadoPartido, PartidoJugador.id_partido == ResultadoPartido.id_partido)
-            .join(Partido, PartidoJugador.id_partido == Partido.id_partido)
-            .filter(
-                Partido.estado == "finalizado",
-                ResultadoPartido.confirmado == True,
-                # Equipo 1 gana si sets_eq1 > sets_eq2, Equipo 2 gana si sets_eq2 > sets_eq1
-                (
-                    ((PartidoJugador.equipo == 1) & (ResultadoPartido.sets_eq1 > ResultadoPartido.sets_eq2)) |
-                    ((PartidoJugador.equipo == 2) & (ResultadoPartido.sets_eq2 > ResultadoPartido.sets_eq1))
-                )
-            )
-            .group_by(PartidoJugador.id_usuario)
-            .subquery()
-        )
+        # Intentar obtener del caché
+        cached_data = cache.get(cache_key)
+        if cached_data is not None:
+            ranking = []
+            for i, u in enumerate(cached_data):
+                ranking.append(RankingResponse(
+                    posicion=offset + i + 1,
+                    id_usuario=u["id_usuario"],
+                    nombre_usuario=u["nombre_usuario"],
+                    nombre=u["nombre"] or "",
+                    apellido=u["apellido"] or "",
+                    ciudad=u["ciudad"] or "",
+                    pais=u["pais"] or "",
+                    rating=u["rating"],
+                    partidos_jugados=u["partidos_jugados"],
+                    partidos_ganados=u["partidos_ganados"],
+                    categoria=u["categoria_nombre"],
+                    sexo=u["sexo"],
+                    imagen_url=u["url_avatar"]
+                ))
+            return ranking
         
-        # Query principal con JOIN a la subquery
-        query = (
-            db.query(
-                Usuario.id_usuario,
-                Usuario.nombre_usuario,
-                Usuario.rating,
-                Usuario.partidos_jugados,
-                Usuario.sexo,
-                PerfilUsuario.nombre,
-                PerfilUsuario.apellido,
-                PerfilUsuario.ciudad,
-                PerfilUsuario.pais,
-                PerfilUsuario.url_avatar,
-                Categoria.nombre.label("categoria_nombre"),
-                func.coalesce(partidos_ganados_subq.c.partidos_ganados, 0).label("partidos_ganados")
-            )
-            .join(PerfilUsuario, Usuario.id_usuario == PerfilUsuario.id_usuario, isouter=True)
-            .join(Categoria, Usuario.id_categoria == Categoria.id_categoria, isouter=True)
-            .join(partidos_ganados_subq, Usuario.id_usuario == partidos_ganados_subq.c.id_usuario, isouter=True)
-        )
+        # Cache miss - obtener de DB
+        usuarios_data = _get_ranking_from_db(db, limit, offset, sexo)
         
-        # Filtrar por sexo si se especifica
-        if sexo:
-            # Aceptar tanto 'M'/'F' como 'masculino'/'femenino'
-            if sexo in ['M', 'masculino']:
-                query = query.filter(Usuario.sexo.in_(['M', 'masculino']))
-            elif sexo in ['F', 'femenino']:
-                query = query.filter(Usuario.sexo.in_(['F', 'femenino']))
-        
-        # Ordenar y paginar
-        usuarios = query.order_by(desc(Usuario.rating)).offset(offset).limit(limit).all()
+        # Guardar en caché
+        cache.set(cache_key, usuarios_data, CACHE_TTL["ranking"])
         
         # Formatear respuesta
         ranking = []
-        for i, usuario in enumerate(usuarios):
+        for i, u in enumerate(usuarios_data):
             ranking.append(RankingResponse(
                 posicion=offset + i + 1,
-                id_usuario=usuario.id_usuario,
-                nombre_usuario=usuario.nombre_usuario,
-                nombre=usuario.nombre or "",
-                apellido=usuario.apellido or "",
-                ciudad=usuario.ciudad or "",
-                pais=usuario.pais or "",
-                rating=usuario.rating,
-                partidos_jugados=usuario.partidos_jugados,
-                partidos_ganados=usuario.partidos_ganados,
-                categoria=getattr(usuario, "categoria_nombre", None),
-                sexo=usuario.sexo,
-                imagen_url=usuario.url_avatar or None
+                id_usuario=u["id_usuario"],
+                nombre_usuario=u["nombre_usuario"],
+                nombre=u["nombre"] or "",
+                apellido=u["apellido"] or "",
+                ciudad=u["ciudad"] or "",
+                pais=u["pais"] or "",
+                rating=u["rating"],
+                partidos_jugados=u["partidos_jugados"],
+                partidos_ganados=u["partidos_ganados"],
+                categoria=u["categoria_nombre"],
+                sexo=u["sexo"],
+                imagen_url=u["url_avatar"]
             ))
         
         return ranking
@@ -104,30 +156,29 @@ async def get_ranking(
             detail=f"Error al obtener el ranking: {str(e)}"
         )
 
+
 @router.get("/top-weekly", response_model=List[TopWeeklyResponse])
 async def get_top_weekly(
     limit: int = Query(5, description="Número de jugadores a retornar"),
     db: Session = Depends(get_db)
 ):
-    """Obtener los mejores jugadores de la semana actual"""
+    """Obtener los mejores jugadores de la semana (con caché de 2 min)"""
     
     try:
-        # Calcular fecha de inicio de la semana actual
-        fecha_actual = datetime.now()
-        inicio_semana = fecha_actual - timedelta(days=fecha_actual.weekday())
-        inicio_semana = inicio_semana.replace(hour=0, minute=0, second=0, microsecond=0)
+        cache_key = f"top_weekly:{limit}"
+        cached_data = cache.get(cache_key)
         
-        # Obtener usuarios con mejor rating (simulando ranking semanal)
+        if cached_data is not None:
+            return cached_data
+        
+        # Obtener usuarios con mejor rating
         usuarios = db.query(
             Usuario.id_usuario,
             Usuario.nombre_usuario,
-            Usuario.email,
             Usuario.rating,
-            Usuario.partidos_jugados,
             PerfilUsuario.nombre,
             PerfilUsuario.apellido,
             PerfilUsuario.ciudad,
-            PerfilUsuario.pais,
             PerfilUsuario.url_avatar
         ).join(
             PerfilUsuario, Usuario.id_usuario == PerfilUsuario.id_usuario, isouter=True
@@ -135,61 +186,20 @@ async def get_top_weekly(
             desc(Usuario.rating)
         ).limit(limit).all()
         
-        # Datos de ejemplo para el ranking semanal (esto se puede reemplazar con datos reales)
-        sample_data = [
-            {
-                'id': 1,
-                'nombre': 'Alejandro Martín',
-                'ciudad': 'Madrid',
-                'puntos': 1850,
-                'imagen_url': 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150&h=150&fit=crop&crop=face',
-                'rating': 1850,
-            },
-            {
-                'id': 2,
-                'nombre': 'Isabel Garcia',
-                'ciudad': 'Barcelona',
-                'puntos': 1820,
-                'imagen_url': 'https://images.unsplash.com/photo-1494790108755-2616b612b786?w=150&h=150&fit=crop&crop=face',
-                'rating': 1820,
-            },
-            {
-                'id': 3,
-                'nombre': 'Miguel Rodriguez',
-                'ciudad': 'Valencia',
-                'puntos': 1790,
-                'imagen_url': 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=150&h=150&fit=crop&crop=face',
-                'rating': 1790,
-            },
-            {
-                'id': 4,
-                'nombre': 'Carmen López',
-                'ciudad': 'Sevilla',
-                'puntos': 1760,
-                'imagen_url': 'https://images.unsplash.com/photo-1438761681033-6461ffad8d80?w=150&h=150&fit=crop&crop=face',
-                'rating': 1760,
-            },
-            {
-                'id': 5,
-                'nombre': 'David Fernández',
-                'ciudad': 'Madrid',
-                'puntos': 1745,
-                'imagen_url': 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=150&h=150&fit=crop&crop=face',
-                'rating': 1745,
-            },
-        ]
-        
-        # Formatear respuesta con datos de ejemplo
         top_weekly = []
-        for i, data in enumerate(sample_data[:limit]):
+        for u in usuarios:
+            nombre_completo = f"{u.nombre or ''} {u.apellido or ''}".strip() or u.nombre_usuario
             top_weekly.append(TopWeeklyResponse(
-                id=data['id'],
-                nombre=data['nombre'],
-                ciudad=data['ciudad'],
-                puntos=data['puntos'],
-                imagen_url=data['imagen_url'],
-                rating=data['rating']
+                id=u.id_usuario,
+                nombre=nombre_completo,
+                ciudad=u.ciudad or "",
+                puntos=u.rating,
+                imagen_url=u.url_avatar,
+                rating=u.rating
             ))
+        
+        # Cachear por 2 minutos
+        cache.set(cache_key, top_weekly, 120)
         
         return top_weekly
         
@@ -198,6 +208,7 @@ async def get_top_weekly(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Error al obtener el ranking semanal: {str(e)}"
         )
+
 
 @router.get("/historial/{user_id}")
 async def get_historial_elo(
@@ -208,7 +219,6 @@ async def get_historial_elo(
     """Obtener el historial de cambios de rating de un usuario"""
     
     try:
-        # Verificar que el usuario existe
         usuario = db.query(Usuario).filter(Usuario.id_usuario == user_id).first()
         if not usuario:
             raise HTTPException(
@@ -216,8 +226,7 @@ async def get_historial_elo(
                 detail="Usuario no encontrado"
             )
         
-        # Aquí se puede implementar la lógica para obtener el historial de rating
-        # Por ahora retornamos datos de ejemplo
+        # TODO: Implementar con tabla real de historial
         historial = [
             {
                 "fecha": "2024-09-01",
@@ -225,20 +234,6 @@ async def get_historial_elo(
                 "rating_nuevo": 1450,
                 "cambio": 23,
                 "partido_id": 1
-            },
-            {
-                "fecha": "2024-08-29",
-                "rating_anterior": 1439,
-                "rating_nuevo": 1427,
-                "cambio": -12,
-                "partido_id": 2
-            },
-            {
-                "fecha": "2024-08-27",
-                "rating_anterior": 1421,
-                "rating_nuevo": 1439,
-                "cambio": 18,
-                "partido_id": 3
             }
         ]
         

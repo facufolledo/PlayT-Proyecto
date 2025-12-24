@@ -1,50 +1,61 @@
 import { Link, useLocation } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Home, Trophy, BarChart3, X, Gamepad2, Target, Award, User } from 'lucide-react';
+import { Home, Trophy, BarChart3, X, Gamepad2, Target, Award, User, Shield, Search } from 'lucide-react';
+import { useAuth } from '../context/AuthContext';
 
 interface SidebarProps {
   isOpen: boolean;
   onClose: () => void;
 }
 
-const menuSections = [
-  {
-    title: 'Principal',
-    items: [
-      { icon: Home, label: 'Dashboard', path: '/dashboard' },
-    ]
-  },
-  {
-    title: 'Mis Salas',
-    items: [
-      { icon: Gamepad2, label: 'Todas las Salas', path: '/salas' },
-    ]
-  },
-  {
-    title: 'Competición',
-    items: [
-      { icon: Trophy, label: 'Torneos', path: '/torneos' },
-      { icon: Award, label: 'Mis Torneos', path: '/torneos/mis-torneos' },
-    ]
-  },
-  {
-    title: 'Rankings',
-    items: [
-      { icon: Target, label: 'Tabla General', path: '/rankings' },
-      { icon: BarChart3, label: 'Tops', path: '/rankings/categorias' },
-    ]
-  },
-  {
-    title: 'Cuenta',
-    items: [
-      { icon: User, label: 'Mi Perfil', path: '/perfil' },
-      // { icon: Settings, label: 'Configuración', path: '/configuracion' },
-    ]
-  }
-];
-
 export default function Sidebar({ isOpen, onClose }: SidebarProps) {
   const location = useLocation();
+  const { usuario } = useAuth();
+
+  // Crear secciones dinámicamente basadas en permisos
+  const menuSections = [
+    {
+      title: 'Principal',
+      items: [
+        { icon: Home, label: 'Dashboard', path: '/dashboard' },
+      ]
+    },
+    {
+      title: 'Mis Salas',
+      items: [
+        { icon: Gamepad2, label: 'Todas las Salas', path: '/salas' },
+      ]
+    },
+    {
+      title: 'Competición',
+      items: [
+        { icon: Trophy, label: 'Torneos', path: '/torneos' },
+        { icon: Award, label: 'Mis Torneos', path: '/torneos/mis-torneos' },
+      ]
+    },
+    {
+      title: 'Rankings',
+      items: [
+        { icon: Target, label: 'Tabla General', path: '/rankings' },
+        { icon: BarChart3, label: 'Tops', path: '/rankings/categorias' },
+        { icon: Search, label: 'Buscar Jugadores', path: '/jugadores' },
+      ]
+    },
+    {
+      title: 'Cuenta',
+      items: [
+        { icon: User, label: 'Mi Perfil', path: '/perfil' },
+        // { icon: Settings, label: 'Configuración', path: '/configuracion' },
+      ]
+    },
+    // Sección de administración solo para administradores
+    ...(usuario?.es_administrador ? [{
+      title: 'Administración',
+      items: [
+        { icon: Shield, label: 'Panel de Admin', path: '/admin' },
+      ]
+    }] : [])
+  ];
 
   return (
     <>

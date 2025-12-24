@@ -631,22 +631,44 @@ async def partidos_usuario(
             detail="Usuario no encontrado"
         )
     
-    # Obtener IDs de partidos del usuario con JOIN para filtrar solo los que tienen resultado
-    # Esto reduce drásticamente las consultas
-    from sqlalchemy import and_
+    from sqlalchemy import and_, or_, text
     
-    partidos_query = db.query(Partido).join(
+    # 1. Obtener partidos amistosos (usando partido_jugadores)
+    partidos_amistosos = db.query(Partido).join(
         PartidoJugador, Partido.id_partido == PartidoJugador.id_partido
-    ).join(
-        ResultadoPartido, Partido.id_partido == ResultadoPartido.id_partido
     ).filter(
         and_(
             PartidoJugador.id_usuario == usuario_id,
-            Partido.estado.in_(["confirmado", "finalizado"])
+            Partido.estado.in_(["confirmado", "finalizado"]),
+            or_(Partido.tipo == "amistoso", Partido.tipo.is_(None))
         )
-    ).order_by(Partido.fecha.desc()).limit(limit)
+    ).all()
     
-    partidos = partidos_query.all()
+    # 2. Obtener partidos de torneo (usando torneos_parejas)
+    # Buscar parejas donde el usuario participa
+    parejas_usuario = db.execute(text("""
+        SELECT id FROM torneos_parejas 
+        WHERE jugador1_id = :uid OR jugador2_id = :uid
+    """), {'uid': usuario_id}).fetchall()
+    
+    pareja_ids = [p[0] for p in parejas_usuario]
+    
+    partidos_torneo = []
+    if pareja_ids:
+        partidos_torneo = db.query(Partido).filter(
+            and_(
+                Partido.tipo == 'torneo',
+                Partido.estado.in_(["confirmado", "finalizado"]),
+                or_(
+                    Partido.pareja1_id.in_(pareja_ids),
+                    Partido.pareja2_id.in_(pareja_ids)
+                )
+            )
+        ).all()
+    
+    # Combinar y ordenar por fecha
+    partidos = partidos_amistosos + partidos_torneo
+    partidos = sorted(partidos, key=lambda p: p.fecha or p.creado_en, reverse=True)[:limit]
     
     if not partidos:
         return []
@@ -689,35 +711,120 @@ async def partidos_usuario(
     if club_ids:
         clubs_dict = {c.id_club: c for c in db.query(Club).filter(Club.id_club.in_(club_ids)).all()}
     
+    # Pre-cargar datos de parejas de torneo
+    parejas_torneo_dict = {}
+    pareja_ids_torneo = set()
+    for partido in partidos:
+        if partido.tipo == 'torneo':
+            if partido.pareja1_id:
+                pareja_ids_torneo.add(partido.pareja1_id)
+            if partido.pareja2_id:
+                pareja_ids_torneo.add(partido.pareja2_id)
+    
+    if pareja_ids_torneo:
+        # Convertir a lista para la consulta
+        pareja_ids_list = list(pareja_ids_torneo)
+        parejas_data = db.execute(text("""
+            SELECT id, jugador1_id, jugador2_id FROM torneos_parejas WHERE id = ANY(:ids)
+        """), {'ids': pareja_ids_list}).fetchall()
+        for p in parejas_data:
+            parejas_torneo_dict[p[0]] = {'jugador1_id': p[1], 'jugador2_id': p[2]}
+            usuario_ids.add(p[1])
+            usuario_ids.add(p[2])
+        
+        # Recargar usuarios y perfiles con los nuevos IDs
+        usuarios_dict = {u.id_usuario: u for u in db.query(Usuario).filter(Usuario.id_usuario.in_(usuario_ids)).all()}
+        perfiles_dict = {p.id_usuario: p for p in db.query(PerfilUsuario).filter(PerfilUsuario.id_usuario.in_(usuario_ids)).all()}
+    
     # Construir respuesta completa
     partidos_completos = []
     for partido in partidos:
-        # Obtener jugadores del partido desde el diccionario
-        jugadores = jugadores_por_partido.get(partido.id_partido, [])
-        
-        # Obtener información completa de los jugadores
         jugadores_info = []
-        for jugador in jugadores:
-            usuario_jugador = usuarios_dict.get(jugador.id_usuario)
-            perfil_jugador = perfiles_dict.get(jugador.id_usuario)
-            
-            if usuario_jugador:
-                jugadores_info.append({
-                    "id_usuario": usuario_jugador.id_usuario,
-                    "nombre_usuario": usuario_jugador.nombre_usuario,
-                    "nombre": perfil_jugador.nombre if perfil_jugador else "",
-                    "apellido": perfil_jugador.apellido if perfil_jugador else "",
-                    "equipo": jugador.equipo,
-                    "rating": usuario_jugador.rating
-                })
         
-        # Obtener resultado desde el diccionario
+        if partido.tipo == 'torneo':
+            # Para partidos de torneo, obtener jugadores de las parejas
+            pareja1 = parejas_torneo_dict.get(partido.pareja1_id)
+            pareja2 = parejas_torneo_dict.get(partido.pareja2_id)
+            
+            if pareja1:
+                for jid in [pareja1['jugador1_id'], pareja1['jugador2_id']]:
+                    usuario_jugador = usuarios_dict.get(jid)
+                    perfil_jugador = perfiles_dict.get(jid)
+                    if usuario_jugador:
+                        jugadores_info.append({
+                            "id_usuario": usuario_jugador.id_usuario,
+                            "nombre_usuario": usuario_jugador.nombre_usuario,
+                            "nombre": perfil_jugador.nombre if perfil_jugador else "",
+                            "apellido": perfil_jugador.apellido if perfil_jugador else "",
+                            "equipo": 1,
+                            "rating": usuario_jugador.rating
+                        })
+            
+            if pareja2:
+                for jid in [pareja2['jugador1_id'], pareja2['jugador2_id']]:
+                    usuario_jugador = usuarios_dict.get(jid)
+                    perfil_jugador = perfiles_dict.get(jid)
+                    if usuario_jugador:
+                        jugadores_info.append({
+                            "id_usuario": usuario_jugador.id_usuario,
+                            "nombre_usuario": usuario_jugador.nombre_usuario,
+                            "nombre": perfil_jugador.nombre if perfil_jugador else "",
+                            "apellido": perfil_jugador.apellido if perfil_jugador else "",
+                            "equipo": 2,
+                            "rating": usuario_jugador.rating
+                        })
+        else:
+            # Para partidos amistosos, usar partido_jugadores
+            jugadores = jugadores_por_partido.get(partido.id_partido, [])
+            for jugador in jugadores:
+                usuario_jugador = usuarios_dict.get(jugador.id_usuario)
+                perfil_jugador = perfiles_dict.get(jugador.id_usuario)
+                
+                if usuario_jugador:
+                    jugadores_info.append({
+                        "id_usuario": usuario_jugador.id_usuario,
+                        "nombre_usuario": usuario_jugador.nombre_usuario,
+                        "nombre": perfil_jugador.nombre if perfil_jugador else "",
+                        "apellido": perfil_jugador.apellido if perfil_jugador else "",
+                        "equipo": jugador.equipo,
+                        "rating": usuario_jugador.rating
+                    })
+        
+        # Obtener resultado - diferente según tipo de partido
         resultado = resultados_dict.get(partido.id_partido)
         
         # Formatear resultado para incluir detalle_sets correctamente
         resultado_dict = None
         
-        if resultado:
+        # Para partidos de torneo, el resultado está en resultado_padel (JSON)
+        if partido.tipo == 'torneo' and partido.resultado_padel:
+            resultado_padel = partido.resultado_padel
+            sets = resultado_padel.get('sets', [])
+            
+            # Contar sets ganados
+            sets_eq1 = sum(1 for s in sets if s.get('ganador') == 'equipoA')
+            sets_eq2 = sum(1 for s in sets if s.get('ganador') == 'equipoB')
+            
+            # Normalizar detalle_sets
+            detalle_sets_normalizado = []
+            for idx, set_data in enumerate(sets, 1):
+                detalle_sets_normalizado.append({
+                    "set": idx,
+                    "juegos_eq1": set_data.get('gamesEquipoA', 0),
+                    "juegos_eq2": set_data.get('gamesEquipoB', 0),
+                    "tiebreak_eq1": set_data.get('tiebreakEquipoA'),
+                    "tiebreak_eq2": set_data.get('tiebreakEquipoB')
+                })
+            
+            resultado_dict = {
+                "id_partido": partido.id_partido,
+                "sets_eq1": sets_eq1,
+                "sets_eq2": sets_eq2,
+                "detalle_sets": detalle_sets_normalizado,
+                "confirmado": True,
+                "desenlace": "normal"
+            }
+        elif resultado:
             # Normalizar detalle_sets a formato consistente
             detalle_sets_normalizado = []
             if resultado.detalle_sets and isinstance(resultado.detalle_sets, list):

@@ -1,6 +1,7 @@
 export interface Jugador {
   id: string;
   nombre: string;
+  nombreUsuario?: string;
   rating?: number;
   esCreador?: boolean;
 }
@@ -41,6 +42,7 @@ export interface Sala {
     cambio_elo: number;
   }>;
   eloAplicado?: boolean;
+  usuariosConfirmados?: number[];  // IDs de usuarios que ya confirmaron
   createdAt: string;
 }
 

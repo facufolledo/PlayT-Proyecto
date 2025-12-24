@@ -18,7 +18,8 @@ class TorneoZonaService:
         torneo_id: int,
         user_id: int,
         num_zonas: Optional[int] = None,
-        balancear_por_rating: bool = True
+        balancear_por_rating: bool = True,
+        categoria_id: Optional[int] = None
     ) -> List[TorneoZona]:
         """
         Genera zonas automáticamente y distribuye parejas
@@ -29,10 +30,13 @@ class TorneoZonaService:
             user_id: ID del usuario que ejecuta (debe ser organizador)
             num_zonas: Número de zonas (si no se especifica, se calcula automáticamente)
             balancear_por_rating: Si True, distribuye parejas por rating para equilibrar zonas
+            categoria_id: ID de la categoría (opcional, si se pasa solo genera para esa categoría)
             
         Returns:
             Lista de zonas creadas
         """
+        from ..models.torneo_models import TorneoCategoria
+        
         # Verificar que el torneo existe y el usuario es organizador
         torneo = db.query(Torneo).filter(Torneo.id == torneo_id).first()
         if not torneo:
@@ -41,15 +45,27 @@ class TorneoZonaService:
         if not TorneoZonaService._es_organizador(db, torneo_id, user_id):
             raise ValueError("No tienes permisos para generar zonas en este torneo")
         
-        # Verificar que el torneo está en estado correcto
-        if torneo.estado != 'inscripcion':
-            raise ValueError("Solo se pueden generar zonas cuando el torneo está en inscripción")
+        # Verificar categoría si se especificó
+        categoria = None
+        if categoria_id:
+            categoria = db.query(TorneoCategoria).filter(
+                TorneoCategoria.id == categoria_id,
+                TorneoCategoria.torneo_id == torneo_id
+            ).first()
+            if not categoria:
+                raise ValueError("Categoría no encontrada")
         
         # Obtener parejas inscritas o confirmadas (excluir bajas)
-        parejas = db.query(TorneoPareja).filter(
+        query = db.query(TorneoPareja).filter(
             TorneoPareja.torneo_id == torneo_id,
             TorneoPareja.estado.in_(['inscripta', 'confirmada'])
-        ).all()
+        )
+        
+        # Filtrar por categoría si se especificó
+        if categoria_id:
+            query = query.filter(TorneoPareja.categoria_id == categoria_id)
+        
+        parejas = query.all()
         
         if len(parejas) < 4:
             raise ValueError(f"Se necesitan al menos 4 parejas para generar zonas (actualmente hay {len(parejas)})")
@@ -71,23 +87,38 @@ class TorneoZonaService:
         if parejas_por_zona_max > 3:
             raise ValueError(f"Con {len(parejas)} parejas y {num_zonas} zonas habría hasta {parejas_por_zona_max} parejas por zona (máximo 3)")
         
-        # Eliminar zonas existentes si las hay
-        db.query(TorneoZonaPareja).filter(
-            TorneoZonaPareja.zona_id.in_(
-                db.query(TorneoZona.id).filter(TorneoZona.torneo_id == torneo_id)
-            )
-        ).delete(synchronize_session=False)
+        # Eliminar zonas existentes de esta categoría (o todas si no hay categoría)
+        if categoria_id:
+            # Solo eliminar zonas de esta categoría
+            zonas_categoria = db.query(TorneoZona.id).filter(
+                TorneoZona.torneo_id == torneo_id,
+                TorneoZona.categoria_id == categoria_id
+            ).all()
+            zona_ids = [z.id for z in zonas_categoria]
+            if zona_ids:
+                db.query(TorneoZonaPareja).filter(
+                    TorneoZonaPareja.zona_id.in_(zona_ids)
+                ).delete(synchronize_session=False)
+                db.query(TorneoZona).filter(TorneoZona.id.in_(zona_ids)).delete(synchronize_session=False)
+        else:
+            # Eliminar todas las zonas del torneo
+            db.query(TorneoZonaPareja).filter(
+                TorneoZonaPareja.zona_id.in_(
+                    db.query(TorneoZona.id).filter(TorneoZona.torneo_id == torneo_id)
+                )
+            ).delete(synchronize_session=False)
+            db.query(TorneoZona).filter(TorneoZona.torneo_id == torneo_id).delete()
         
-        db.query(TorneoZona).filter(TorneoZona.torneo_id == torneo_id).delete()
         db.commit()
         
-        # Crear zonas
+        # Crear zonas (sin prefijo de categoría, ya que se filtra por categoría en la UI)
         zonas = []
         for i in range(num_zonas):
             zona = TorneoZona(
                 torneo_id=torneo_id,
-                nombre=f"Zona {chr(65 + i)}",  # A, B, C, etc.
-                numero_orden=i + 1
+                nombre=f"Zona {chr(65 + i)}",  # "Zona A", "Zona B", etc.
+                numero_orden=i + 1,
+                categoria_id=categoria_id
             )
             db.add(zona)
             zonas.append(zona)
@@ -210,6 +241,7 @@ class TorneoZonaService:
                 'id': zona.id,
                 'nombre': zona.nombre,
                 'numero': zona.numero_orden,
+                'categoria_id': getattr(zona, 'categoria_id', None),
                 'parejas': [
                     {
                         'id': p.id,
@@ -345,9 +377,31 @@ class TorneoZonaService:
             -(x['games_ganados'] - x['games_perdidos'])
         ))
         
-        # Agregar posición
+        # Obtener nombres y usernames de jugadores
+        from ..models.playt_models import Usuario, PerfilUsuario
+        jugadores_ids = set()
+        for item in tabla:
+            jugadores_ids.add(item['jugador1_id'])
+            jugadores_ids.add(item['jugador2_id'])
+        
+        usuarios = {u.id_usuario: u for u in db.query(Usuario).filter(Usuario.id_usuario.in_(jugadores_ids)).all()}
+        perfiles = {p.id_usuario: p for p in db.query(PerfilUsuario).filter(PerfilUsuario.id_usuario.in_(jugadores_ids)).all()}
+        
+        # Agregar posición y nombres
         for i, item in enumerate(tabla):
             item['posicion'] = i + 1
+            
+            # Agregar nombres y usernames
+            p1 = perfiles.get(item['jugador1_id'])
+            p2 = perfiles.get(item['jugador2_id'])
+            u1 = usuarios.get(item['jugador1_id'])
+            u2 = usuarios.get(item['jugador2_id'])
+            
+            item['jugador1_nombre'] = f"{p1.nombre} {p1.apellido}" if p1 else None
+            item['jugador2_nombre'] = f"{p2.nombre} {p2.apellido}" if p2 else None
+            item['jugador1_username'] = u1.nombre_usuario if u1 else None
+            item['jugador2_username'] = u2.nombre_usuario if u2 else None
+            item['pareja_nombre'] = f"{item['jugador1_nombre']} / {item['jugador2_nombre']}" if item['jugador1_nombre'] and item['jugador2_nombre'] else None
         
         return {
             'zona_id': zona_id,
