@@ -202,3 +202,9 @@ class ApiService {
 }
 
 export const apiService = new ApiService();
+
+// Exponer métodos get/post para uso externo
+export const api = {
+  get: (url: string, config?: any) => axios.get(`${API_URL}${url}`, config),
+  post: (url: string, data?: any, config?: any) => axios.post(`${API_URL}${url}`, data, config),
+};

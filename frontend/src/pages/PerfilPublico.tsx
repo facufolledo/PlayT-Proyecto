@@ -389,18 +389,18 @@ export default function PerfilPublico() {
 
                 {/* Racha y Rating */}
                 <div className="grid grid-cols-2 gap-2 mb-3">
-                  <div className={`rounded-lg p-2 text-center ${estadisticas.racha_actual.tipo === 'victorias' ? 'bg-green-500/20' : 'bg-red-500/20'}`}>
-                    <Flame size={14} className={`mx-auto mb-1 ${estadisticas.racha_actual.tipo === 'victorias' ? 'text-green-400' : 'text-red-400'}`} />
-                    <p className={`text-lg md:text-xl font-black ${estadisticas.racha_actual.tipo === 'victorias' ? 'text-green-400' : 'text-red-400'}`}>
-                      {estadisticas.racha_actual.cantidad}
+                  <div className={`rounded-lg p-2 text-center ${estadisticas?.racha_actual?.tipo === 'victorias' ? 'bg-green-500/20' : 'bg-red-500/20'}`}>
+                    <Flame size={14} className={`mx-auto mb-1 ${estadisticas?.racha_actual?.tipo === 'victorias' ? 'text-green-400' : 'text-red-400'}`} />
+                    <p className={`text-lg md:text-xl font-black ${estadisticas?.racha_actual?.tipo === 'victorias' ? 'text-green-400' : 'text-red-400'}`}>
+                      {estadisticas?.racha_actual?.cantidad || 0}
                     </p>
                     <p className="text-[9px] md:text-xs text-textSecondary">
-                      Racha {estadisticas.racha_actual.tipo === 'victorias' ? 'Victorias' : 'Derrotas'}
+                      Racha {estadisticas?.racha_actual?.tipo === 'victorias' ? 'Victorias' : 'Derrotas'}
                     </p>
                   </div>
                   <div className="bg-yellow-500/20 rounded-lg p-2 text-center">
                     <Trophy size={14} className="text-yellow-400 mx-auto mb-1" />
-                    <p className="text-lg md:text-xl font-black text-yellow-400">{estadisticas.mejor_racha}</p>
+                    <p className="text-lg md:text-xl font-black text-yellow-400">{estadisticas?.mejor_racha || 0}</p>
                     <p className="text-[9px] md:text-xs text-textSecondary">Mejor Racha</p>
                   </div>
                 </div>

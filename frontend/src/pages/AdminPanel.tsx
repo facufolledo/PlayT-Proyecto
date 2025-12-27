@@ -48,21 +48,8 @@ export default function AdminPanel() {
   const cargarEstadisticas = async () => {
     try {
       setLoading(true);
-      // Simular estadísticas por ahora - en el futuro se puede crear un endpoint específico
-      await Promise.all([
-        axios.get(`${API_URL}/usuarios/buscar`, { params: { limit: 1 } }),
-        axios.get(`${API_URL}/torneos`, { params: { limit: 1 } })
-      ]);
-
-      // Por ahora usar datos simulados basados en las respuestas
-      setStats({
-        total_usuarios: 150, // Simulated
-        usuarios_activos_mes: 45,
-        total_torneos: 12,
-        torneos_activos: 3,
-        total_partidos: 89,
-        partidos_hoy: 5
-      });
+      const response = await axios.get(`${API_URL}/admin/estadisticas`, getAuthHeaders());
+      setStats(response.data);
     } catch (err: any) {
       console.error('Error cargando estadísticas:', err);
       setError('Error al cargar estadísticas del sistema');
@@ -209,7 +196,7 @@ export default function AdminPanel() {
             <p className="text-textSecondary text-sm mb-4">
               Administrar usuarios, permisos y roles del sistema
             </p>
-            <Button variant="primary" className="w-full text-sm">
+            <Button variant="primary" className="w-full text-sm" onClick={() => navigate('/jugadores')}>
               Gestionar Usuarios
             </Button>
           </div>
@@ -226,7 +213,7 @@ export default function AdminPanel() {
             <p className="text-textSecondary text-sm mb-4">
               Supervisar torneos activos y resolver incidencias
             </p>
-            <Button variant="accent" className="w-full text-sm">
+            <Button variant="accent" className="w-full text-sm" onClick={() => navigate('/torneos')}>
               Ver Torneos
             </Button>
           </div>
@@ -243,46 +230,24 @@ export default function AdminPanel() {
             <p className="text-textSecondary text-sm mb-4">
               Ajustes del sistema, categorías y parámetros
             </p>
-            <Button variant="secondary" className="w-full text-sm">
-              Configurar
+            <Button variant="secondary" className="w-full text-sm" disabled>
+              Próximamente
             </Button>
           </div>
         </Card>
       </div>
 
-      {/* Logs Recientes */}
+      {/* Logs Recientes - Próximamente */}
       <Card>
         <div className="p-4">
           <h3 className="font-bold text-textPrimary mb-4 flex items-center gap-2">
             <Activity className="text-primary" size={20} />
             Actividad Reciente del Sistema
           </h3>
-          <div className="space-y-2">
-            {[
-              { time: '14:32', action: 'Nuevo torneo creado', user: 'admin@playt.com', type: 'success' },
-              { time: '14:15', action: 'Usuario registrado', user: 'nuevo.usuario@email.com', type: 'info' },
-              { time: '13:45', action: 'Partido finalizado', user: 'Torneo Verano 2025', type: 'success' },
-              { time: '13:20', action: 'Error de conexión BD', user: 'Sistema', type: 'error' },
-              { time: '12:58', action: 'Caché limpiado', user: 'admin@playt.com', type: 'warning' },
-            ].map((log, index) => (
-              <div
-                key={index}
-                className="flex items-center justify-between p-3 bg-background rounded-lg"
-              >
-                <div className="flex items-center gap-3">
-                  <span className={`w-2 h-2 rounded-full ${
-                    log.type === 'success' ? 'bg-green-500' :
-                    log.type === 'error' ? 'bg-red-500' :
-                    log.type === 'warning' ? 'bg-yellow-500' : 'bg-blue-500'
-                  }`} />
-                  <div>
-                    <p className="text-textPrimary text-sm font-medium">{log.action}</p>
-                    <p className="text-textSecondary text-xs">{log.user}</p>
-                  </div>
-                </div>
-                <span className="text-textSecondary text-xs">{log.time}</span>
-              </div>
-            ))}
+          <div className="text-center py-8 text-textSecondary">
+            <Activity size={32} className="mx-auto mb-2 opacity-50" />
+            <p className="text-sm">Sistema de logs en desarrollo</p>
+            <p className="text-xs mt-1">Próximamente podrás ver la actividad del sistema aquí</p>
           </div>
         </div>
       </Card>

@@ -69,10 +69,10 @@ export default function BuscadorUsuarios({
   const buscarUsuarios = async () => {
     try {
       setLoading(true);
-      const response = await axios.get(`${API_URL}/usuarios/buscar`, {
+      const response = await axios.get(`${API_URL}/usuarios/buscar-publico`, {
         params: { q: query, limit: 8 }
       });
-      setResultados(response.data);
+      setResultados(response.data || []);
     } catch (error) {
       console.error('Error buscando usuarios:', error);
       setResultados([]);
@@ -85,7 +85,7 @@ export default function BuscadorUsuarios({
     if (onSelect) {
       onSelect(usuario);
     } else {
-      navigate(`/${usuario.nombre_usuario}`);
+      navigate(`/jugador/${usuario.nombre_usuario}`);
     }
     setQuery('');
     setMostrarResultados(false);
