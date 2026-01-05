@@ -47,19 +47,16 @@ self.addEventListener('fetch', (event) => {
   const { request } = event;
   const url = new URL(request.url);
 
-  // Ignorar requests que no sean GET
-  if (request.method !== 'GET') return;
-
   // Ignorar chrome extensions y otros protocolos
   if (!url.protocol.startsWith('http')) return;
 
   // API Requests - Network First, fallback to cache
-  if (url.pathname.startsWith('/api') || url.origin.includes('playt-backend.onrender.com') || url.origin.includes('localhost:8000')) {
+  if (url.pathname.startsWith('/api') || url.origin.includes('playr-proyecto-production.up.railway.app') || url.origin.includes('localhost:8000')) {
     event.respondWith(
       fetch(request)
         .then((response) => {
-          // Solo cachear respuestas exitosas
-          if (response.status === 200) {
+          // Solo cachear respuestas exitosas de GET
+          if (response.status === 200 && request.method === 'GET') {
             const responseClone = response.clone();
             caches.open(API_CACHE).then((cache) => {
               cache.put(request, responseClone);
@@ -68,21 +65,28 @@ self.addEventListener('fetch', (event) => {
           return response;
         })
         .catch(() => {
-          // Si falla, intentar desde cache
-          return caches.match(request).then((cachedResponse) => {
-            if (cachedResponse) {
-              return cachedResponse;
-            }
-            // Respuesta offline genérica
-            return new Response(
-              JSON.stringify({ error: 'Sin conexión', offline: true }),
-              { headers: { 'Content-Type': 'application/json' } }
-            );
-          });
+          // Si falla y es GET, intentar desde cache
+          if (request.method === 'GET') {
+            return caches.match(request).then((cachedResponse) => {
+              if (cachedResponse) {
+                return cachedResponse;
+              }
+              // Respuesta offline genérica
+              return new Response(
+                JSON.stringify({ error: 'Sin conexión', offline: true }),
+                { headers: { 'Content-Type': 'application/json' } }
+              );
+            });
+          }
+          // Para métodos no-GET, re-lanzar el error
+          throw error;
         })
     );
     return;
   }
+
+  // Assets estáticos - Solo para requests GET
+  if (request.method !== 'GET') return;
 
   // Assets estáticos - Cache First, fallback to network
   event.respondWith(

@@ -214,7 +214,7 @@ def obtener_mis_torneos(
             TorneoPareja.jugador1_id == current_user.id_usuario,
             TorneoPareja.jugador2_id == current_user.id_usuario
         ),
-        TorneoPareja.estado.in_(['pendiente', 'inscripta', 'confirmada'])
+        TorneoPareja.estado.in_(['inscripta', 'confirmada'])  # Removido 'pendiente' que no existe en el enum
     ).all()
     
     if not parejas:

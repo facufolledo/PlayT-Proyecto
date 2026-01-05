@@ -171,7 +171,7 @@ export default function Dashboard() {
           transition={shouldReduceMotion ? { duration: 0 } : { duration: 0.4, ease: "easeOut" }}
           className="relative mb-2"
         >
-          <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-2 md:mb-3">
+          <div className="flex flex-col gap-4 mb-2 md:mb-3">
             <div>
               <div className="flex items-center gap-2 md:gap-3 mb-1">
                 <div className="h-0.5 md:h-1 w-8 md:w-12 bg-gradient-to-r from-primary to-secondary rounded-full" />
@@ -182,9 +182,12 @@ export default function Dashboard() {
               <p className="text-textSecondary text-xs md:text-base ml-10 md:ml-15">Aquí está tu resumen de rendimiento</p>
             </div>
             
-            {/* Buscador de jugadores */}
-            <div className="w-full md:w-72">
-              <BuscadorUsuarios placeholder="Buscar jugadores..." />
+            {/* Buscador de jugadores - más prominente */}
+            <div className="w-full max-w-xl">
+              <BuscadorUsuarios 
+                placeholder="🔍 Buscar jugadores por nombre o usuario..." 
+                className="shadow-lg"
+              />
             </div>
           </div>
         </motion.div>

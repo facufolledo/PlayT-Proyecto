@@ -42,6 +42,7 @@ class ApiService {
       headers: {
         'Content-Type': 'application/json',
       },
+      withCredentials: true, // Importante para CORS
     });
 
     // Interceptor para agregar token a las peticiones
@@ -202,3 +203,97 @@ class ApiService {
 }
 
 export const apiService = new ApiService();
+
+// Exponer métodos get/post para uso externo con manejo de errores mejorado
+export const api = {
+  get: async (url: string, config?: any) => {
+    try {
+      const token = localStorage.getItem('firebase_token') || localStorage.getItem('access_token');
+      const headers = {
+        'Content-Type': 'application/json',
+        ...(token && { Authorization: `Bearer ${token}` }),
+        ...config?.headers
+      };
+      
+      return await axios.get(`${API_URL}${url}`, { 
+        ...config, 
+        headers,
+        withCredentials: true 
+      });
+    } catch (error: any) {
+      // En desarrollo, si no hay backend local, mostrar mensaje más amigable
+      if (error.code === 'ERR_NETWORK' && API_URL.includes('localhost')) {
+        console.warn('⚠️ Backend local no disponible. Asegúrate de que esté ejecutándose en', API_URL);
+        throw new Error('Backend local no disponible. Inicia el servidor backend.');
+      }
+      throw error;
+    }
+  },
+  post: async (url: string, data?: any, config?: any) => {
+    try {
+      const token = localStorage.getItem('firebase_token') || localStorage.getItem('access_token');
+      const headers = {
+        'Content-Type': 'application/json',
+        ...(token && { Authorization: `Bearer ${token}` }),
+        ...config?.headers
+      };
+      
+      return await axios.post(`${API_URL}${url}`, data, { 
+        ...config, 
+        headers,
+        withCredentials: true 
+      });
+    } catch (error: any) {
+      // En desarrollo, si no hay backend local, mostrar mensaje más amigable
+      if (error.code === 'ERR_NETWORK' && API_URL.includes('localhost')) {
+        console.warn('⚠️ Backend local no disponible. Asegúrate de que esté ejecutándose en', API_URL);
+        throw new Error('Backend local no disponible. Inicia el servidor backend.');
+      }
+      throw error;
+    }
+  },
+  put: async (url: string, data?: any, config?: any) => {
+    try {
+      const token = localStorage.getItem('firebase_token') || localStorage.getItem('access_token');
+      const headers = {
+        'Content-Type': 'application/json',
+        ...(token && { Authorization: `Bearer ${token}` }),
+        ...config?.headers
+      };
+      
+      return await axios.put(`${API_URL}${url}`, data, { 
+        ...config, 
+        headers,
+        withCredentials: true 
+      });
+    } catch (error: any) {
+      if (error.code === 'ERR_NETWORK' && API_URL.includes('localhost')) {
+        console.warn('⚠️ Backend local no disponible. Asegúrate de que esté ejecutándose en', API_URL);
+        throw new Error('Backend local no disponible. Inicia el servidor backend.');
+      }
+      throw error;
+    }
+  },
+  delete: async (url: string, config?: any) => {
+    try {
+      const token = localStorage.getItem('firebase_token') || localStorage.getItem('access_token');
+      const headers = {
+        'Content-Type': 'application/json',
+        ...(token && { Authorization: `Bearer ${token}` }),
+        ...config?.headers
+      };
+      
+      return await axios.delete(`${API_URL}${url}`, { 
+        ...config, 
+        headers,
+        withCredentials: true 
+      });
+    } catch (error: any) {
+      if (error.code === 'ERR_NETWORK' && API_URL.includes('localhost')) {
+        console.warn('⚠️ Backend local no disponible. Asegúrate de que esté ejecutándose en', API_URL);
+        throw new Error('Backend local no disponible. Inicia el servidor backend.');
+      }
+      throw error;
+    }
+  }
+};

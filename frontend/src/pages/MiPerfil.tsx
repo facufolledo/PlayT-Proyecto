@@ -677,12 +677,12 @@ export default function MiPerfil() {
 
                           {/* Resultado */}
                           <div className="col-span-2 text-center">
-                            <p className={`text-2xl md:text-3xl font-black ${
+                            <p className={`text-lg md:text-3xl font-black leading-tight ${
                               victoria ? 'text-green-400' : 'text-red-400'
                             }`}>
                               {formatearSets(partido)}
                             </p>
-                            <p className="text-textSecondary text-[9px] md:text-xs hidden sm:block">
+                            <p className="text-textSecondary text-[8px] md:text-xs hidden sm:block">
                               {formatearDetalleSets(partido)}
                             </p>
                           </div>

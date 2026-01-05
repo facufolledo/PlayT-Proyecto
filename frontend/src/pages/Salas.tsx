@@ -1,25 +1,33 @@
 import { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { motion, AnimatePresence } from 'framer-motion';
-import Card from '../components/Card';
+import { motion } from 'framer-motion';
 import Button from '../components/Button';
 import ModalCrearSala from '../components/ModalCrearSala';
 import ModalUnirseSala from '../components/ModalUnirseSala';
 import SalaEspera from '../components/SalaEspera';
 import MarcadorPadel from '../components/MarcadorPadel';
 import ModalConfirmarResultado from '../components/ModalConfirmarResultado';
-import SalaCard from '../components/SalaCard';
-import SalaCardSkeleton from '../components/SalaCardSkeleton';
-import { Plus, Filter, AlertCircle } from 'lucide-react';
+import MisSalasSection from '../components/salas/MisSalasSection';
+import SalasEnJuegoSection from '../components/salas/SalasEnJuegoSection';
+import ExplorarSalasTable from '../components/salas/ExplorarSalasTable';
+import { SalasDebug } from '../components/SalasDebug';
+import { Plus, Settings, AlertCircle } from 'lucide-react';
 import { useSalas } from '../context/SalasContext';
 import { useAuth } from '../context/AuthContext';
 import { Sala } from '../utils/types';
 
 export default function Salas() {
-  const navigate = useNavigate();
   const { salas, getSalasPendientesConfirmacion, cargarSalas, loading } = useSalas();
   const { usuario } = useAuth();
   const [codigoUrl, setCodigoUrl] = useState<string | null>(null);
+  const [modalCrearOpen, setModalCrearOpen] = useState(false);
+  const [modalUnirseOpen, setModalUnirseOpen] = useState(false);
+  const [modalEsperaOpen, setModalEsperaOpen] = useState(false);
+  const [modalMarcadorOpen, setModalMarcadorOpen] = useState(false);
+  const [modalConfirmarOpen, setModalConfirmarOpen] = useState(false);
+  const [salaSeleccionada, setSalaSeleccionada] = useState<Sala | null>(null);
+  const [busqueda, setBusqueda] = useState('');
+  const [mostrarFiltros, setMostrarFiltros] = useState(false);
+  const [historialColapsado, setHistorialColapsado] = useState(true);
 
   // Cargar salas cuando se monta la página y hay usuario
   useEffect(() => {
@@ -39,302 +47,236 @@ export default function Salas() {
     const params = new URLSearchParams(window.location.search);
     const codigo = params.get('codigo');
     if (codigo) {
-      // Guardar código y abrir modal
       setCodigoUrl(codigo);
       setModalUnirseOpen(true);
-      // Limpiar la URL
       window.history.replaceState({}, '', '/salas');
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [usuario]);
-  const [modalCrearOpen, setModalCrearOpen] = useState(false);
-  const [modalUnirseOpen, setModalUnirseOpen] = useState(false);
-  const [modalEsperaOpen, setModalEsperaOpen] = useState(false);
-  const [modalMarcadorOpen, setModalMarcadorOpen] = useState(false);
-  const [modalConfirmarOpen, setModalConfirmarOpen] = useState(false);
-  const [salaSeleccionada, setSalaSeleccionada] = useState<Sala | null>(null);
-  const [filtro, setFiltro] = useState<'todas' | 'activa' | 'programada' | 'finalizada'>('todas');
-  const [mostrarTodas, setMostrarTodas] = useState(false);
-  const ITEMS_POR_PAGINA = 20;
 
   const salasPendientes = usuario ? getSalasPendientesConfirmacion(usuario.id_usuario?.toString() || '') : [];
+
+  // Separar salas por categorías
+  const misSalas = salas.filter(s => s.jugadores?.some(j => j.id === usuario?.id_usuario?.toString()));
+  const salasEnJuego = salas.filter(s => (s.estado === 'activa' || s.estado === 'en_juego') && !misSalas.includes(s));
+  const salasExplorar = salas.filter(s => !misSalas.includes(s) && !salasEnJuego.includes(s));
+  const salasHistorial = salas.filter(s => s.estado === 'finalizada');
 
   const salasActivas = salas.filter(s => s.estado === 'activa' || s.estado === 'en_juego');
   const salasProgramadas = salas.filter(s => s.estado === 'programada');
   const salasFinalizadas = salas.filter(s => s.estado === 'finalizada');
 
-  const salasFiltradas = filtro === 'todas'
-    ? salas
-    : filtro === 'activa' 
-      ? salas.filter(s => s.estado === 'activa' || s.estado === 'en_juego')
-      : salas.filter(s => s.estado === filtro);
-
-  const salasMostradas = mostrarTodas ? salasFiltradas : salasFiltradas.slice(0, ITEMS_POR_PAGINA);
-
   const handleOpenMarcador = (sala: Sala) => {
     setSalaSeleccionada(sala);
     
-    // Si la sala está en espera, abrir sala de espera
-    if (sala.estado === 'esperando') {
-      setModalEsperaOpen(true);
-    } else if (sala.estado === 'en_juego' || sala.estado === 'activa') {
-      // Si está en juego o activa, abrir marcador
+    console.log('🔍 Abriendo sala:', {
+      id: sala.id,
+      estado: sala.estado,
+      nombre: sala.nombre,
+      jugadores: sala.jugadores?.length || 0
+    });
+    
+    // Lógica mejorada basada en el estado real de la sala
+    if (sala.estado === 'finalizada' || sala.estado === 'terminada' || sala.estado === 'completada') {
+      // Sala finalizada - solo mostrar resultados
       setModalMarcadorOpen(true);
+    } else if (sala.estado === 'en_juego' || sala.estado === 'activa' || sala.estado === 'jugando') {
+      // Sala en juego - abrir marcador
+      setModalMarcadorOpen(true);
+    } else if (sala.estado === 'esperando' || sala.estado === 'pendiente') {
+      // Sala esperando - abrir sala de espera
+      setModalEsperaOpen(true);
     } else {
-      // Para otros estados (programada, etc), abrir sala de espera
+      // Estado desconocido - abrir sala de espera por defecto
+      console.warn('⚠️ Estado de sala desconocido:', sala.estado);
       setModalEsperaOpen(true);
     }
   };
 
   const handleIniciarPartido = () => {
-    // Cerrar sala de espera y abrir marcador
     setModalEsperaOpen(false);
     setModalMarcadorOpen(true);
   };
 
   return (
-    <div className="space-y-8">
-      {/* Header mejorado */}
+    <div className="space-y-6">
+      {/* HEADER - Optimizado para móvil */}
       <motion.div
         initial={{ opacity: 0, y: -30 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.4 }}
-        className="flex flex-col md:flex-row items-start md:items-center justify-between gap-3 md:gap-4"
+        className="flex flex-col gap-4"
       >
-        <div className="relative">
-          <div className="flex items-center gap-2 md:gap-3 mb-1 md:mb-2">
-            <div className="h-0.5 md:h-1 w-8 md:w-12 bg-gradient-to-r from-primary to-secondary rounded-full" />
-            <h1 className="text-2xl md:text-5xl font-black text-textPrimary tracking-tight">
+        <div>
+          <div className="flex items-center gap-3 mb-2">
+            <div className="h-1 w-8 md:w-12 bg-gradient-to-r from-primary to-secondary rounded-full" />
+            <h1 className="text-2xl md:text-4xl font-black text-textPrimary tracking-tight">
               Salas
             </h1>
           </div>
-          <p className="text-textSecondary text-xs md:text-base ml-10 md:ml-15">Gestiona tus partidos de pádel</p>
+          <p className="text-textSecondary text-sm md:text-base ml-11 md:ml-15">Gestioná tus partidos de pádel</p>
         </div>
-        <div className="flex gap-2">
-          <motion.div
-            whileHover={{ scale: 1.05 }}
-            whileTap={{ scale: 0.95 }}
+        
+        {/* Botones reorganizados para móvil */}
+        <div className="flex flex-col sm:flex-row gap-2 sm:gap-3">
+          <Button 
+            variant="primary" 
+            onClick={() => setModalCrearOpen(true)}
+            className="flex items-center justify-center gap-2 px-4 py-3 text-sm font-bold"
           >
-            <Button variant="secondary" onClick={() => setModalUnirseOpen(true)} className="text-xs md:text-sm px-3 md:px-4 py-2 md:py-2.5">
-              <div className="flex items-center gap-1 md:gap-2">
-                <span className="text-lg">🔗</span>
-                <span className="hidden sm:inline">Unirse</span>
-              </div>
+            <Plus size={16} />
+            Nueva Sala
+          </Button>
+          
+          <div className="flex gap-2">
+            <div className="flex-1 sm:flex-none">
+              <input
+                type="text"
+                placeholder="🔍 Buscar"
+                value={busqueda}
+                onChange={(e) => setBusqueda(e.target.value)}
+                className="w-full sm:w-48 bg-cardBg border border-cardBorder rounded-lg px-3 py-2.5 text-sm text-textPrimary placeholder-textSecondary focus:border-primary focus:outline-none"
+              />
+            </div>
+            
+            <Button 
+              variant="secondary"
+              onClick={() => setMostrarFiltros(!mostrarFiltros)}
+              className="flex items-center gap-2 px-3 py-2.5 text-sm"
+            >
+              <Settings size={16} />
+              <span className="hidden sm:inline">Filtros</span>
             </Button>
-          </motion.div>
-          <motion.div
-            whileHover={{ scale: 1.05 }}
-            whileTap={{ scale: 0.95 }}
-          >
-            <Button variant="primary" onClick={() => setModalCrearOpen(true)} className="text-xs md:text-sm px-3 md:px-4 py-2 md:py-2.5">
-              <div className="flex items-center gap-1 md:gap-2">
-                <Plus size={16} className="md:w-[18px] md:h-[18px]" />
-                <span className="hidden sm:inline">Nueva Sala</span>
-                <span className="sm:hidden">Nueva</span>
-              </div>
-            </Button>
-          </motion.div>
+          </div>
         </div>
       </motion.div>
 
-      {/* Alerta de confirmaciones pendientes */}
+      {/* KPIs - Optimizados para móvil */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-2 md:gap-4">
+        {[
+          { label: 'TOTAL', value: salas.length, color: 'from-cyan-500 to-blue-500' },
+          { label: 'EN JUEGO', value: salasActivas.length, color: 'from-green-500 to-emerald-500' },
+          { label: 'PROGRAMADAS', value: salasProgramadas.length, color: 'from-primary to-blue-500' },
+          { label: 'FINALIZADAS', value: salasFinalizadas.length, color: 'from-gray-500 to-gray-400' }
+        ].map((stat, index) => (
+          <motion.div
+            key={stat.label}
+            initial={{ opacity: 0, scale: 0.9 }}
+            animate={{ opacity: 1, scale: 1 }}
+            transition={{ delay: index * 0.05 }}
+            className="bg-cardBg rounded-lg p-3 md:p-4 border border-cardBorder text-center"
+          >
+            <p className="text-xl md:text-2xl font-black text-textPrimary mb-1">{stat.value}</p>
+            <p className="text-textSecondary text-[10px] md:text-xs font-bold uppercase tracking-wider leading-tight">
+              {stat.label}
+            </p>
+          </motion.div>
+        ))}
+      </div>
+
+      {/* Alerta de confirmaciones pendientes - Optimizada para móvil */}
       {salasPendientes.length > 0 && (
         <motion.div
           initial={{ opacity: 0, y: -20 }}
           animate={{ opacity: 1, y: 0 }}
-          className="bg-accent/10 border border-accent/30 rounded-lg md:rounded-xl p-2 md:p-4"
+          className="bg-accent/10 border border-accent/30 rounded-lg p-3 md:p-4"
         >
-          <div className="flex items-center gap-2 md:gap-3">
-            <AlertCircle size={18} className="text-accent md:w-6 md:h-6 flex-shrink-0" />
+          <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3">
+            <AlertCircle size={18} className="text-accent flex-shrink-0" />
             <div className="flex-1 min-w-0">
-              <p className="text-accent font-bold text-xs md:text-base">
+              <p className="text-accent font-bold text-sm md:text-base">
                 Tienes {salasPendientes.length} {salasPendientes.length === 1 ? 'partido pendiente' : 'partidos pendientes'} de confirmación
               </p>
-              <p className="text-textSecondary text-[10px] md:text-sm">
+              <p className="text-textSecondary text-xs md:text-sm">
                 Confirma los resultados para que sean oficiales
               </p>
             </div>
             <Button
               variant="accent"
               onClick={() => {
-                // Abrir el modal de marcador de la sala pendiente
                 setSalaSeleccionada(salasPendientes[0]);
                 setModalMarcadorOpen(true);
               }}
-              className="text-[10px] md:text-sm px-2 md:px-4 py-1.5 md:py-2 flex-shrink-0"
+              className="text-xs md:text-sm px-3 md:px-4 py-2 w-full sm:w-auto"
             >
-              <span className="hidden sm:inline">Confirmar Ahora</span>
-              <span className="sm:hidden">Confirmar</span>
+              Confirmar Ahora
             </Button>
           </div>
         </motion.div>
       )}
 
-      {/* Estadísticas compactas */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-1.5 md:gap-2">
-        {[
-          { label: 'Total', value: salas.length, color: 'from-cyan-500 to-blue-500', icon: '📊' },
-          { label: 'En Juego', value: salasActivas.length, color: 'from-secondary to-pink-500', icon: '🎾' },
-          { label: 'Programadas', value: salasProgramadas.length, color: 'from-primary to-blue-500', icon: '📅' },
-          { label: 'Finalizadas', value: salasFinalizadas.length, color: 'from-accent to-yellow-400', icon: '🏆' }
-        ].map((stat, index) => (
+      {/* Debug Component - Solo en desarrollo */}
+      <SalasDebug salas={salas} usuario={usuario} />
+
+      {/* SECCIÓN 1 - MIS SALAS (PRIORIDAD MÁXIMA) */}
+      <MisSalasSection 
+        salas={misSalas}
+        onEntrarSala={(salaId) => {
+          const sala = salas.find(s => s.id === salaId.toString());
+          if (sala) handleOpenMarcador(sala);
+        }}
+        onVerPartido={(salaId) => {
+          const sala = salas.find(s => s.id === salaId.toString());
+          if (sala) handleOpenMarcador(sala);
+        }}
+        loading={loading}
+      />
+
+      {/* SECCIÓN 2 - SALAS EN JUEGO / HOY */}
+      <SalasEnJuegoSection 
+        salas={salasEnJuego}
+        onVerSala={(salaId) => {
+          const sala = salas.find(s => s.id === salaId.toString());
+          if (sala) handleOpenMarcador(sala);
+        }}
+        loading={loading}
+      />
+
+      {/* SECCIÓN 3 - EXPLORAR SALAS (TABLA ESCALABLE) */}
+      <ExplorarSalasTable 
+        salas={salasExplorar}
+        onUnirseSala={(salaId) => {
+          const sala = salas.find(s => s.id === salaId.toString());
+          if (sala) handleOpenMarcador(sala);
+        }}
+        onVerSala={(salaId) => {
+          const sala = salas.find(s => s.id === salaId.toString());
+          if (sala) handleOpenMarcador(sala);
+        }}
+        busqueda={busqueda}
+        loading={loading}
+      />
+
+      {/* SECCIÓN 4 - HISTORIAL (COLAPSADO) */}
+      <div className="space-y-3">
+        <button
+          onClick={() => setHistorialColapsado(!historialColapsado)}
+          className="flex items-center gap-2 text-textPrimary hover:text-primary transition-colors"
+        >
+          <span className={`transform transition-transform ${historialColapsado ? 'rotate-0' : 'rotate-90'}`}>
+            ▸
+          </span>
+          <span className="font-bold">Historial de Salas ({salasHistorial.length})</span>
+        </button>
+        
+        {!historialColapsado && (
           <motion.div
-            key={stat.label}
-            initial={{ opacity: 0, scale: 0.9 }}
-            animate={{ opacity: 1, scale: 1 }}
-            transition={{ delay: index * 0.03 }}
-            className="group relative"
+            initial={{ opacity: 0, height: 0 }}
+            animate={{ opacity: 1, height: 'auto' }}
+            exit={{ opacity: 0, height: 0 }}
+            className="overflow-hidden"
           >
-            <div className="bg-cardBg rounded-lg p-1.5 md:p-2.5 border border-cardBorder group-hover:border-transparent transition-all duration-200 relative overflow-hidden">
-              <div className={`absolute -inset-[1px] bg-gradient-to-br ${stat.color} opacity-0 group-hover:opacity-100 transition-opacity duration-200 rounded-lg -z-10 blur-sm`} />
-
-              <div className="flex items-center justify-between mb-0.5 md:mb-1">
-                <span className="text-xs md:text-base">{stat.icon}</span>
-                <p className="text-lg md:text-2xl font-black text-textPrimary tracking-tight">
-                  {stat.value}
-                </p>
-              </div>
-              <p className="text-textSecondary text-[8px] md:text-[9px] font-bold uppercase tracking-wider">{stat.label}</p>
-            </div>
+            <ExplorarSalasTable 
+              salas={salasHistorial}
+              onUnirseSala={() => {}}
+              onVerSala={(salaId) => {
+                const sala = salas.find(s => s.id === salaId.toString());
+                if (sala) handleOpenMarcador(sala);
+              }}
+              busqueda={busqueda}
+              loading={loading}
+              soloLectura={true}
+            />
           </motion.div>
-        ))}
-      </div>
-
-      {/* Filtros */}
-      <div className="flex items-center gap-1.5 md:gap-3 flex-wrap">
-        <div className="flex items-center gap-1 md:gap-2 text-textSecondary">
-          <Filter size={14} className="md:w-[18px] md:h-[18px]" />
-          <span className="text-xs md:text-sm">Filtrar:</span>
-        </div>
-        {(['todas', 'activa', 'programada', 'finalizada'] as const).map((f) => (
-          <Button
-            key={f}
-            variant={filtro === f ? 'primary' : 'secondary'}
-            onClick={() => setFiltro(f)}
-            className="text-[10px] md:text-sm px-2 md:px-3 py-1 md:py-1.5"
-          >
-            {f === 'todas' ? 'Todas' : f === 'activa' ? 'En Juego' : f === 'programada' ? 'Programadas' : 'Finalizadas'}
-          </Button>
-        ))}
-      </div>
-
-      {/* Salas de Ejemplo (3 aleatorias) */}
-      {filtro === 'todas' && (
-        <div className="space-y-3 md:space-y-4">
-          <div className="flex items-center gap-1.5 md:gap-2">
-            <h2 className="text-base md:text-xl font-bold text-textPrimary">Salas Activas</h2>
-            <span className="text-textSecondary text-[10px] md:text-sm">(Ejemplos de la comunidad)</span>
-          </div>
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-2 md:gap-4">
-            {loading ? (
-              // Skeleton loaders mientras carga
-              <>
-                <SalaCardSkeleton />
-                <SalaCardSkeleton />
-                <SalaCardSkeleton />
-              </>
-            ) : (
-              <AnimatePresence mode="popLayout">
-                {salas
-                  .filter(s => !s.jugadores?.some(j => j.id === usuario?.id_usuario?.toString()))
-                  .slice(0, 3)
-                  .map((sala) => (
-                    <SalaCard
-                      key={sala.id}
-                      sala={sala}
-                      onOpenMarcador={handleOpenMarcador}
-                    />
-                  ))}
-              </AnimatePresence>
-            )}
-          </div>
-        </div>
-      )}
-
-      {/* Mis Salas */}
-      <div className="space-y-3 md:space-y-4">
-        <div className="flex items-center gap-1.5 md:gap-2">
-          <h2 className="text-base md:text-xl font-bold text-textPrimary">Mis Salas</h2>
-          {!loading && (
-            <span className="text-textSecondary text-[10px] md:text-sm">
-              ({salasFiltradas.filter(s => s.jugadores?.some(j => j.id === usuario?.id_usuario?.toString())).length})
-            </span>
-          )}
-        </div>
-
-        {loading ? (
-          // Skeleton loaders mientras carga
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-2 md:gap-4">
-            <SalaCardSkeleton />
-            <SalaCardSkeleton />
-            <SalaCardSkeleton />
-            <SalaCardSkeleton />
-          </div>
-        ) : salasFiltradas.filter(s => s.jugadores?.some(j => j.id === usuario?.id_usuario?.toString())).length === 0 ? (
-          <Card>
-            <div className="text-center py-6 md:py-12 text-textSecondary px-3 md:px-4">
-              <p className="text-sm md:text-lg mb-1.5 md:mb-4">
-                No tienes salas
-                {filtro !== 'todas' && ` ${filtro === 'activa' ? 'en juego' : filtro === 'programada' ? 'programadas' : 'finalizadas'}`}
-              </p>
-              <p className="text-[10px] md:text-sm mb-3 md:mb-4">
-                Crea una sala o únete a una existente para comenzar
-              </p>
-              <div className="flex gap-1.5 md:gap-2 justify-center">
-                <Button variant="primary" onClick={() => setModalCrearOpen(true)} className="text-xs md:text-sm px-3 md:px-4 py-1.5 md:py-2">
-                  Crear Sala
-                </Button>
-                <Button variant="secondary" onClick={() => setModalUnirseOpen(true)} className="text-xs md:text-sm px-3 md:px-4 py-1.5 md:py-2">
-                  Unirse a Sala
-                </Button>
-              </div>
-            </div>
-          </Card>
-        ) : (
-          <>
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-2 md:gap-4">
-              <AnimatePresence mode="popLayout">
-                {salasFiltradas
-                  .filter(s => s.jugadores?.some(j => j.id === usuario?.id_usuario?.toString()))
-                  .slice(0, mostrarTodas ? undefined : ITEMS_POR_PAGINA)
-                  .map((sala) => (
-                    <SalaCard
-                      key={sala.id}
-                      sala={sala}
-                      onOpenMarcador={handleOpenMarcador}
-                    />
-                  ))}
-              </AnimatePresence>
-            </div>
-
-            {/* Botón Cargar Más */}
-            {!mostrarTodas && salasFiltradas.filter(s => s.jugadores?.some(j => j.id === usuario?.id_usuario?.toString())).length > ITEMS_POR_PAGINA && (
-              <div className="mt-3 md:mt-6 text-center">
-                <Button
-                  variant="primary"
-                  onClick={() => setMostrarTodas(true)}
-                  className="w-full md:w-auto text-xs md:text-sm px-3 md:px-4 py-2 md:py-2.5"
-                >
-                  Cargar más ({salasFiltradas.filter(s => s.jugadores?.some(j => j.id === usuario?.id_usuario?.toString())).length - ITEMS_POR_PAGINA} restantes)
-                </Button>
-              </div>
-            )}
-
-            {mostrarTodas && salasFiltradas.filter(s => s.jugadores?.some(j => j.id === usuario?.id_usuario?.toString())).length > ITEMS_POR_PAGINA && (
-              <div className="mt-3 md:mt-6 text-center">
-                <Button
-                  variant="ghost"
-                  onClick={() => {
-                    setMostrarTodas(false);
-                    window.scrollTo({ top: 0, behavior: 'smooth' });
-                  }}
-                  className="w-full md:w-auto text-xs md:text-sm px-3 md:px-4 py-2 md:py-2.5"
-                >
-                  Mostrar menos
-                </Button>
-              </div>
-            )}
-          </>
         )}
       </div>
 

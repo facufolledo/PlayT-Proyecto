@@ -373,14 +373,14 @@ async def registrar_fcm_token(
 
 @router.get("/buscar")
 async def buscar_usuarios(
-    q: str,
+    q: Optional[str] = None,
     limit: int = 10,
     db: Session = Depends(get_db)
 ):
     """
     Busca usuarios por nombre, apellido o nombre de usuario
     """
-    if len(q) < 2:
+    if not q or len(q) < 2:
         return []
     
     query_lower = f"%{q.lower()}%"
@@ -557,3 +557,100 @@ async def obtener_estadisticas_usuario(
         "winrate": winrate,
         "rating": usuario.rating or 1200
     }
+
+
+# ============================================
+# ENDPOINTS ADICIONALES PARA PERFIL PÚBLICO
+# ============================================
+
+@router.get("/perfil-publico/{username}")
+async def get_perfil_publico_por_username(
+    username: str,
+    db: Session = Depends(get_db)
+):
+    """
+    Obtiene el perfil público de un usuario por su username
+    Alias de /@{username}/perfil para compatibilidad con frontend
+    """
+    usuario = db.query(Usuario).filter(Usuario.nombre_usuario == username).first()
+    if not usuario:
+        raise HTTPException(status_code=404, detail="Usuario no encontrado")
+    
+    perfil = db.query(PerfilUsuario).filter(
+        PerfilUsuario.id_usuario == usuario.id_usuario
+    ).first()
+    
+    if not perfil:
+        raise HTTPException(status_code=404, detail="Perfil no encontrado")
+    
+    categoria = db.query(Categoria).filter(
+        Categoria.id_categoria == usuario.id_categoria
+    ).first() if usuario.id_categoria else None
+    
+    return {
+        "id_usuario": usuario.id_usuario,
+        "nombre_usuario": usuario.nombre_usuario,
+        "nombre": perfil.nombre,
+        "apellido": perfil.apellido,
+        "nombre_completo": f"{perfil.nombre} {perfil.apellido}",
+        "sexo": usuario.sexo,
+        "ciudad": perfil.ciudad,
+        "pais": perfil.pais,
+        "rating": usuario.rating or 1200,
+        "partidos_jugados": usuario.partidos_jugados or 0,
+        "categoria": categoria.nombre if categoria else None,
+        "categoria_id": usuario.id_categoria,
+        "posicion_preferida": perfil.posicion_preferida,
+        "mano_dominante": perfil.mano_habil,
+        "foto_perfil": perfil.url_avatar
+    }
+
+
+@router.get("/buscar-publico")
+async def buscar_usuarios_publico(
+    q: Optional[str] = None,
+    limit: int = 20,
+    db: Session = Depends(get_db)
+):
+    """
+    Búsqueda pública de usuarios por nombre, apellido o username
+    No requiere autenticación
+    """
+    from sqlalchemy import or_
+    
+    if not q or len(q) < 2:
+        return []
+    
+    search_term = f"%{q.lower()}%"
+    
+    # Buscar usuarios con perfil
+    usuarios = db.query(Usuario, PerfilUsuario).join(
+        PerfilUsuario, Usuario.id_usuario == PerfilUsuario.id_usuario
+    ).filter(
+        or_(
+            Usuario.nombre_usuario.ilike(search_term),
+            PerfilUsuario.nombre.ilike(search_term),
+            PerfilUsuario.apellido.ilike(search_term)
+        )
+    ).limit(limit).all()
+    
+    resultado = []
+    for usuario, perfil in usuarios:
+        categoria = db.query(Categoria).filter(
+            Categoria.id_categoria == usuario.id_categoria
+        ).first() if usuario.id_categoria else None
+        
+        resultado.append({
+            "id_usuario": usuario.id_usuario,
+            "nombre_usuario": usuario.nombre_usuario,
+            "nombre": perfil.nombre,
+            "apellido": perfil.apellido,
+            "nombre_completo": f"{perfil.nombre} {perfil.apellido}",
+            "rating": usuario.rating or 1200,
+            "partidos_jugados": usuario.partidos_jugados or 0,
+            "categoria": categoria.nombre if categoria else None,
+            "ciudad": perfil.ciudad,
+            "foto_perfil": perfil.url_avatar
+        })
+    
+    return resultado

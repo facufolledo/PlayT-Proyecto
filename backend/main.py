@@ -29,6 +29,8 @@ from src.controllers.sala_controller import router as sala_router
 from src.controllers.resultado_controller import router as resultado_router
 from src.controllers.torneo import router as torneo_router
 from src.controllers.health_controller import router as health_router
+from src.controllers.logs_controller import router as logs_router
+from src.controllers.admin_controller import router as admin_router
 
 
 # ---- Lifespan (startup/shutdown) ----
@@ -69,20 +71,23 @@ app = FastAPI(
     lifespan=lifespan,  # 👈 reemplaza on_event
 )
 
-# ---- CORS (json.loads en vez de eval) ----
+# ---- CORS (DEBE IR ANTES DE OTROS MIDDLEWARES) ----
 _default_origins = '["http://localhost:3000", "http://127.0.0.1:3000", "http://localhost:8080", "http://localhost:5173", "http://127.0.0.1:5173", "http://localhost:5174", "http://127.0.0.1:5174", "https://kioskito.click", "https://www.kioskito.click"]'
 try:
     origins = json.loads(os.getenv("CORS_ORIGINS", _default_origins))
     if not isinstance(origins, list):
         raise ValueError("CORS_ORIGINS debe ser una lista JSON de strings.")
-except Exception:
+    logger.info(f"✅ CORS configurado con origins: {origins}")
+except Exception as e:
+    logger.error(f"❌ Error configurando CORS: {e}")
     origins = json.loads(_default_origins)
+    logger.info(f"🔄 Usando origins por defecto: {origins}")
 
 app.add_middleware(
     CORSMiddleware,
     allow_origins=origins,
     allow_credentials=True,
-    allow_methods=["*"],
+    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
     allow_headers=["*"],
 )
 
@@ -100,6 +105,8 @@ app.include_router(ranking_router)
 app.include_router(estadisticas_router)
 app.include_router(torneo_router)
 app.include_router(health_router)
+app.include_router(logs_router)
+app.include_router(admin_router)
 
 # ---- Endpoints básicos ----
 @app.get("/")
@@ -122,6 +129,30 @@ async def test_cors():
         "message": "CORS está funcionando correctamente",
         "timestamp": datetime.now().isoformat(),
         "cors_enabled": True
+    }
+
+@app.options("/api/test-cors")
+async def test_cors_preflight():
+    """Endpoint OPTIONS para preflight requests"""
+    return {"message": "Preflight OK"}
+
+@app.options("/{path:path}")
+async def handle_preflight(path: str):
+    """Manejar todas las requests OPTIONS (preflight)"""
+    return {"message": "Preflight handled"}
+
+@app.get("/debug/cors")
+async def cors_debug():
+    """Endpoint de debug para verificar configuración CORS"""
+    return {
+        "cors_origins": origins,
+        "cors_origins_env": os.getenv("CORS_ORIGINS"),
+        "cors_origins_default": _default_origins,
+        "cors_middleware_enabled": True,
+        "allow_credentials": True,
+        "allow_methods": ["*"],
+        "allow_headers": ["*"],
+        "timestamp": datetime.now().isoformat()
     }
 
 @app.get("/debug/firebase")

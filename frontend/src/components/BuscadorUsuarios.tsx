@@ -2,27 +2,12 @@ import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Search, X, User } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
-import axios from 'axios';
-
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
-
-interface UsuarioBusqueda {
-  id_usuario: number;
-  nombre_usuario: string;
-  nombre: string;
-  apellido: string;
-  nombre_completo: string;
-  rating: number;
-  partidos_jugados: number;
-  categoria: string | null;
-  ciudad: string | null;
-  foto_perfil: string | null;
-}
+import { perfilService, PerfilPublico } from '../services/perfil.service';
 
 interface BuscadorUsuariosProps {
   placeholder?: string;
   className?: string;
-  onSelect?: (usuario: UsuarioBusqueda) => void;
+  onSelect?: (usuario: PerfilPublico) => void;
   autoFocus?: boolean;
 }
 
@@ -34,7 +19,7 @@ export default function BuscadorUsuarios({
 }: BuscadorUsuariosProps) {
   const navigate = useNavigate();
   const [query, setQuery] = useState('');
-  const [resultados, setResultados] = useState<UsuarioBusqueda[]>([]);
+  const [resultados, setResultados] = useState<PerfilPublico[]>([]);
   const [loading, setLoading] = useState(false);
   const [mostrarResultados, setMostrarResultados] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -69,10 +54,8 @@ export default function BuscadorUsuarios({
   const buscarUsuarios = async () => {
     try {
       setLoading(true);
-      const response = await axios.get(`${API_URL}/usuarios/buscar`, {
-        params: { q: query, limit: 8 }
-      });
-      setResultados(response.data);
+      const usuarios = await perfilService.buscarJugadores(query, 8);
+      setResultados(usuarios);
     } catch (error) {
       console.error('Error buscando usuarios:', error);
       setResultados([]);
@@ -81,11 +64,11 @@ export default function BuscadorUsuarios({
     }
   };
 
-  const handleSelect = (usuario: UsuarioBusqueda) => {
+  const handleSelect = (usuario: PerfilPublico) => {
     if (onSelect) {
       onSelect(usuario);
     } else {
-      navigate(`/${usuario.nombre_usuario}`);
+      navigate(`/jugador/${usuario.nombre_usuario}`);
     }
     setQuery('');
     setMostrarResultados(false);
@@ -165,7 +148,7 @@ export default function BuscadorUsuarios({
                       {usuario.foto_perfil ? (
                         <img 
                           src={usuario.foto_perfil} 
-                          alt={usuario.nombre_completo}
+                          alt={`${usuario.nombre} ${usuario.apellido}`}
                           className="w-full h-full object-cover"
                         />
                       ) : (
@@ -176,7 +159,7 @@ export default function BuscadorUsuarios({
                     {/* Info */}
                     <div className="flex-1 min-w-0">
                       <p className="font-semibold text-textPrimary truncate">
-                        {usuario.nombre_completo}
+                        {usuario.nombre} {usuario.apellido}
                       </p>
                       <p className="text-xs text-textSecondary truncate">
                         @{usuario.nombre_usuario}
@@ -187,8 +170,8 @@ export default function BuscadorUsuarios({
                     {/* Rating */}
                     <div className="text-right flex-shrink-0">
                       <p className="font-bold text-primary">{usuario.rating}</p>
-                      {usuario.categoria && (
-                        <p className="text-xs text-textSecondary">{usuario.categoria}</p>
+                      {usuario.posicion_preferida && (
+                        <p className="text-xs text-textSecondary">{usuario.posicion_preferida}</p>
                       )}
                     </div>
                   </button>

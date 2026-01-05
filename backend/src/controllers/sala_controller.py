@@ -988,10 +988,14 @@ async def eliminar_sala(
             )
         
         # Eliminar registros del historial anti-trampa si existen
+        # Buscar partidos asociados a esta sala y eliminar su historial
+        from ..models.playt_models import Partido
         from ..models.historial_enfrentamiento import HistorialEnfrentamiento
-        db.query(HistorialEnfrentamiento).filter(
-            HistorialEnfrentamiento.id_sala == str(id_sala)
-        ).delete()
+        partidos_sala = db.query(Partido).filter(Partido.id_sala == id_sala).all()
+        for partido in partidos_sala:
+            db.query(HistorialEnfrentamiento).filter(
+                HistorialEnfrentamiento.id_partido == partido.id_partido
+            ).delete()
         
         # Eliminar jugadores de la sala
         db.query(SalaJugador).filter(

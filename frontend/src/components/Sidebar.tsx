@@ -15,15 +15,15 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
   // Crear secciones dinámicamente basadas en permisos
   const menuSections = [
     {
-      title: 'Principal',
-      items: [
-        { icon: Home, label: 'Dashboard', path: '/dashboard' },
-      ]
-    },
-    {
       title: 'Mis Salas',
       items: [
         { icon: Gamepad2, label: 'Todas las Salas', path: '/salas' },
+      ]
+    },
+    {
+      title: 'Principal',
+      items: [
+        { icon: Home, label: 'Dashboard', path: '/dashboard' },
       ]
     },
     {

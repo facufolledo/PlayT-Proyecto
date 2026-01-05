@@ -57,7 +57,7 @@ export default function Layout({ children }: LayoutProps) {
         </main>
       </div>
 
-      {/* PWA Install Prompt y indicadores */}
+      {/* PWA Install Prompt */}
       <PWAInstallPrompt />
     </div>
   );

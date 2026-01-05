@@ -97,6 +97,69 @@ def listar_torneos(
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
 
 
+@router.get("/mis-torneos")
+def obtener_mis_torneos(
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(get_current_user)
+):
+    """
+    Obtiene los torneos donde el usuario está inscripto (como jugador1 o jugador2)
+    """
+    from ..models.torneo_models import TorneoPareja, Torneo
+    from sqlalchemy import or_
+    
+    try:
+        # Buscar parejas donde el usuario participa
+        parejas = db.query(TorneoPareja).filter(
+            or_(
+                TorneoPareja.jugador1_id == current_user.id_usuario,
+                TorneoPareja.jugador2_id == current_user.id_usuario
+            ),
+            TorneoPareja.estado.in_(['inscripta', 'confirmada'])  # Removido 'pendiente' que no existe en el enum
+        ).all()
+        
+        if not parejas:
+            return {"torneos": []}
+        
+        # Obtener IDs únicos de torneos
+        torneo_ids = list(set(p.torneo_id for p in parejas))
+        
+        # Obtener info de los torneos
+        torneos = db.query(Torneo).filter(Torneo.id.in_(torneo_ids)).all()
+        
+        # Crear dict de parejas por torneo para incluir estado de inscripción
+        parejas_por_torneo = {}
+        for p in parejas:
+            parejas_por_torneo[p.torneo_id] = {
+                "pareja_id": p.id,
+                "estado_inscripcion": p.estado.value if hasattr(p.estado, 'value') else str(p.estado),
+                "categoria_id": p.categoria_id
+            }
+        
+        resultado = []
+        for torneo in torneos:
+            info_pareja = parejas_por_torneo.get(torneo.id, {})
+            resultado.append({
+                "id": torneo.id,
+                "nombre": torneo.nombre,
+                "descripcion": torneo.descripcion,
+                "tipo": torneo.tipo.value if hasattr(torneo.tipo, 'value') else str(torneo.tipo),
+                "categoria": torneo.categoria,
+                "genero": torneo.genero or 'masculino',
+                "estado": torneo.estado.value if hasattr(torneo.estado, 'value') else str(torneo.estado),
+                "fecha_inicio": torneo.fecha_inicio.isoformat() if torneo.fecha_inicio else None,
+                "fecha_fin": torneo.fecha_fin.isoformat() if torneo.fecha_fin else None,
+                "lugar": torneo.lugar,
+                "mi_inscripcion": info_pareja
+            })
+        
+        return {"torneos": resultado}
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
+
+
 @router.get("/{torneo_id}")
 def obtener_torneo(
     torneo_id: int,
@@ -566,69 +629,6 @@ def obtener_mis_invitaciones(
         user_id=current_user.id_usuario
     )
     return {"invitaciones": invitaciones}
-
-
-@router.get("/mis-torneos")
-def obtener_mis_torneos(
-    db: Session = Depends(get_db),
-    current_user: Usuario = Depends(get_current_user)
-):
-    """
-    Obtiene los torneos donde el usuario está inscripto (como jugador1 o jugador2)
-    """
-    from ..models.torneo_models import TorneoPareja, Torneo
-    from sqlalchemy import or_
-    
-    try:
-        # Buscar parejas donde el usuario participa
-        parejas = db.query(TorneoPareja).filter(
-            or_(
-                TorneoPareja.jugador1_id == current_user.id_usuario,
-                TorneoPareja.jugador2_id == current_user.id_usuario
-            ),
-            TorneoPareja.estado.in_(['pendiente', 'inscripta', 'confirmada'])
-        ).all()
-        
-        if not parejas:
-            return {"torneos": []}
-        
-        # Obtener IDs únicos de torneos
-        torneo_ids = list(set(p.torneo_id for p in parejas))
-        
-        # Obtener info de los torneos
-        torneos = db.query(Torneo).filter(Torneo.id.in_(torneo_ids)).all()
-        
-        # Crear dict de parejas por torneo para incluir estado de inscripción
-        parejas_por_torneo = {}
-        for p in parejas:
-            parejas_por_torneo[p.torneo_id] = {
-                "pareja_id": p.id,
-                "estado_inscripcion": p.estado.value if hasattr(p.estado, 'value') else str(p.estado),
-                "categoria_id": p.categoria_id
-            }
-        
-        resultado = []
-        for torneo in torneos:
-            info_pareja = parejas_por_torneo.get(torneo.id, {})
-            resultado.append({
-                "id": torneo.id,
-                "nombre": torneo.nombre,
-                "descripcion": torneo.descripcion,
-                "tipo": torneo.tipo.value if hasattr(torneo.tipo, 'value') else str(torneo.tipo),
-                "categoria": torneo.categoria,
-                "genero": torneo.genero or 'masculino',
-                "estado": torneo.estado.value if hasattr(torneo.estado, 'value') else str(torneo.estado),
-                "fecha_inicio": torneo.fecha_inicio.isoformat() if torneo.fecha_inicio else None,
-                "fecha_fin": torneo.fecha_fin.isoformat() if torneo.fecha_fin else None,
-                "lugar": torneo.lugar,
-                "mi_inscripcion": info_pareja
-            })
-        
-        return {"torneos": resultado}
-    except Exception as e:
-        import traceback
-        traceback.print_exc()
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
 
 
 @router.get("/{torneo_id}/parejas")

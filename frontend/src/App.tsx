@@ -12,6 +12,7 @@ import Landing from './pages/Landing';
 import Login from './pages/Login';
 import Register from './pages/Register';
 import ForgotPassword from './pages/ForgotPassword';
+import { CorsDebugPage } from './pages/CorsDebugPage';
 
 // Lazy loading para páginas secundarias
 const Dashboard = lazy(() => import('./pages/Dashboard'));
@@ -45,9 +46,8 @@ const PageLoader = () => (
 // El usuario decide cuándo entrar a la app
 
 function App() {
-  // En producción (kioskito.click) no necesitamos basename
-  // Solo usar basename si está en un subdirectorio
-  const basename = '/';
+  // Configuración para kioskito.click/PlayR
+  const basename = import.meta.env.PROD ? '/PlayR' : '/';
   
   return (
     <ErrorBoundary>
@@ -64,6 +64,7 @@ function App() {
               <Route path="/login" element={<Login />} />
               <Route path="/register" element={<Register />} />
               <Route path="/forgot-password" element={<ForgotPassword />} />
+              <Route path="/cors-debug" element={<CorsDebugPage />} />
               
               {/* Ruta semi-protegida: requiere Firebase auth pero no usuario completo */}
               <Route
@@ -102,6 +103,16 @@ function App() {
                   <PrivateRoute>
                     <Layout>
                       <Torneos />
+                    </Layout>
+                  </PrivateRoute>
+                }
+              />
+              <Route
+                path="/torneos/mis-torneos"
+                element={
+                  <PrivateRoute>
+                    <Layout>
+                      <MisTorneos />
                     </Layout>
                   </PrivateRoute>
                 }
@@ -172,16 +183,6 @@ function App() {
                   <PrivateRoute>
                     <Layout>
                       <Confirmaciones />
-                    </Layout>
-                  </PrivateRoute>
-                }
-              />
-              <Route
-                path="/torneos/mis-torneos"
-                element={
-                  <PrivateRoute>
-                    <Layout>
-                      <MisTorneos />
                     </Layout>
                   </PrivateRoute>
                 }
