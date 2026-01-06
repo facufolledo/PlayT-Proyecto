@@ -9,7 +9,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy import or_
 
 from ..models.historial_enfrentamiento import HistorialEnfrentamiento
-from ..models.Drive+_models import Usuario
+from ..models.driveplus_models import Usuario
 from ..utils.logger import Loggers
 
 logger = Loggers.anti_trampa()

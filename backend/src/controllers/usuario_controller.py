@@ -6,7 +6,7 @@ from typing import Optional
 from datetime import datetime
 
 from ..database.config import get_db
-from ..models.Drive+_models import Usuario, PerfilUsuario, Categoria
+from ..models.driveplus_models import Usuario, PerfilUsuario, Categoria
 from ..schemas.auth import UserResponse
 from ..auth.auth_utils import get_current_user
 from ..auth.firebase_handler import FirebaseHandler
@@ -511,7 +511,7 @@ async def obtener_estadisticas_usuario(
     """
     Obtiene estadísticas públicas de un usuario
     """
-    from ..models.Drive+_models import Partido, PartidoJugador, ResultadoPartido
+    from ..models.driveplus_models import Partido, PartidoJugador, ResultadoPartido
     from sqlalchemy import and_
     
     usuario = db.query(Usuario).filter(Usuario.id_usuario == user_id).first()

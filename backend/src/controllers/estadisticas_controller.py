@@ -3,7 +3,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy import func, and_
 
 from ..database.config import get_db
-from ..models.Drive+_models import Usuario, PartidoJugador, ResultadoPartido, Partido
+from ..models.driveplus_models import Usuario, PartidoJugador, ResultadoPartido, Partido
 from ..auth.auth_utils import get_current_user
 
 router = APIRouter(prefix="/estadisticas", tags=["Estadísticas"])

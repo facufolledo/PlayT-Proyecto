@@ -11,7 +11,7 @@ from ..models.torneo_models import (
     Torneo, TorneoZona, TorneoPareja, TorneoCategoria,
     EstadoTorneo
 )
-from ..models.Drive+_models import Partido
+from ..models.driveplus_models import Partido
 
 
 class TorneoPlayoffService:

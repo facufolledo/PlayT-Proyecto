@@ -13,7 +13,7 @@ from ..models.torneo_models import (
     Torneo, TorneoZona, TorneoPareja, TorneoZonaPareja,
     TorneoBloqueoJugador, TorneoCancha, TorneoSlot
 )
-from ..models.Drive+_models import Usuario, Partido
+from ..models.driveplus_models import Usuario, Partido
 
 
 class TorneoFixtureService:

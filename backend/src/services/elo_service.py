@@ -869,7 +869,7 @@ class EloService:
         # - creado_en: automático
         
         # TODO: Implementar inserción en la tabla HistorialRating
-        # from src.models.Drive+_models import HistorialRating
+        # from src.models.driveplus_models import HistorialRating
         # from src.database.config import get_db
         # 
         # db = next(get_db())

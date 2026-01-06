@@ -90,7 +90,7 @@ class ConfirmacionService:
         Returns:
             Dict con resultado de la confirmación
         """
-        from ..models.Drive+_models import ResultadoPartido
+        from ..models.driveplus_models import ResultadoPartido
         
         partido = db.query(Partido).filter(Partido.id_partido == id_partido).first()
         if not partido:
@@ -344,7 +344,7 @@ class ConfirmacionService:
             })
         
         # Extraer datos del resultado (UNIFICADO - desde resultados_partidos)
-        from ..models.Drive+_models import ResultadoPartido
+        from ..models.driveplus_models import ResultadoPartido
         
         resultado_db = db.query(ResultadoPartido).filter(
             ResultadoPartido.id_partido == partido.id_partido
@@ -456,7 +456,7 @@ class ConfirmacionService:
         invalidate_ranking_cache()
         
         # CRÍTICO: Crear entradas en historial_rating para TODOS los jugadores
-        from ..models.Drive+_models import HistorialRating
+        from ..models.driveplus_models import HistorialRating
         
         for jugador in jugadores:
             # Verificar si ya existe entrada (por si acaso)

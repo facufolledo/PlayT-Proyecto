@@ -3,7 +3,7 @@ Servicio para gestión de categorías
 """
 from sqlalchemy.orm import Session
 from typing import Optional
-from ..models.Drive+_models import Categoria, Usuario
+from ..models.driveplus_models import Categoria, Usuario
 
 
 def actualizar_categoria_usuario(db: Session, usuario: Usuario) -> Optional[Categoria]:

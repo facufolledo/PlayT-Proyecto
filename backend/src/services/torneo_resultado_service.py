@@ -501,7 +501,7 @@ class TorneoResultadoService:
         Returns:
             Dict con cambios de ELO por jugador
         """
-        from ..models.Drive+_models import Usuario, HistorialRating
+        from ..models.driveplus_models import Usuario, HistorialRating
         from ..services.elo_service import EloService
         from sqlalchemy import text
         

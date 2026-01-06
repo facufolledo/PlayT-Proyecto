@@ -6,7 +6,7 @@ from datetime import timedelta
 import os
 
 from ..database.config import get_db
-from ..models.Drive+_models import Usuario, PerfilUsuario, Categoria
+from ..models.driveplus_models import Usuario, PerfilUsuario, Categoria
 from ..schemas.auth import UserLogin, UserRegister, Token, UserResponse, FirebaseAuthRequest
 from ..auth.jwt_handler import JWTHandler
 from ..auth.firebase_handler import FirebaseHandler

@@ -12,7 +12,7 @@ sys.path.insert(0, str(Path(__file__).parent))
 
 from sqlalchemy.orm import Session
 from src.database.config import get_db, SessionLocal
-from src.models.Drive+_models import Usuario, PerfilUsuario, Categoria
+from src.models.driveplus_models import Usuario, PerfilUsuario, Categoria
 from src.auth.jwt_handler import JWTHandler
 
 def create_test_user():

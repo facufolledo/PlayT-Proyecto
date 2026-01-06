@@ -17,7 +17,7 @@ def test_crear_torneo():
         
         # 1. Primero necesitamos autorizar un usuario
         print("\n1. Autorizando usuario para crear torneos...")
-        from src.models.Drive+_models import Usuario
+        from src.models.driveplus_models import Usuario
         
         # Usar un usuario existente (ajusta el ID según tu BD)
         user_id = 1

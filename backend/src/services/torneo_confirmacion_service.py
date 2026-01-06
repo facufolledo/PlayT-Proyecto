@@ -9,7 +9,7 @@ import secrets
 import string
 
 from ..models.torneo_models import TorneoPareja, Torneo, EstadoPareja
-from ..models.Drive+_models import Usuario, PerfilUsuario
+from ..models.driveplus_models import Usuario, PerfilUsuario
 
 
 class TorneoConfirmacionService:

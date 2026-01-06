@@ -7,7 +7,7 @@ from sqlalchemy import func, text
 from datetime import datetime, timedelta
 
 from ..database.config import get_db
-from ..models.Drive+_models import Usuario, Partido
+from ..models.driveplus_models import Usuario, Partido
 from ..models.torneo_models import Torneo
 from ..auth.auth_utils import get_current_user
 
