@@ -6,12 +6,12 @@ from fastapi import Request, HTTPException
 from fastapi.responses import JSONResponse
 import logging
 
-from .exceptions import Drive+Exception, get_http_status
+from .exceptions import DrivePlusException, get_http_status
 
 logger = logging.getLogger(__name__)
 
 
-async def Drive+_exception_handler(request: Request, exc: Drive+Exception) -> JSONResponse:
+async def driveplus_exception_handler(request: Request, exc: DrivePlusException) -> JSONResponse:
     """Handler para excepciones de Drive+"""
     status_code = get_http_status(exc)
     
@@ -64,7 +64,7 @@ async def generic_exception_handler(request: Request, exc: Exception) -> JSONRes
 
 def register_exception_handlers(app):
     """Registrar todos los handlers de excepciones en la app FastAPI"""
-    app.add_exception_handler(Drive+Exception, Drive+_exception_handler)
+    app.add_exception_handler(DrivePlusException, driveplus_exception_handler)
     app.add_exception_handler(ValueError, value_error_handler)
     # No registrar generic para no ocultar errores en desarrollo
     # app.add_exception_handler(Exception, generic_exception_handler)

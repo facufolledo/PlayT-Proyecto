@@ -5,10 +5,10 @@ Permiten manejo consistente de errores en toda la aplicación.
 from typing import Optional, Any
 
 
-class Drive+Exception(Exception):
+class DrivePlusException(Exception):
     """Excepción base para todas las excepciones de Drive+"""
     
-    def __init__(self, message: str, code: str = "Drive+_ERROR", details: Optional[Any] = None):
+    def __init__(self, message: str, code: str = "DRIVEPLUS_ERROR", details: Optional[Any] = None):
         self.message = message
         self.code = code
         self.details = details
@@ -17,7 +17,7 @@ class Drive+Exception(Exception):
 
 # ============ Errores de Negocio (400) ============
 
-class BusinessError(Drive+Exception):
+class BusinessError(DrivePlusException):
     """Error de lógica de negocio - HTTP 400"""
     pass
 
@@ -52,7 +52,7 @@ class LimitExceededError(BusinessError):
 
 # ============ Errores de Autenticación (401) ============
 
-class AuthenticationError(Drive+Exception):
+class AuthenticationError(DrivePlusException):
     """Error de autenticación - HTTP 401"""
     
     def __init__(self, message: str = "No autenticado"):
@@ -77,7 +77,7 @@ class InvalidTokenError(AuthenticationError):
 
 # ============ Errores de Autorización (403) ============
 
-class AuthorizationError(Drive+Exception):
+class AuthorizationError(DrivePlusException):
     """Error de autorización - HTTP 403"""
     
     def __init__(self, message: str = "No tienes permiso para esta acción"):
@@ -102,7 +102,7 @@ class NotParticipantError(AuthorizationError):
 
 # ============ Errores de Recurso (404) ============
 
-class NotFoundError(Drive+Exception):
+class NotFoundError(DrivePlusException):
     """Recurso no encontrado - HTTP 404"""
     
     def __init__(self, resource: str = "Recurso", id: Optional[Any] = None):
@@ -142,7 +142,7 @@ class TorneoNotFoundError(NotFoundError):
 
 # ============ Errores de Conflicto (409) ============
 
-class ConflictError(Drive+Exception):
+class ConflictError(DrivePlusException):
     """Conflicto con el estado actual - HTTP 409"""
     
     def __init__(self, message: str):
@@ -167,7 +167,7 @@ class AlreadyInscribedError(ConflictError):
 
 # ============ Mapeo a HTTP Status Codes ============
 
-def get_http_status(exception: Drive+Exception) -> int:
+def get_http_status(exception: DrivePlusException) -> int:
     """Obtener código HTTP para una excepción"""
     if isinstance(exception, NotFoundError):
         return 404
