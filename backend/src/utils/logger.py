@@ -1,5 +1,5 @@
 """
-Configuración centralizada de logging para PlayT.
+Configuración centralizada de logging para Drive+.
 """
 import logging
 import sys
@@ -37,7 +37,7 @@ def setup_logging():
     logging.getLogger("sqlalchemy.engine").setLevel(logging.WARNING)
     
     # Logger principal de la app
-    logger = logging.getLogger("playt")
+    logger = logging.getLogger("Drive+")
     logger.setLevel(log_level)
     
     return logger
@@ -45,7 +45,7 @@ def setup_logging():
 
 def get_logger(name: str) -> logging.Logger:
     """Obtener logger para un módulo específico"""
-    return logging.getLogger(f"playt.{name}")
+    return logging.getLogger(f"Drive+.{name}")
 
 
 # Loggers pre-configurados para módulos comunes

@@ -5,6 +5,7 @@ import Button from './Button';
 import { useTorneos } from '../context/TorneosContext';
 import { useAuth } from '../context/AuthContext';
 import { torneoService, Categoria } from '../services/torneo.service';
+import { useDebounce } from '../hooks/useDebounce';
 import axios from 'axios';
 import { parseError } from '../utils/errorHandler';
 
@@ -48,6 +49,10 @@ export default function ModalInscribirTorneo({
   const [searching, setSearching] = useState(false);
   const [selectedCompanero, setSelectedCompanero] = useState<any>(null);
   
+  // Debounce para las búsquedas
+  const debouncedSearchQuery1 = useDebounce(searchQuery1, 300);
+  const debouncedSearchQuery = useDebounce(searchQuery, 300);
+  
   const [formData, setFormData] = useState({
     jugador1_id: '',
     jugador2_id: '',
@@ -77,68 +82,80 @@ export default function ModalInscribirTorneo({
     }
   };
 
-  // Buscar usuarios para jugador 1 (solo organizador)
+  // Buscar usuarios para jugador 1 (solo organizador) con debounce
   useEffect(() => {
     if (!esOrganizador) return;
     
-    const buscarUsuarios = async () => {
-      if (searchQuery1.length < 2) {
-        setSearchResults1([]);
-        return;
-      }
+    if (debouncedSearchQuery1.length >= 2) {
+      buscarUsuarios1(debouncedSearchQuery1);
+    } else {
+      setSearchResults1([]);
+      setSearching1(false);
+    }
+  }, [debouncedSearchQuery1, esOrganizador, selectedCompanero]);
 
-      try {
-        setSearching1(true);
-        const response = await axios.get(`${API_URL}/usuarios/buscar`, {
-          params: { q: searchQuery1, limit: 5 }
-        });
-        
-        // Filtrar para no mostrar al jugador 2 si ya está seleccionado
-        const resultados = response.data.filter((u: any) => 
-          u.id_usuario !== selectedCompanero?.id_usuario
-        );
-        setSearchResults1(resultados);
-      } catch (err) {
-        console.error('Error buscando usuarios:', err);
-        setSearchResults1([]);
-      } finally {
-        setSearching1(false);
-      }
-    };
-
-    const timeoutId = setTimeout(buscarUsuarios, 300);
-    return () => clearTimeout(timeoutId);
-  }, [searchQuery1, esOrganizador, selectedCompanero]);
-
-  // Buscar usuarios para jugador 2
+  // Mostrar indicador de búsqueda inmediatamente para jugador 1
   useEffect(() => {
-    const buscarUsuarios = async () => {
-      if (searchQuery.length < 2) {
-        setSearchResults([]);
-        return;
-      }
+    if (searchQuery1.length >= 2 && searchQuery1 !== debouncedSearchQuery1) {
+      setSearching1(true);
+    }
+  }, [searchQuery1, debouncedSearchQuery1]);
 
-      try {
-        setSearching(true);
-        const response = await axios.get(`${API_URL}/usuarios/buscar`, {
-          params: { q: searchQuery, limit: 5 }
-        });
-        
-        // Filtrar para no mostrar al usuario actual ni al jugador 1 seleccionado
-        const jugador1Id = esOrganizador ? selectedJugador1?.id_usuario : usuario?.id_usuario;
-        const resultados = response.data.filter((u: any) => u.id_usuario !== jugador1Id);
-        setSearchResults(resultados);
-      } catch (err) {
-        console.error('Error buscando usuarios:', err);
-        setSearchResults([]);
-      } finally {
-        setSearching(false);
-      }
-    };
+  const buscarUsuarios1 = async (query: string) => {
+    try {
+      setSearching1(true);
+      const response = await axios.get(`${API_URL}/usuarios/buscar`, {
+        params: { q: query, limit: 5 }
+      });
+      
+      // Filtrar para no mostrar al jugador 2 si ya está seleccionado
+      const resultados = response.data.filter((u: any) => 
+        u.id_usuario !== selectedCompanero?.id_usuario
+      );
+      setSearchResults1(resultados);
+    } catch (err) {
+      console.error('Error buscando usuarios:', err);
+      setSearchResults1([]);
+    } finally {
+      setSearching1(false);
+    }
+  };
 
-    const timeoutId = setTimeout(buscarUsuarios, 300);
-    return () => clearTimeout(timeoutId);
-  }, [searchQuery, usuario, esOrganizador, selectedJugador1]);
+  // Buscar usuarios para jugador 2 con debounce
+  useEffect(() => {
+    if (debouncedSearchQuery.length >= 2) {
+      buscarUsuarios(debouncedSearchQuery);
+    } else {
+      setSearchResults([]);
+      setSearching(false);
+    }
+  }, [debouncedSearchQuery, usuario, esOrganizador, selectedJugador1]);
+
+  // Mostrar indicador de búsqueda inmediatamente para jugador 2
+  useEffect(() => {
+    if (searchQuery.length >= 2 && searchQuery !== debouncedSearchQuery) {
+      setSearching(true);
+    }
+  }, [searchQuery, debouncedSearchQuery]);
+
+  const buscarUsuarios = async (query: string) => {
+    try {
+      setSearching(true);
+      const response = await axios.get(`${API_URL}/usuarios/buscar`, {
+        params: { q: query, limit: 5 }
+      });
+      
+      // Filtrar para no mostrar al usuario actual ni al jugador 1 seleccionado
+      const jugador1Id = esOrganizador ? selectedJugador1?.id_usuario : usuario?.id_usuario;
+      const resultados = response.data.filter((u: any) => u.id_usuario !== jugador1Id);
+      setSearchResults(resultados);
+    } catch (err) {
+      console.error('Error buscando usuarios:', err);
+      setSearchResults([]);
+    } finally {
+      setSearching(false);
+    }
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();

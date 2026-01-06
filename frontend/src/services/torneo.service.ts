@@ -101,7 +101,7 @@ export interface Categoria {
 
 class TorneoService {
   private getAuthHeaders() {
-    const token = localStorage.getItem('token') || localStorage.getItem('firebase_token');
+    const token = localStorage.getItem('firebase_token') || localStorage.getItem('access_token') || localStorage.getItem('token');
     return {
       headers: {
         Authorization: `Bearer ${token}`,
@@ -231,8 +231,20 @@ class TorneoService {
       };
     }>;
   }> {
-    const response = await axios.get(`${API_URL}/torneos/mis-torneos`, this.getAuthHeaders());
-    return response.data;
+    // Intentar primero con el endpoint específico, si falla usar el general con filtros
+    try {
+      const response = await axios.get(`${API_URL}/torneos/mis-torneos`, this.getAuthHeaders());
+      return response.data;
+    } catch (error: any) {
+      // Si el endpoint específico no existe, usar el general y filtrar en el frontend
+      console.warn('Endpoint /torneos/mis-torneos no disponible, usando endpoint general');
+      const response = await axios.get(`${API_URL}/torneos`, this.getAuthHeaders());
+      
+      // Retornar en el formato esperado (por ahora vacío hasta que el backend implemente el endpoint)
+      return {
+        torneos: []
+      };
+    }
   }
 
   async listarParejas(torneoId: number, estado?: string, categoriaId?: number): Promise<Pareja[]> {

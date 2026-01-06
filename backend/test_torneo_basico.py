@@ -17,7 +17,7 @@ def test_crear_torneo():
         
         # 1. Primero necesitamos autorizar un usuario
         print("\n1. Autorizando usuario para crear torneos...")
-        from src.models.playt_models import Usuario
+        from src.models.Drive+_models import Usuario
         
         # Usar un usuario existente (ajusta el ID según tu BD)
         user_id = 1
@@ -35,7 +35,7 @@ def test_crear_torneo():
         # 2. Crear un torneo de prueba
         print("\n2. Creando torneo de prueba...")
         torneo_data = TorneoCreate(
-            nombre="Torneo de Prueba PlayT",
+            nombre="Torneo de Prueba Drive+",
             descripcion="Torneo de prueba para validar el sistema",
             categoria="5ta",
             fecha_inicio=date.today() + timedelta(days=7),

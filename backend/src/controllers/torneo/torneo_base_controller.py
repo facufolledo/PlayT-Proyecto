@@ -9,7 +9,7 @@ from ...database.config import get_db
 from ...services.torneo_service import TorneoService
 from ...schemas.torneo_schemas import TorneoCreate, TorneoUpdate, TorneoResponse, EstadisticasTorneoResponse
 from ...auth.auth_utils import get_current_user
-from ...models.playt_models import Usuario
+from ...models.Drive+_models import Usuario
 from ...utils.exceptions import NotFoundError, AuthorizationError, BusinessError
 from ...utils.logger import get_logger
 
@@ -31,6 +31,72 @@ def crear_torneo(
         return torneo
     except ValueError as e:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+
+
+@router.get("/mis-torneos")
+def obtener_mis_torneos(
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(get_current_user)
+):
+    """Obtiene los torneos donde el usuario está inscripto"""
+    from sqlalchemy import or_
+    from ...models.torneo_models import Torneo, TorneoPareja
+    
+    parejas = db.query(TorneoPareja).filter(
+        or_(
+            TorneoPareja.jugador1_id == current_user.id_usuario,
+            TorneoPareja.jugador2_id == current_user.id_usuario
+        )
+    ).all()
+    
+    if not parejas:
+        return {"torneos": []}
+    
+    torneo_ids = list(set([p.torneo_id for p in parejas]))
+    torneos = db.query(Torneo).filter(Torneo.id.in_(torneo_ids)).all()
+    
+    parejas_por_torneo = {
+        p.torneo_id: {
+            "pareja_id": p.id,
+            "estado_inscripcion": p.estado.value if hasattr(p.estado, 'value') else str(p.estado),
+            "es_jugador1": p.jugador1_id == current_user.id_usuario
+        }
+        for p in parejas
+    }
+    
+    resultado = []
+    for torneo in torneos:
+        info_pareja = parejas_por_torneo.get(torneo.id, {})
+        resultado.append({
+            "id": torneo.id,
+            "nombre": torneo.nombre,
+            "descripcion": torneo.descripcion,
+            "tipo": torneo.tipo.value if hasattr(torneo.tipo, 'value') else str(torneo.tipo),
+            "categoria": torneo.categoria,
+            "estado": torneo.estado.value if hasattr(torneo.estado, 'value') else str(torneo.estado),
+            "fecha_inicio": torneo.fecha_inicio.isoformat() if torneo.fecha_inicio else None,
+            "fecha_fin": torneo.fecha_fin.isoformat() if torneo.fecha_fin else None,
+            "lugar": torneo.lugar,
+            "pareja_id": info_pareja.get("pareja_id"),
+            "estado_inscripcion": info_pareja.get("estado_inscripcion"),
+            "es_jugador1": info_pareja.get("es_jugador1", False)
+        })
+    
+    return {"torneos": resultado}
+
+
+@router.get("/mis-invitaciones")
+def obtener_mis_invitaciones(
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(get_current_user)
+):
+    """Obtiene las invitaciones pendientes del usuario"""
+    from ...services.torneo_confirmacion_service import TorneoConfirmacionService
+    
+    invitaciones = TorneoConfirmacionService.obtener_invitaciones_pendientes(
+        db=db, user_id=current_user.id_usuario
+    )
+    return {"invitaciones": invitaciones}
 
 
 @router.get("/")
@@ -154,7 +220,7 @@ def cambiar_estado(
 def obtener_estadisticas(torneo_id: int, db: Session = Depends(get_db)):
     """Obtiene estadísticas generales del torneo"""
     from ...models.torneo_models import TorneoPareja, TorneoZona
-    from ...models.playt_models import Partido
+    from ...models.Drive+_models import Partido
     
     torneo = TorneoService.obtener_torneo(db, torneo_id)
     if not torneo:

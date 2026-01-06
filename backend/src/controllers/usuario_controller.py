@@ -6,7 +6,7 @@ from typing import Optional
 from datetime import datetime
 
 from ..database.config import get_db
-from ..models.playt_models import Usuario, PerfilUsuario, Categoria
+from ..models.Drive+_models import Usuario, PerfilUsuario, Categoria
 from ..schemas.auth import UserResponse
 from ..auth.auth_utils import get_current_user
 from ..auth.firebase_handler import FirebaseHandler
@@ -373,14 +373,14 @@ async def registrar_fcm_token(
 
 @router.get("/buscar")
 async def buscar_usuarios(
-    q: str,
+    q: Optional[str] = None,
     limit: int = 10,
     db: Session = Depends(get_db)
 ):
     """
     Busca usuarios por nombre, apellido o nombre de usuario
     """
-    if len(q) < 2:
+    if not q or len(q) < 2:
         return []
     
     query_lower = f"%{q.lower()}%"
@@ -511,7 +511,7 @@ async def obtener_estadisticas_usuario(
     """
     Obtiene estadísticas públicas de un usuario
     """
-    from ..models.playt_models import Partido, PartidoJugador, ResultadoPartido
+    from ..models.Drive+_models import Partido, PartidoJugador, ResultadoPartido
     from sqlalchemy import and_
     
     usuario = db.query(Usuario).filter(Usuario.id_usuario == user_id).first()
@@ -557,3 +557,140 @@ async def obtener_estadisticas_usuario(
         "winrate": winrate,
         "rating": usuario.rating or 1200
     }
+
+
+# ============================================
+# ENDPOINTS ADICIONALES PARA PERFIL PÚBLICO
+# ============================================
+
+@router.get("/perfil-publico/{username}")
+async def get_perfil_publico_por_username(
+    username: str,
+    db: Session = Depends(get_db)
+):
+    """
+    Obtiene el perfil público de un usuario por su username
+    Endpoint público - no requiere autenticación
+    """
+    try:
+        # Limpiar el username de espacios y caracteres especiales
+        username = username.strip().lower()
+        
+        # Buscar usuario (case insensitive)
+        usuario = db.query(Usuario).filter(
+            Usuario.nombre_usuario.ilike(username)
+        ).first()
+        
+        if not usuario:
+            raise HTTPException(
+                status_code=404, 
+                detail=f"Usuario '{username}' no encontrado"
+            )
+        
+        # Buscar perfil
+        perfil = db.query(PerfilUsuario).filter(
+            PerfilUsuario.id_usuario == usuario.id_usuario
+        ).first()
+        
+        if not perfil:
+            raise HTTPException(
+                status_code=404, 
+                detail=f"Perfil no encontrado para el usuario '{username}'"
+            )
+        
+        # Buscar categoría (opcional)
+        categoria = None
+        if usuario.id_categoria:
+            categoria = db.query(Categoria).filter(
+                Categoria.id_categoria == usuario.id_categoria
+            ).first()
+        
+        return {
+            "id_usuario": usuario.id_usuario,
+            "nombre_usuario": usuario.nombre_usuario,
+            "nombre": perfil.nombre,
+            "apellido": perfil.apellido,
+            "nombre_completo": f"{perfil.nombre} {perfil.apellido}",
+            "sexo": getattr(usuario, 'sexo', None),
+            "ciudad": perfil.ciudad,
+            "pais": perfil.pais,
+            "rating": usuario.rating or 1200,
+            "partidos_jugados": usuario.partidos_jugados or 0,
+            "categoria": categoria.nombre if categoria else None,
+            "categoria_id": usuario.id_categoria,
+            "posicion_preferida": perfil.posicion_preferida,
+            "mano_dominante": perfil.mano_habil,
+            "foto_perfil": getattr(perfil, 'url_avatar', None),
+            "fecha_registro": usuario.fecha_registro.isoformat() if hasattr(usuario, 'fecha_registro') and usuario.fecha_registro else None,
+            "activo": getattr(usuario, 'activo', True)
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"Error en perfil público: {str(e)}")
+        raise HTTPException(
+            status_code=500, 
+            detail="Error interno del servidor"
+        )
+
+
+@router.get("/buscar-publico")
+async def buscar_usuarios_publico(
+    q: Optional[str] = None,
+    limit: int = 20,
+    db: Session = Depends(get_db)
+):
+    """
+    Búsqueda pública de usuarios por nombre, apellido o username
+    Endpoint público - no requiere autenticación
+    """
+    try:
+        if not q or len(q.strip()) < 2:
+            return []
+        
+        search_term = f"%{q.strip().lower()}%"
+        
+        # Buscar usuarios con perfil (usando LEFT JOIN para incluir usuarios sin perfil)
+        usuarios = db.query(Usuario, PerfilUsuario).outerjoin(
+            PerfilUsuario, Usuario.id_usuario == PerfilUsuario.id_usuario
+        ).filter(
+            or_(
+                Usuario.nombre_usuario.ilike(search_term),
+                PerfilUsuario.nombre.ilike(search_term),
+                PerfilUsuario.apellido.ilike(search_term)
+            )
+        ).limit(limit).all()
+        
+        resultado = []
+        for usuario, perfil in usuarios:
+            # Si no hay perfil, usar datos básicos del usuario
+            if not perfil:
+                continue  # Saltar usuarios sin perfil para búsqueda pública
+                
+            categoria = None
+            if usuario.id_categoria:
+                categoria = db.query(Categoria).filter(
+                    Categoria.id_categoria == usuario.id_categoria
+                ).first()
+            
+            resultado.append({
+                "id_usuario": usuario.id_usuario,
+                "nombre_usuario": usuario.nombre_usuario,
+                "nombre": perfil.nombre,
+                "apellido": perfil.apellido,
+                "nombre_completo": f"{perfil.nombre} {perfil.apellido}",
+                "rating": usuario.rating or 1200,
+                "partidos_jugados": usuario.partidos_jugados or 0,
+                "categoria": categoria.nombre if categoria else None,
+                "ciudad": perfil.ciudad,
+                "foto_perfil": getattr(perfil, 'url_avatar', None),
+                "fecha_registro": usuario.fecha_registro.isoformat() if hasattr(usuario, 'fecha_registro') and usuario.fecha_registro else None,
+                "activo": getattr(usuario, 'activo', True)
+            })
+        
+        return resultado
+        
+    except Exception as e:
+        print(f"Error en búsqueda pública: {str(e)}")
+        return []  # En caso de error, devolver lista vacía en lugar de error 500

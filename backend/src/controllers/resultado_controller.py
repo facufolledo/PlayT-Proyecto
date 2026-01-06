@@ -4,7 +4,7 @@ from typing import List
 from datetime import datetime
 
 from ..database.config import get_db
-from ..models.playt_models import Usuario
+from ..models.Drive+_models import Usuario
 from ..schemas.resultado_padel import ResultadoPadelCreate, ResultadoPadelResponse, ConfirmacionRequest
 from ..services.confirmacion_service import ConfirmacionService
 from ..services.anti_trampa_service import AntiTrampaService
@@ -62,7 +62,7 @@ async def confirmar_resultado(
     try:
         # Obtener la sala y su partido
         from ..models.sala import Sala
-        from ..models.playt_models import Partido
+        from ..models.Drive+_models import Partido
         sala = db.query(Sala).filter(Sala.id_sala == id_sala).first()
         
         if not sala or not sala.id_partido:
@@ -129,7 +129,7 @@ async def obtener_estado_confirmaciones(
     try:
         # Obtener la sala y su partido
         from ..models.sala import Sala
-        from ..models.playt_models import Partido
+        from ..models.Drive+_models import Partido
         sala = db.query(Sala).filter(Sala.id_sala == id_sala).first()
         
         if not sala or not sala.id_partido:

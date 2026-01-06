@@ -8,8 +8,9 @@ import logging
 
 logger = logging.getLogger(__name__)
 
-from ..models.playt_models import Partido
+from ..models.driveplus_models import Partido
 from ..models.torneo_models import TorneoPareja, TorneoZona
+from ..services.categoria_service import actualizar_categoria_usuario
 
 
 class TorneoResultadoService:
@@ -500,7 +501,7 @@ class TorneoResultadoService:
         Returns:
             Dict con cambios de ELO por jugador
         """
-        from ..models.playt_models import Usuario, HistorialRating
+        from ..models.Drive+_models import Usuario, HistorialRating
         from ..services.elo_service import EloService
         from sqlalchemy import text
         
@@ -618,6 +619,9 @@ class TorneoResultadoService:
             usuario.rating = nuevo_rating
             usuario.partidos_jugados = (usuario.partidos_jugados or 0) + 1
             
+            # Actualizar categoría según el nuevo rating
+            actualizar_categoria_usuario(db, usuario)
+            
             # Crear historial de rating
             historial = HistorialRating(
                 id_usuario=jid,
@@ -646,6 +650,9 @@ class TorneoResultadoService:
             # Actualizar usuario
             usuario.rating = nuevo_rating
             usuario.partidos_jugados = (usuario.partidos_jugados or 0) + 1
+            
+            # Actualizar categoría según el nuevo rating
+            actualizar_categoria_usuario(db, usuario)
             
             # Crear historial de rating
             historial = HistorialRating(

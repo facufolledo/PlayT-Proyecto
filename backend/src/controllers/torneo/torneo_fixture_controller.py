@@ -9,7 +9,7 @@ from datetime import datetime
 
 from ...database.config import get_db
 from ...auth.auth_utils import get_current_user
-from ...models.playt_models import Usuario
+from ...models.Drive+_models import Usuario
 from ...services.torneo_fixture_service import TorneoFixtureService
 from ...utils.logger import get_logger
 

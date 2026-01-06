@@ -4,7 +4,7 @@ Modelos SQLAlchemy para el sistema de torneos
 from sqlalchemy import Column, BigInteger, String, Text, Enum, Date, DateTime, Boolean, Integer, JSON, ForeignKey, Index
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
-from src.models.playt_models import Base
+from src.models.Drive+_models import Base
 import enum
 
 
@@ -261,7 +261,7 @@ class TorneoBloqueoJugador(Base):
 
 
 # NOTA: Los partidos de torneo se guardan en la tabla 'partidos' existente
-# Ver modelo Partido en playt_models.py
+# Ver modelo Partido en Drive+_models.py
 # Los sets se guardan en la tabla 'partido_sets'
 
 

@@ -177,7 +177,7 @@ export const ConfiguracionScreen = ({ navigation }: any) => {
               <Ionicons name="information-circle-outline" size={24} color="#9C27B0" />
             </View>
             <View style={styles.actionInfo}>
-              <Text style={styles.actionLabel}>Acerca de PlayR</Text>
+              <Text style={styles.actionLabel}>Acerca de Drive+</Text>
               <Text style={styles.actionDesc}>Versión 1.0.0</Text>
             </View>
             <Ionicons name="chevron-forward" size={24} color="#94A3B8" />

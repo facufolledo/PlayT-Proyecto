@@ -16,7 +16,7 @@ load_dotenv()
 
 from sqlalchemy import create_engine, text
 from sqlalchemy.orm import sessionmaker
-from src.models.playt_models import Usuario, Partido
+from src.models.Drive+_models import Usuario, Partido
 from src.models.torneo_models import TorneoZona, TorneoZonaPareja
 from src.services.torneo_resultado_service import TorneoResultadoService
 
@@ -95,7 +95,7 @@ def crear_torneo():
     
     result = db.execute(text("""
         INSERT INTO torneos (nombre, descripcion, tipo, categoria, genero, estado, fecha_inicio, fecha_fin, lugar, creado_por)
-        VALUES ('Prueba', 'Torneo de prueba con ELO', 'clasico', 'Libre', 'masculino', 'inscripcion', :fecha_inicio, :fecha_fin, 'Club PlayT', :creador)
+        VALUES ('Prueba', 'Torneo de prueba con ELO', 'clasico', 'Libre', 'masculino', 'inscripcion', :fecha_inicio, :fecha_fin, 'Club Drive+', :creador)
         RETURNING id
     """), {
         'fecha_inicio': date.today(),

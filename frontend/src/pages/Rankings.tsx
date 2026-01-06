@@ -5,6 +5,9 @@ import { Trophy, Minus, Medal, Filter, Search } from 'lucide-react';
 import Card from '../components/Card';
 import Button from '../components/Button';
 import Input from '../components/Input';
+import Pagination from '../components/Pagination';
+import LazyComponent from '../components/LazyComponent';
+import { useDebounce } from '../hooks/useDebounce';
 
 import { apiService } from '../services/api';
 import { logger } from '../utils/logger';
@@ -28,17 +31,21 @@ export default function Rankings() {
   const [filtroCategoria, setFiltroCategoria] = useState<string>('todas');
   const [filtroGenero, setFiltroGenero] = useState<string>('todos');
   const [busqueda, setBusqueda] = useState('');
+  const [paginaActual, setPaginaActual] = useState(1);
+  const [totalPaginas, setTotalPaginas] = useState(1);
 
   const [jugadores, setJugadores] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
-  const [mostrarTodos, setMostrarTodos] = useState(false);
   const ITEMS_POR_PAGINA = 20;
   const navigate = useNavigate();
 
+  // Debounce para la búsqueda
+  const debouncedBusqueda = useDebounce(busqueda, 300);
 
 
-  // Recargar cuando cambie el filtro de categoría o género
+
+  // Recargar cuando cambien los filtros o la búsqueda
   useEffect(() => {
     const cargarRanking = async () => {
       try {
@@ -67,19 +74,34 @@ export default function Rankings() {
     };
 
     cargarRanking();
-  }, [filtroCategoria, filtroGenero]);
+    // Resetear página al cambiar filtros
+    setPaginaActual(1);
+  }, [filtroCategoria, filtroGenero, debouncedBusqueda]);
 
-  // Filtrar jugadores localmente solo por búsqueda (el género ya se filtra en el backend)
+  // Filtrar jugadores localmente por búsqueda
   const jugadoresFiltrados = jugadores.filter(jugador => {
     const nombreCompleto = `${jugador.nombre || ''} ${jugador.apellido || ''}`.toLowerCase();
-    const cumpleBusqueda = nombreCompleto.includes(busqueda.toLowerCase()) || 
-                          (jugador.nombre_usuario || '').toLowerCase().includes(busqueda.toLowerCase());
+    const cumpleBusqueda = debouncedBusqueda === '' || 
+                          nombreCompleto.includes(debouncedBusqueda.toLowerCase()) || 
+                          (jugador.nombre_usuario || '').toLowerCase().includes(debouncedBusqueda.toLowerCase());
     
     return cumpleBusqueda;
   });
 
-  // Limitar jugadores mostrados
-  const jugadoresMostrados = mostrarTodos ? jugadoresFiltrados : jugadoresFiltrados.slice(0, ITEMS_POR_PAGINA);
+  // Calcular paginación
+  const totalItems = jugadoresFiltrados.length;
+  const totalPaginasCalculadas = Math.ceil(totalItems / ITEMS_POR_PAGINA);
+  const indiceInicio = (paginaActual - 1) * ITEMS_POR_PAGINA;
+  const indiceFin = indiceInicio + ITEMS_POR_PAGINA;
+  const jugadoresPaginados = jugadoresFiltrados.slice(indiceInicio, indiceFin);
+
+  // Actualizar total de páginas cuando cambien los filtros
+  useEffect(() => {
+    setTotalPaginas(totalPaginasCalculadas);
+    if (paginaActual > totalPaginasCalculadas && totalPaginasCalculadas > 0) {
+      setPaginaActual(1);
+    }
+  }, [totalPaginasCalculadas, paginaActual]);
 
   return (
     <div className="space-y-8">
@@ -240,7 +262,7 @@ export default function Rankings() {
                   </td>
                 </tr>
               ) : (
-                jugadoresMostrados.map((jugador, index) => {
+                jugadoresPaginados.map((jugador, index) => {
                   const catInfo = getCategoriaInfo(jugador.rating);
                   const nombreCompleto = `${jugador.nombre || ''} ${jugador.apellido || ''}`.trim() || jugador.nombre_usuario;
                   const partidosJugados = jugador.partidos_jugados || 0;
@@ -257,15 +279,15 @@ export default function Rankings() {
                     >
                       <td className="py-2 md:py-4 px-2 md:px-4">
                         <div className="flex items-center gap-1 md:gap-2">
-                          {index === 0 && <Medal className="text-accent" size={14} />}
-                          {index === 1 && <Medal className="text-gray-400" size={14} />}
-                          {index === 2 && <Medal className="text-orange-400" size={14} />}
-                          <span className="text-textPrimary font-bold text-sm md:text-lg">#{index + 1}</span>
+                          {(indiceInicio + index) === 0 && <Medal className="text-accent" size={14} />}
+                          {(indiceInicio + index) === 1 && <Medal className="text-gray-400" size={14} />}
+                          {(indiceInicio + index) === 2 && <Medal className="text-orange-400" size={14} />}
+                          <span className="text-textPrimary font-bold text-sm md:text-lg">#{indiceInicio + index + 1}</span>
                         </div>
                       </td>
                       <td className="py-2 md:py-4 px-2 md:px-4">
                         <button 
-                          onClick={() => navigate(`/${jugador.nombre_usuario}`)}
+                          onClick={() => navigate(`/jugador/${jugador.nombre_usuario}`)}
                           className="text-left hover:opacity-80 transition-opacity"
                         >
                           <p className="text-textPrimary font-bold text-xs md:text-base truncate max-w-[120px] md:max-w-none hover:text-primary transition-colors">{nombreCompleto}</p>
@@ -344,7 +366,7 @@ export default function Rankings() {
               animate={{ opacity: 1 }}
               transition={{ staggerChildren: 0.05 }}
             >
-              {jugadoresMostrados.map((jugador, index) => {
+              {jugadoresPaginados.map((jugador, index) => {
               const catInfo = getCategoriaInfo(jugador.rating);
               const nombreCompleto = `${jugador.nombre || ''} ${jugador.apellido || ''}`.trim() || jugador.nombre_usuario;
               const partidosJugados = jugador.partidos_jugados || 0;
@@ -371,10 +393,10 @@ export default function Rankings() {
                   <div className="flex items-center gap-2 mb-1.5">
                     {/* Posición y medalla */}
                     <div className="flex items-center gap-1 flex-shrink-0">
-                      {index === 0 && <Medal className="text-accent" size={14} />}
-                      {index === 1 && <Medal className="text-gray-400" size={14} />}
-                      {index === 2 && <Medal className="text-orange-400" size={14} />}
-                      <span className="text-textPrimary font-bold text-sm">#{index + 1}</span>
+                      {(indiceInicio + index) === 0 && <Medal className="text-accent" size={14} />}
+                      {(indiceInicio + index) === 1 && <Medal className="text-gray-400" size={14} />}
+                      {(indiceInicio + index) === 2 && <Medal className="text-orange-400" size={14} />}
+                      <span className="text-textPrimary font-bold text-sm">#{indiceInicio + index + 1}</span>
                     </div>
 
                     {/* Nombre y usuario */}
@@ -424,67 +446,50 @@ export default function Rankings() {
           )}
         </motion.div>
 
-        {/* Botón Cargar Más */}
-        {!mostrarTodos && jugadoresFiltrados.length > ITEMS_POR_PAGINA && (
-          <div className="mt-4 md:mt-6 text-center">
-            <Button
-              variant="primary"
-              onClick={() => setMostrarTodos(true)}
-              className="w-full md:w-auto"
-            >
-              Cargar más ({jugadoresFiltrados.length - ITEMS_POR_PAGINA} restantes)
-            </Button>
-          </div>
-        )}
-
-        {mostrarTodos && jugadoresFiltrados.length > ITEMS_POR_PAGINA && (
-          <div className="mt-4 md:mt-6 text-center">
-            <Button
-              variant="ghost"
-              onClick={() => {
-                setMostrarTodos(false);
-                window.scrollTo({ top: 0, behavior: 'smooth' });
-              }}
-              className="w-full md:w-auto"
-            >
-              Mostrar menos
-            </Button>
-          </div>
-        )}
+        {/* Paginación */}
+        <Pagination
+          currentPage={paginaActual}
+          totalPages={totalPaginas}
+          onPageChange={setPaginaActual}
+          totalItems={totalItems}
+          itemsPerPage={ITEMS_POR_PAGINA}
+        />
       </Card>
 
       {/* Información adicional */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-2 md:gap-6">
-        <Card>
-          <h3 className="text-sm md:text-lg font-bold text-textPrimary mb-1.5 md:mb-3">¿Cómo funciona?</h3>
-          <ul className="space-y-0.5 md:space-y-2 text-textSecondary text-[10px] md:text-sm">
-            <li>• El rating inicial depende de tu categoría declarada</li>
-            <li>• Ganas puntos al vencer rivales de mayor nivel</li>
-            <li>• El margen de victoria afecta los puntos ganados</li>
-            <li>• Tu categoría se actualiza automáticamente</li>
-          </ul>
-        </Card>
+      <LazyComponent delay={200}>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-2 md:gap-6">
+          <Card>
+            <h3 className="text-sm md:text-lg font-bold text-textPrimary mb-1.5 md:mb-3">¿Cómo funciona?</h3>
+            <ul className="space-y-0.5 md:space-y-2 text-textSecondary text-[10px] md:text-sm">
+              <li>• El rating inicial depende de tu categoría declarada</li>
+              <li>• Ganas puntos al vencer rivales de mayor nivel</li>
+              <li>• El margen de victoria afecta los puntos ganados</li>
+              <li>• Tu categoría se actualiza automáticamente</li>
+            </ul>
+          </Card>
 
-        <Card>
-          <h3 className="text-sm md:text-lg font-bold text-textPrimary mb-1.5 md:mb-3">Factor K</h3>
-          <ul className="space-y-0.5 md:space-y-2 text-textSecondary text-[10px] md:text-sm">
-            <li>• Nuevo (&lt;15 partidos): K = 32</li>
-            <li>• Intermedio (15-59): K = 24</li>
-            <li>• Experto (≥60): K = 18</li>
-            <li>• Más partidos = cambios más estables</li>
-          </ul>
-        </Card>
+          <Card>
+            <h3 className="text-sm md:text-lg font-bold text-textPrimary mb-1.5 md:mb-3">Factor K</h3>
+            <ul className="space-y-0.5 md:space-y-2 text-textSecondary text-[10px] md:text-sm">
+              <li>• Nuevo (&lt;15 partidos): K = 32</li>
+              <li>• Intermedio (15-59): K = 24</li>
+              <li>• Experto (≥60): K = 18</li>
+              <li>• Más partidos = cambios más estables</li>
+            </ul>
+          </Card>
 
-        <Card>
-          <h3 className="text-sm md:text-lg font-bold text-textPrimary mb-1.5 md:mb-3">Caps de Rating</h3>
-          <ul className="space-y-0.5 md:space-y-2 text-textSecondary text-[10px] md:text-sm">
-            <li>• Ganador favorito: +22 máx</li>
-            <li>• Ganador no favorito: +40 máx</li>
-            <li>• Perdedor favorito: -40 mín</li>
-            <li>• Perdedor no favorito: -18 mín</li>
-          </ul>
-        </Card>
-      </div>
+          <Card>
+            <h3 className="text-sm md:text-lg font-bold text-textPrimary mb-1.5 md:mb-3">Caps de Rating</h3>
+            <ul className="space-y-0.5 md:space-y-2 text-textSecondary text-[10px] md:text-sm">
+              <li>• Ganador favorito: +22 máx</li>
+              <li>• Ganador no favorito: +40 máx</li>
+              <li>• Perdedor favorito: -40 mín</li>
+              <li>• Perdedor no favorito: -18 mín</li>
+            </ul>
+          </Card>
+        </div>
+      </LazyComponent>
 
 
     </div>

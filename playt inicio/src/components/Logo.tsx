@@ -7,7 +7,7 @@ export default function Logo({ size = 40, className = "" }: LogoProps) {
   return (
     <img
       src="/logo.png"
-      alt="PlayR Logo"
+      alt="Drive+ Logo"
       width={size}
       height={size}
       className={className}

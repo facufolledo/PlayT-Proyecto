@@ -65,7 +65,7 @@ export const HomeScreen = ({ navigation }: any) => {
       <View style={styles.header}>
         <View>
           <Text style={styles.greeting}>¡Hola, {usuario?.nombre || 'Jugador'}!</Text>
-          <Text style={styles.subtitle}>Bienvenido a PlayR</Text>
+          <Text style={styles.subtitle}>Bienvenido a Drive+</Text>
         </View>
         <TouchableOpacity style={styles.avatar} onPress={() => navigation.navigate('Perfil')}>
           <Text style={styles.avatarText}>

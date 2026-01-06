@@ -29,13 +29,16 @@ from src.controllers.sala_controller import router as sala_router
 from src.controllers.resultado_controller import router as resultado_router
 from src.controllers.torneo import router as torneo_router
 from src.controllers.health_controller import router as health_router
+from src.controllers.logs_controller import router as logs_router
+from src.controllers.admin_controller import router as admin_router
+from src.controllers.categoria_maintenance_controller import router as categoria_maintenance_router
 
 
 # ---- Lifespan (startup/shutdown) ----
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # Startup
-    logger.info("🚀 Iniciando PlayT API...")
+    logger.info("🚀 Iniciando Drive+ API...")
     try:
         with engine.connect() as conn:
             conn.execute(text("SELECT 1"))
@@ -53,36 +56,55 @@ async def lifespan(app: FastAPI):
     except Exception as e:
         logger.error(f"❌ Error al inicializar Firebase Admin: {e}")
 
+    # Inicializar tareas programadas
+    try:
+        import asyncio
+        from src.services.scheduled_tasks import start_background_tasks
+        # Ejecutar en background sin bloquear el startup
+        asyncio.create_task(start_background_tasks())
+        logger.info("✅ Tareas programadas iniciadas")
+    except Exception as e:
+        logger.error(f"❌ Error al inicializar tareas programadas: {e}")
+
     yield
 
     # Shutdown
-    logger.info("🛑 Cerrando PlayT API...")
+    logger.info("🛑 Cerrando Drive+ API...")
+    try:
+        from src.services.scheduled_tasks import stop_background_tasks
+        stop_background_tasks()
+        logger.info("✅ Tareas programadas detenidas")
+    except Exception as e:
+        logger.error(f"❌ Error al detener tareas programadas: {e}")
 
 
 # ---- Crear app ----
 app = FastAPI(
-    title=os.getenv("APP_NAME", "PlayT API"),
+    title=os.getenv("APP_NAME", "Drive+ API"),
     version=os.getenv("APP_VERSION", "1.0.0"),
-    description="API para el sistema de pádel PlayT con ranking Elo",
+    description="API para el sistema de pádel Drive+ con ranking Elo",
     docs_url="/docs",
     redoc_url="/redoc",
     lifespan=lifespan,  # 👈 reemplaza on_event
 )
 
-# ---- CORS (json.loads en vez de eval) ----
+# ---- CORS (DEBE IR ANTES DE OTROS MIDDLEWARES) ----
 _default_origins = '["http://localhost:3000", "http://127.0.0.1:3000", "http://localhost:8080", "http://localhost:5173", "http://127.0.0.1:5173", "http://localhost:5174", "http://127.0.0.1:5174", "https://kioskito.click", "https://www.kioskito.click"]'
 try:
     origins = json.loads(os.getenv("CORS_ORIGINS", _default_origins))
     if not isinstance(origins, list):
         raise ValueError("CORS_ORIGINS debe ser una lista JSON de strings.")
-except Exception:
+    logger.info(f"✅ CORS configurado con origins: {origins}")
+except Exception as e:
+    logger.error(f"❌ Error configurando CORS: {e}")
     origins = json.loads(_default_origins)
+    logger.info(f"🔄 Usando origins por defecto: {origins}")
 
 app.add_middleware(
     CORSMiddleware,
     allow_origins=origins,
     allow_credentials=True,
-    allow_methods=["*"],
+    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
     allow_headers=["*"],
 )
 
@@ -100,12 +122,15 @@ app.include_router(ranking_router)
 app.include_router(estadisticas_router)
 app.include_router(torneo_router)
 app.include_router(health_router)
+app.include_router(logs_router)
+app.include_router(admin_router)
+app.include_router(categoria_maintenance_router)
 
 # ---- Endpoints básicos ----
 @app.get("/")
 async def root():
     return {
-        "message": "¡Bienvenido a PlayT API! 🎾",
+        "message": "¡Bienvenido a Drive+ API! 🚗⚡",
         "version": os.getenv("APP_VERSION", "1.0.0"),
         "status": "running",
         "docs": "/docs",
@@ -113,7 +138,7 @@ async def root():
 
 @app.get("/health")
 async def health_check():
-    return {"status": "healthy", "service": "PlayT API", "database": "connected", "cors": "enabled"}
+    return {"status": "healthy", "service": "Drive+ API", "database": "connected", "cors": "enabled"}
 
 @app.get("/api/test-cors")
 async def test_cors():
@@ -122,6 +147,30 @@ async def test_cors():
         "message": "CORS está funcionando correctamente",
         "timestamp": datetime.now().isoformat(),
         "cors_enabled": True
+    }
+
+@app.options("/api/test-cors")
+async def test_cors_preflight():
+    """Endpoint OPTIONS para preflight requests"""
+    return {"message": "Preflight OK"}
+
+@app.options("/{path:path}")
+async def handle_preflight(path: str):
+    """Manejar todas las requests OPTIONS (preflight)"""
+    return {"message": "Preflight handled"}
+
+@app.get("/debug/cors")
+async def cors_debug():
+    """Endpoint de debug para verificar configuración CORS"""
+    return {
+        "cors_origins": origins,
+        "cors_origins_env": os.getenv("CORS_ORIGINS"),
+        "cors_origins_default": _default_origins,
+        "cors_middleware_enabled": True,
+        "allow_credentials": True,
+        "allow_methods": ["*"],
+        "allow_headers": ["*"],
+        "timestamp": datetime.now().isoformat()
     }
 
 @app.get("/debug/firebase")
@@ -139,8 +188,8 @@ async def firebase_debug():
 @app.get("/api/info")
 async def api_info():
     return {
-        "name": "PlayT API",
-        "description": "Sistema de pádel con ranking Elo",
+        "name": "Drive+ API",
+        "description": "Sistema de pádel Drive+ con ranking Elo",
         "version": os.getenv("APP_VERSION", "1.0.0"),
         "features": [
             "Sistema de usuarios y autenticación",

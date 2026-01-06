@@ -19,7 +19,7 @@ class TorneoService:
     @staticmethod
     def es_organizador_autorizado(db: Session, user_id: int) -> bool:
         """Verifica si un usuario está autorizado para crear torneos"""
-        from ..models.playt_models import Usuario
+        from ..models.Drive+_models import Usuario
         usuario = db.query(Usuario).filter(Usuario.id_usuario == user_id).first()
         return usuario and getattr(usuario, 'puede_crear_torneos', False)
     

@@ -8,7 +8,7 @@ from pydantic import BaseModel
 
 from ...database.config import get_db
 from ...auth.auth_utils import get_current_user
-from ...models.playt_models import Usuario
+from ...models.Drive+_models import Usuario
 from ...services.torneo_resultado_service import TorneoResultadoService
 from ...utils.logger import get_logger
 

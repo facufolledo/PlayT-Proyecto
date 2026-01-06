@@ -4,6 +4,7 @@ import { auth } from '../config/firebase';
 import { authService } from '../services/auth.service';
 import { apiService, UsuarioResponse } from '../services/api';
 import { logger } from '../utils/logger';
+import { clientLogger } from '../utils/clientLogger';
 
 interface AuthContextType {
   usuario: UsuarioResponse | null;
@@ -153,11 +154,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const login = async (email: string, password: string) => {
     setIsLoading(true);
+    clientLogger.userAction('Login attempt', { email });
     try {
       // Login con Firebase (email/password)
       const user = await authService.loginWithEmail(email, password);
       setFirebaseUser(user);
       console.log('🔥 Firebase user:', user.email);
+      clientLogger.info('Firebase login successful', { email: user.email });
 
       // Recargar el usuario para obtener el estado actualizado de emailVerified
       await user.reload();
@@ -166,6 +169,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (!user.emailVerified) {
         setNeedsProfileCompletion(true);
         localStorage.setItem('needsProfileCompletion', 'true');
+        clientLogger.warn('Email not verified', { email: user.email });
         throw new Error('Debes verificar tu correo electrónico antes de continuar. Revisa tu bandeja de entrada.');
       }
 
@@ -273,14 +277,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const logout = async () => {
     setIsLoading(true);
+    clientLogger.userAction('Logout attempt');
     try {
       await authService.logout();
       setUsuario(null);
       setFirebaseUser(null);
+      setNeedsProfileCompletion(false); // Limpiar estado de perfil incompleto
       localStorage.removeItem('access_token');
       localStorage.removeItem('usuario');
+      localStorage.removeItem('needsProfileCompletion'); // Limpiar flag de perfil
+      localStorage.removeItem('firebase_token'); // Limpiar token de Firebase
+      localStorage.removeItem('firebase_user_email'); // Limpiar email
+      clientLogger.info('Logout successful');
     } catch (error: any) {
       logger.error('Error en logout:', error);
+      clientLogger.error('Logout failed', { error: error.message });
       throw new Error(error.message || 'Error al cerrar sesión');
     } finally {
       setIsLoading(false);

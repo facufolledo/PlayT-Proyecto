@@ -6,7 +6,7 @@ import os
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
 from src.database.config import SessionLocal
-from src.models.playt_models import Usuario
+from src.models.Drive+_models import Usuario
 from src.services.notification_service import NotificationService
 
 def test_notificaciones():

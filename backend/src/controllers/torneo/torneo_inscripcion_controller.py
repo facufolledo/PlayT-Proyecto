@@ -10,7 +10,7 @@ from pydantic import BaseModel
 from ...database.config import get_db
 from ...schemas.torneo_schemas import ParejaInscripcion
 from ...auth.auth_utils import get_current_user
-from ...models.playt_models import Usuario, PerfilUsuario
+from ...models.Drive+_models import Usuario, PerfilUsuario
 from ...models.torneo_models import TorneoPareja, TorneoCategoria, Torneo
 from ...utils.logger import get_logger
 
@@ -214,7 +214,7 @@ def obtener_mis_torneos(
             TorneoPareja.jugador1_id == current_user.id_usuario,
             TorneoPareja.jugador2_id == current_user.id_usuario
         ),
-        TorneoPareja.estado.in_(['pendiente', 'inscripta', 'confirmada'])
+        TorneoPareja.estado.in_(['inscripta', 'confirmada'])  # Removido 'pendiente' que no existe en el enum
     ).all()
     
     if not parejas:

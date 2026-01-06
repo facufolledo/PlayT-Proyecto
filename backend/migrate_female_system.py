@@ -1,0 +1,251 @@
+#!/usr/bin/env python3
+"""
+Script de migraci+¶n para integrar el sistema femenino
+"""
+
+import sys
+import os
+sys.path.append(os.path.dirname(os.path.abspath(__file__)))
+
+from src.database.config import engine, get_db
+from src.models.Drive+_models import Usuario, Categoria
+from sqlalchemy import text
+
+def migrate_female_system():
+    """Migrar la base de datos para incluir sistema femenino"""
+    
+    print("≠É≈Â MIGRACI+ÙN AL SISTEMA FEMENINO")
+    print("=" * 50)
+    
+    try:
+        # 1. Agregar campo sexo a usuarios
+        print("\n1. ≠ÉÊÒ AGREGANDO CAMPO SEXO A USUARIOS")
+        print("-" * 40)
+        
+        # Verificar si el campo ya existe
+        with engine.connect() as conn:
+            result = conn.execute(text("""
+                SELECT column_name 
+                FROM information_schema.columns 
+                WHERE table_name = 'usuarios' AND column_name = 'sexo'
+            """))
+            
+            if result.fetchone():
+                print("   ‘£‡ Campo 'sexo' ya existe en usuarios")
+            else:
+                # Agregar campo sexo
+                conn.execute(text("""
+                    ALTER TABLE usuarios 
+                    ADD COLUMN sexo VARCHAR(10) DEFAULT 'masculino' NOT NULL
+                """))
+                conn.commit()
+                print("   ‘£‡ Campo 'sexo' agregado a usuarios")
+        
+        # 2. Actualizar usuarios existentes como masculino
+        print("\n2. ≠Éˆ‰ ACTUALIZANDO USUARIOS EXISTENTES")
+        print("-" * 40)
+        
+        with engine.connect() as conn:
+            result = conn.execute(text("""
+                UPDATE usuarios 
+                SET sexo = 'masculino' 
+                WHERE sexo IS NULL OR sexo = ''
+            """))
+            conn.commit()
+            print(f"   ‘£‡ {result.rowcount} usuarios actualizados como masculino")
+        
+        # 3. Agregar campo sexo a categor+°as
+        print("\n3. ≠É≈Â AGREGANDO CAMPO SEXO A CATEGOR+ÏAS")
+        print("-" * 40)
+        
+        with engine.connect() as conn:
+            result = conn.execute(text("""
+                SELECT column_name 
+                FROM information_schema.columns 
+                WHERE table_name = 'categorias' AND column_name = 'sexo'
+            """))
+            
+            if result.fetchone():
+                print("   ‘£‡ Campo 'sexo' ya existe en categor+°as")
+            else:
+                # Agregar campo sexo
+                conn.execute(text("""
+                    ALTER TABLE categorias 
+                    ADD COLUMN sexo VARCHAR(10) DEFAULT 'masculino' NOT NULL
+                """))
+                conn.commit()
+                print("   ‘£‡ Campo 'sexo' agregado a categor+°as")
+        
+        # 4. Actualizar categor+°as existentes como masculino
+        print("\n4. ≠Éˆ‰ ACTUALIZANDO CATEGOR+ÏAS EXISTENTES")
+        print("-" * 40)
+        
+        with engine.connect() as conn:
+            result = conn.execute(text("""
+                UPDATE categorias 
+                SET sexo = 'masculino' 
+                WHERE sexo IS NULL OR sexo = ''
+            """))
+            conn.commit()
+            print(f"   ‘£‡ {result.rowcount} categor+°as actualizadas como masculino")
+        
+        # 4.5. Modificar restricci+¶n +¶nica para permitir nombres duplicados con diferente sexo
+        print("\n4.5 ≠Éˆ∫ MODIFICANDO RESTRICCI+ÙN +‹NICA")
+        print("-" * 40)
+        
+        with engine.connect() as conn:
+            try:
+                # Eliminar restricci+¶n +¶nica anterior
+                conn.execute(text("""
+                    ALTER TABLE categorias DROP CONSTRAINT IF EXISTS categorias_nombre_key
+                """))
+                # Crear nueva restricci+¶n +¶nica compuesta
+                conn.execute(text("""
+                    ALTER TABLE categorias ADD CONSTRAINT categorias_nombre_sexo_key UNIQUE (nombre, sexo)
+                """))
+                conn.commit()
+                print("   ‘£‡ Restricci+¶n +¶nica actualizada para (nombre, sexo)")
+            except Exception as e:
+                print(f"   ‘‹·¥©≈  Advertencia al modificar restricci+¶n: {e}")
+                pass
+        
+        # 5. Crear categor+°as femeninas
+        print("\n5. ≠ÉÊÆ CREANDO CATEGOR+ÏAS FEMENINAS")
+        print("-" * 40)
+        
+        categorias_femeninas = [
+            {
+                "nombre": "Principiante",
+                "descripcion": "Categor+°a para principiantes absolutos (Femenino)",
+                "rating_min": 0,
+                "rating_max": 499,
+                "sexo": "femenino"
+            },
+            {
+                "nombre": "8va",
+                "descripcion": "Categor+°a inicial (Femenino)",
+                "rating_min": 500,
+                "rating_max": 999,
+                "sexo": "femenino"
+            },
+            {
+                "nombre": "7ma",
+                "descripcion": "Categor+°a intermedia baja (Femenino)",
+                "rating_min": 1000,
+                "rating_max": 1199,
+                "sexo": "femenino"
+            },
+            {
+                "nombre": "6ta",
+                "descripcion": "Categor+°a intermedia (Femenino)",
+                "rating_min": 1200,
+                "rating_max": 1399,
+                "sexo": "femenino"
+            },
+            {
+                "nombre": "5ta",
+                "descripcion": "Categor+°a intermedia alta (Femenino)",
+                "rating_min": 1400,
+                "rating_max": 1599,
+                "sexo": "femenino"
+            },
+            {
+                "nombre": "Libre",
+                "descripcion": "Categor+°a m+Ìxima (Femenino)",
+                "rating_min": 1600,
+                "rating_max": None,
+                "sexo": "femenino"
+            }
+        ]
+        
+        with engine.connect() as conn:
+            for cat in categorias_femeninas:
+                # Verificar si ya existe
+                result = conn.execute(text("""
+                    SELECT id_categoria FROM categorias 
+                    WHERE nombre = :nombre AND sexo = :sexo
+                """), {"nombre": cat["nombre"], "sexo": cat["sexo"]})
+                
+                if result.fetchone():
+                    print(f"   ‘‹·¥©≈  Categor+°a {cat['nombre']} (Femenino) ya existe")
+                else:
+                    # Crear categor+°a
+                    conn.execute(text("""
+                        INSERT INTO categorias (nombre, descripcion, rating_min, rating_max, sexo)
+                        VALUES (:nombre, :descripcion, :rating_min, :rating_max, :sexo)
+                    """), cat)
+                    conn.commit()
+                    print(f"   ‘£‡ Categor+°a {cat['nombre']} (Femenino) creada")
+        
+        # 6. Crear tabla categoria_checkpoints si no existe
+        print("\n6. ≠ÉÙË CREANDO TABLA CATEGORIA_CHECKPOINTS")
+        print("-" * 40)
+        
+        with engine.connect() as conn:
+            result = conn.execute(text("""
+                SELECT table_name 
+                FROM information_schema.tables 
+                WHERE table_name = 'categoria_checkpoints'
+            """))
+            
+            if result.fetchone():
+                print("   ‘£‡ Tabla 'categoria_checkpoints' ya existe")
+            else:
+                conn.execute(text("""
+                    CREATE TABLE categoria_checkpoints (
+                        id_checkpoint BIGSERIAL PRIMARY KEY,
+                        id_usuario BIGINT NOT NULL REFERENCES usuarios(id_usuario),
+                        categoria_anterior VARCHAR(20),
+                        categoria_nueva VARCHAR(20) NOT NULL,
+                        rating_ascenso INTEGER NOT NULL,
+                        fecha_ascenso TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+                        id_partido_ascenso BIGINT REFERENCES partidos(id_partido),
+                        partidos_inmunidad_restantes SMALLINT DEFAULT 0
+                    )
+                """))
+                conn.commit()
+                print("   ‘£‡ Tabla 'categoria_checkpoints' creada")
+        
+        # 7. Verificar migraci+¶n
+        print("\n7. ‘£‡ VERIFICACI+ÙN DE MIGRACI+ÙN")
+        print("-" * 40)
+        
+        with engine.connect() as conn:
+            # Contar usuarios por sexo
+            result = conn.execute(text("""
+                SELECT sexo, COUNT(*) as count 
+                FROM usuarios 
+                GROUP BY sexo
+            """))
+            usuarios_por_sexo = result.fetchall()
+            print("   ≠ÉÊ— Usuarios por sexo:")
+            for sexo, count in usuarios_por_sexo:
+                print(f"      {sexo}: {count}")
+            
+            # Contar categor+°as por sexo
+            result = conn.execute(text("""
+                SELECT sexo, COUNT(*) as count 
+                FROM categorias 
+                GROUP BY sexo
+            """))
+            categorias_por_sexo = result.fetchall()
+            print("   ≠É≈Â Categor+°as por sexo:")
+            for sexo, count in categorias_por_sexo:
+                print(f"      {sexo}: {count}")
+        
+        print("\n≠Éƒ• -ÌMIGRACI+ÙN COMPLETADA EXITOSAMENTE!")
+        print("=" * 50)
+        print("‘£‡ Sistema femenino integrado")
+        print("‘£‡ Usuarios existentes marcados como masculino")
+        print("‘£‡ Categor+°as femeninas creadas")
+        print("‘£‡ Tabla categoria_checkpoints creada")
+        print("‘£‡ Base de datos lista para sistema mixto")
+        
+        return True
+        
+    except Exception as e:
+        print(f"\n‘ÿÓ ERROR EN MIGRACI+ÙN: {e}")
+        return False
+
+if __name__ == "__main__":
+    migrate_female_system()

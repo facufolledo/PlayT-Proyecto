@@ -12,6 +12,7 @@ import Landing from './pages/Landing';
 import Login from './pages/Login';
 import Register from './pages/Register';
 import ForgotPassword from './pages/ForgotPassword';
+import { CorsDebugPage } from './pages/CorsDebugPage';
 
 // Lazy loading para páginas secundarias
 const Dashboard = lazy(() => import('./pages/Dashboard'));
@@ -28,6 +29,8 @@ const EditarPerfil = lazy(() => import('./pages/EditarPerfil'));
 const MiRanking = lazy(() => import('./pages/MiRanking'));
 const CompletarPerfil = lazy(() => import('./pages/CompletarPerfil'));
 const PerfilPublico = lazy(() => import('./pages/PerfilPublico'));
+const BuscarJugadores = lazy(() => import('./pages/BuscarJugadores'));
+const AdminPanel = lazy(() => import('./pages/AdminPanel'));
 
 // Loading component
 const PageLoader = () => (
@@ -43,9 +46,8 @@ const PageLoader = () => (
 // El usuario decide cuándo entrar a la app
 
 function App() {
-  // En producción (kioskito.click) no necesitamos basename
-  // Solo usar basename si está en un subdirectorio
-  const basename = '/';
+  // Configuración para kioskito.click/DriveP
+  const basename = import.meta.env.PROD ? '/DriveP' : '/';
   
   return (
     <ErrorBoundary>
@@ -62,6 +64,7 @@ function App() {
               <Route path="/login" element={<Login />} />
               <Route path="/register" element={<Register />} />
               <Route path="/forgot-password" element={<ForgotPassword />} />
+              <Route path="/cors-debug" element={<CorsDebugPage />} />
               
               {/* Ruta semi-protegida: requiere Firebase auth pero no usuario completo */}
               <Route
@@ -100,6 +103,16 @@ function App() {
                   <PrivateRoute>
                     <Layout>
                       <Torneos />
+                    </Layout>
+                  </PrivateRoute>
+                }
+              />
+              <Route
+                path="/torneos/mis-torneos"
+                element={
+                  <PrivateRoute>
+                    <Layout>
+                      <MisTorneos />
                     </Layout>
                   </PrivateRoute>
                 }
@@ -175,16 +188,6 @@ function App() {
                 }
               />
               <Route
-                path="/torneos/mis-torneos"
-                element={
-                  <PrivateRoute>
-                    <Layout>
-                      <MisTorneos />
-                    </Layout>
-                  </PrivateRoute>
-                }
-              />
-              <Route
                 path="/perfil"
                 element={
                   <PrivateRoute>
@@ -225,10 +228,33 @@ function App() {
                   </PrivateRoute>
                 }
               />
-              
-              {/* Perfil público de otros usuarios - URL amigable */}
+              {/* Búsqueda de jugadores */}
               <Route
-                path="/:username"
+                path="/jugadores"
+                element={
+                  <PrivateRoute>
+                    <Layout>
+                      <BuscarJugadores />
+                    </Layout>
+                  </PrivateRoute>
+                }
+              />
+              
+              {/* Panel de Administración - Solo para administradores */}
+              <Route
+                path="/admin"
+                element={
+                  <PrivateRoute>
+                    <Layout>
+                      <AdminPanel />
+                    </Layout>
+                  </PrivateRoute>
+                }
+              />
+              
+              {/* Perfil público de otros usuarios - URL amigable por username */}
+              <Route
+                path="/jugador/:username"
                 element={
                   <PrivateRoute>
                     <Layout>

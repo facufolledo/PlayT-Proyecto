@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Script para probar todos los endpoints de PlayT API
+Script para probar todos los endpoints de Drive+ API
 """
 import requests
 import json
@@ -44,7 +44,7 @@ def test_endpoint(method, endpoint, data=None, headers=None, description=""):
         return None
 
 def main():
-    print("🚀 TESTING PLAYT API")
+    print("🚀 TESTING Drive+ API")
     print("=" * 50)
     
     # 1. Test endpoints básicos

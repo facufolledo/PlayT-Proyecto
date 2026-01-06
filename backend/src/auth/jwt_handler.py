@@ -8,7 +8,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 # Configuración de seguridad
-SECRET_KEY = os.getenv("SECRET_KEY", "playt_super_secret_key_2025")
+SECRET_KEY = os.getenv("SECRET_KEY", "Drive+_super_secret_key_2025")
 ALGORITHM = os.getenv("ALGORITHM", "HS256")
 ACCESS_TOKEN_EXPIRE_MINUTES = int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", "30"))
 

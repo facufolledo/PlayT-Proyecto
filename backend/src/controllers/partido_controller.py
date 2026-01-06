@@ -4,7 +4,7 @@ from typing import List, Optional
 from datetime import datetime
 
 from ..database.config import get_db
-from ..models.playt_models import Partido, PartidoJugador, ResultadoPartido, Usuario, Club, HistorialRating, PerfilUsuario, Categoria
+from ..models.driveplus_models import Partido, PartidoJugador, ResultadoPartido, Usuario, Club, HistorialRating, PerfilUsuario, Categoria
 from ..schemas.partido import PartidoCreate, PartidoResponse, PartidoCompleto, ResultadoCreate
 from ..auth.auth_utils import get_current_user
 from ..services.elo_service import EloService
@@ -644,26 +644,23 @@ async def partidos_usuario(
         )
     ).all()
     
-    # 2. Obtener partidos de torneo (usando torneos_parejas)
-    # Buscar parejas donde el usuario participa
-    parejas_usuario = db.execute(text("""
-        SELECT id FROM torneos_parejas 
-        WHERE jugador1_id = :uid OR jugador2_id = :uid
+    # 2. Obtener partidos de torneo donde el usuario REALMENTE participó
+    # Usar historial_rating que es la fuente de verdad de participación
+    partidos_torneo_ids = db.execute(text("""
+        SELECT DISTINCT hr.id_partido 
+        FROM historial_rating hr
+        JOIN partidos p ON hr.id_partido = p.id_partido
+        WHERE hr.id_usuario = :uid
+        AND p.tipo = 'torneo'
+        AND p.estado IN ('confirmado', 'finalizado')
     """), {'uid': usuario_id}).fetchall()
     
-    pareja_ids = [p[0] for p in parejas_usuario]
+    torneo_ids = [p[0] for p in partidos_torneo_ids]
     
     partidos_torneo = []
-    if pareja_ids:
+    if torneo_ids:
         partidos_torneo = db.query(Partido).filter(
-            and_(
-                Partido.tipo == 'torneo',
-                Partido.estado.in_(["confirmado", "finalizado"]),
-                or_(
-                    Partido.pareja1_id.in_(pareja_ids),
-                    Partido.pareja2_id.in_(pareja_ids)
-                )
-            )
+            Partido.id_partido.in_(torneo_ids)
         ).all()
     
     # Combinar y ordenar por fecha

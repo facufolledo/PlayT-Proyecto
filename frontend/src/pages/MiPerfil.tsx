@@ -5,6 +5,7 @@ import { Trophy, MapPin, Calendar, ChevronDown, ChevronUp, Target, Hand, Trendin
 import Button from '../components/Button';
 import { PartidoCardSkeleton } from '../components/SkeletonLoader';
 import { PlayerLink } from '../components/UserLink';
+import { apiService } from '../services/api';
 import axios from 'axios';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
@@ -57,12 +58,33 @@ export default function MiPerfil() {
   const [partidos, setPartidos] = useState<Partido[]>([]);
   const [loading, setLoading] = useState(true);
   const [detallesAbiertos, setDetallesAbiertos] = useState<Set<number>>(new Set());
+  const [categorias, setCategorias] = useState<any[]>([]);
 
   useEffect(() => {
     if (usuario?.id_usuario) {
       cargarPartidos();
+      cargarCategorias();
     }
   }, [usuario]);
+
+  const cargarCategorias = async () => {
+    try {
+      const categoriasData = await apiService.getCategorias();
+      setCategorias(categoriasData);
+    } catch (error) {
+      console.error('Error al cargar categorías:', error);
+    }
+  };
+
+  const obtenerNombreCategoria = () => {
+    // Si el backend ya devuelve el nombre de la categoría, usarlo directamente
+    if (usuario?.categoria) return usuario.categoria;
+    
+    // Si no, buscar por id_categoria
+    if (!usuario?.id_categoria || !categorias.length) return null;
+    const categoria = categorias.find(cat => cat.id_categoria === usuario.id_categoria);
+    return categoria?.nombre || null;
+  };
 
   const cargarPartidos = async () => {
     try {
@@ -362,10 +384,17 @@ export default function MiPerfil() {
                 <p className="text-textSecondary text-[9px] md:text-xs mt-0.5">{usuario?.email}</p>
               </div>
 
-              {/* Rating */}
+              {/* Rating y Categoría */}
               <div className="text-center mb-3 p-2 md:p-4 bg-primary/10 rounded-lg">
                 <p className="text-textSecondary text-[10px] md:text-sm mb-0.5">Rating</p>
                 <p className="text-2xl md:text-4xl font-black text-primary">{usuario?.rating || 1200}</p>
+                {obtenerNombreCategoria() && (
+                  <div className="mt-1 px-2 py-0.5 bg-primary/20 rounded-full inline-block">
+                    <p className="text-primary text-[9px] md:text-xs font-semibold">
+                      {obtenerNombreCategoria()}
+                    </p>
+                  </div>
+                )}
               </div>
 
               {/* Info Adicional */}
@@ -677,12 +706,12 @@ export default function MiPerfil() {
 
                           {/* Resultado */}
                           <div className="col-span-2 text-center">
-                            <p className={`text-2xl md:text-3xl font-black ${
+                            <p className={`text-lg md:text-3xl font-black leading-tight ${
                               victoria ? 'text-green-400' : 'text-red-400'
                             }`}>
                               {formatearSets(partido)}
                             </p>
-                            <p className="text-textSecondary text-[9px] md:text-xs hidden sm:block">
+                            <p className="text-textSecondary text-[8px] md:text-xs hidden sm:block">
                               {formatearDetalleSets(partido)}
                             </p>
                           </div>

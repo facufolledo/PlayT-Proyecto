@@ -18,7 +18,7 @@ def test_inscripciones():
         
         # 1. Crear un torneo de prueba
         print("\n1. Creando torneo de prueba...")
-        from src.models.playt_models import Usuario
+        from src.models.Drive+_models import Usuario
         
         user_id = 1
         usuario = db.query(Usuario).filter(Usuario.id_usuario == user_id).first()

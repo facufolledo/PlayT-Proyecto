@@ -6,7 +6,7 @@ from typing import List, Dict
 import firebase_admin
 from firebase_admin import messaging
 from sqlalchemy.orm import Session
-from ..models.playt_models import Usuario
+from ..models.Drive+_models import Usuario
 
 
 class NotificationService:

@@ -10,7 +10,7 @@ load_dotenv()
 
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
-from src.models.playt_models import Usuario, Partido, HistorialRating
+from src.models.Drive+_models import Usuario, Partido, HistorialRating
 from src.models.torneo_models import TorneoPareja, Torneo, TorneoZona
 from src.services.torneo_resultado_service import TorneoResultadoService
 

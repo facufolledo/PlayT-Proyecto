@@ -8,7 +8,7 @@ from datetime import datetime
 from ..models.torneo_models import (
     Torneo, TorneoPareja, EstadoTorneo, EstadoPareja, TorneoHistorialCambios
 )
-from ..models.playt_models import Usuario
+from ..models.Drive+_models import Usuario
 from ..schemas.torneo_schemas import ParejaInscripcion, ParejaUpdate
 
 
@@ -70,7 +70,7 @@ class TorneoInscripcionService:
         ).all()
         
         # Obtener nombres de los jugadores para mensajes de error
-        from ..models.playt_models import PerfilUsuario
+        from ..models.Drive+_models import PerfilUsuario
         perfil1 = db.query(PerfilUsuario).filter(PerfilUsuario.id_usuario == pareja_data.jugador1_id).first()
         perfil2 = db.query(PerfilUsuario).filter(PerfilUsuario.id_usuario == pareja_data.jugador2_id).first()
         nombre1 = f"{perfil1.nombre} {perfil1.apellido}" if perfil1 else f"Jugador {pareja_data.jugador1_id}"
@@ -145,7 +145,7 @@ class TorneoInscripcionService:
         Returns:
             True si se regeneraron los playoffs
         """
-        from ..models.playt_models import Partido
+        from ..models.Drive+_models import Partido
         from ..services.torneo_playoff_service import TorneoPlayoffService
         import logging
         

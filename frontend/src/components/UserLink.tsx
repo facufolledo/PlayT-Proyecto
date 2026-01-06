@@ -46,10 +46,12 @@ export default function UserLink({
   // Determinar la URL de destino
   let destino = '/perfil';
   if (!esUsuarioActual) {
-    if (tieneIdValido) {
+    if (nombreUsuario && nombreUsuario.trim() !== '') {
+      // Usar la nueva ruta por username
+      destino = `/jugador/${nombreUsuario}`;
+    } else if (tieneIdValido) {
+      // Fallback a ID si no hay username
       destino = `/perfil/${userIdNum}`;
-    } else if (nombreUsuario && nombreUsuario.trim() !== '') {
-      destino = `/${nombreUsuario}`;
     }
   }
   
@@ -141,7 +143,7 @@ export function UserAvatarLink({
   const { usuario } = useAuth();
   
   const esUsuarioActual = usuario?.id_usuario === userId;
-  const destino = esUsuarioActual ? '/perfil' : `/${nombreUsuario}`;
+  const destino = esUsuarioActual ? '/perfil' : `/jugador/${nombreUsuario}`;
   
   const sizeClasses = {
     sm: 'w-6 h-6 text-xs',

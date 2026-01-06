@@ -1,10 +1,10 @@
-# Consideraciones de Producción - PlayT
+# Consideraciones de Producción - Drive+
 
 ## Entorno de Producción
 
-- **Frontend**: Hosteado en `kioskito.click` (Hostinger/Vercel)
-- **Backend**: Hosteado en Render (`playt-backend.onrender.com`)
-- **Base de datos**: PostgreSQL en Render
+- **Frontend**: Hosteado en `kioskito.click` (Hostinger)
+- **Backend**: Hosteado en Railway (`drive-plus-production.up.railway.app`)
+- **Base de datos**: PostgreSQL en Railway
 
 ## CORS - Siempre incluir dominios de producción
 
@@ -34,7 +34,7 @@ origins = [
 
 ## Variables de Entorno en Producción
 
-El backend en Render necesita:
+El backend en Railway necesita:
 - `DATABASE_URL` - URL de PostgreSQL
 - `FIREBASE_CREDENTIALS_JSON` - Credenciales de Firebase (JSON string)
 - `CORS_ORIGINS` - Lista de orígenes permitidos
@@ -44,7 +44,7 @@ El backend en Render necesita:
 
 ```bash
 # Probar endpoint con cURL simulando producción
-curl -X POST "https://playt-backend.onrender.com/torneos/1/inscribir" \
+curl -X POST "https://drive-plus-production.up.railway.app/torneos/1/inscribir" \
   -H "Authorization: Bearer TOKEN" \
   -H "Content-Type: application/json" \
   -d '{"jugador1_id": 1, "jugador2_id": 2, "nombre_pareja": "Test"}'

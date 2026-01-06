@@ -15,7 +15,7 @@ from ..schemas.torneo_schemas import (
     ParejaInscripcion, ParejaUpdate, ParejaResponse
 )
 from ..auth.auth_utils import get_current_user
-from ..models.playt_models import Usuario
+from ..models.Drive+_models import Usuario
 
 router = APIRouter(prefix="/torneos", tags=["Torneos"])
 
@@ -91,6 +91,69 @@ def listar_torneos(
             })
         
         return resultado
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
+
+
+@router.get("/mis-torneos")
+def obtener_mis_torneos(
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(get_current_user)
+):
+    """
+    Obtiene los torneos donde el usuario está inscripto (como jugador1 o jugador2)
+    """
+    from ..models.torneo_models import TorneoPareja, Torneo
+    from sqlalchemy import or_
+    
+    try:
+        # Buscar parejas donde el usuario participa
+        parejas = db.query(TorneoPareja).filter(
+            or_(
+                TorneoPareja.jugador1_id == current_user.id_usuario,
+                TorneoPareja.jugador2_id == current_user.id_usuario
+            ),
+            TorneoPareja.estado.in_(['inscripta', 'confirmada'])  # Removido 'pendiente' que no existe en el enum
+        ).all()
+        
+        if not parejas:
+            return {"torneos": []}
+        
+        # Obtener IDs únicos de torneos
+        torneo_ids = list(set(p.torneo_id for p in parejas))
+        
+        # Obtener info de los torneos
+        torneos = db.query(Torneo).filter(Torneo.id.in_(torneo_ids)).all()
+        
+        # Crear dict de parejas por torneo para incluir estado de inscripción
+        parejas_por_torneo = {}
+        for p in parejas:
+            parejas_por_torneo[p.torneo_id] = {
+                "pareja_id": p.id,
+                "estado_inscripcion": p.estado.value if hasattr(p.estado, 'value') else str(p.estado),
+                "categoria_id": p.categoria_id
+            }
+        
+        resultado = []
+        for torneo in torneos:
+            info_pareja = parejas_por_torneo.get(torneo.id, {})
+            resultado.append({
+                "id": torneo.id,
+                "nombre": torneo.nombre,
+                "descripcion": torneo.descripcion,
+                "tipo": torneo.tipo.value if hasattr(torneo.tipo, 'value') else str(torneo.tipo),
+                "categoria": torneo.categoria,
+                "genero": torneo.genero or 'masculino',
+                "estado": torneo.estado.value if hasattr(torneo.estado, 'value') else str(torneo.estado),
+                "fecha_inicio": torneo.fecha_inicio.isoformat() if torneo.fecha_inicio else None,
+                "fecha_fin": torneo.fecha_fin.isoformat() if torneo.fecha_fin else None,
+                "lugar": torneo.lugar,
+                "mi_inscripcion": info_pareja
+            })
+        
+        return {"torneos": resultado}
     except Exception as e:
         import traceback
         traceback.print_exc()
@@ -273,7 +336,7 @@ def obtener_estadisticas(
 ):
     """Obtiene estadísticas generales del torneo"""
     from ..models.torneo_models import TorneoPareja, TorneoZona
-    from ..models.playt_models import Partido
+    from ..models.Drive+_models import Partido
     
     torneo = TorneoService.obtener_torneo(db, torneo_id)
     if not torneo:
@@ -568,69 +631,6 @@ def obtener_mis_invitaciones(
     return {"invitaciones": invitaciones}
 
 
-@router.get("/mis-torneos")
-def obtener_mis_torneos(
-    db: Session = Depends(get_db),
-    current_user: Usuario = Depends(get_current_user)
-):
-    """
-    Obtiene los torneos donde el usuario está inscripto (como jugador1 o jugador2)
-    """
-    from ..models.torneo_models import TorneoPareja, Torneo
-    from sqlalchemy import or_
-    
-    try:
-        # Buscar parejas donde el usuario participa
-        parejas = db.query(TorneoPareja).filter(
-            or_(
-                TorneoPareja.jugador1_id == current_user.id_usuario,
-                TorneoPareja.jugador2_id == current_user.id_usuario
-            ),
-            TorneoPareja.estado.in_(['pendiente', 'inscripta', 'confirmada'])
-        ).all()
-        
-        if not parejas:
-            return {"torneos": []}
-        
-        # Obtener IDs únicos de torneos
-        torneo_ids = list(set(p.torneo_id for p in parejas))
-        
-        # Obtener info de los torneos
-        torneos = db.query(Torneo).filter(Torneo.id.in_(torneo_ids)).all()
-        
-        # Crear dict de parejas por torneo para incluir estado de inscripción
-        parejas_por_torneo = {}
-        for p in parejas:
-            parejas_por_torneo[p.torneo_id] = {
-                "pareja_id": p.id,
-                "estado_inscripcion": p.estado.value if hasattr(p.estado, 'value') else str(p.estado),
-                "categoria_id": p.categoria_id
-            }
-        
-        resultado = []
-        for torneo in torneos:
-            info_pareja = parejas_por_torneo.get(torneo.id, {})
-            resultado.append({
-                "id": torneo.id,
-                "nombre": torneo.nombre,
-                "descripcion": torneo.descripcion,
-                "tipo": torneo.tipo.value if hasattr(torneo.tipo, 'value') else str(torneo.tipo),
-                "categoria": torneo.categoria,
-                "genero": torneo.genero or 'masculino',
-                "estado": torneo.estado.value if hasattr(torneo.estado, 'value') else str(torneo.estado),
-                "fecha_inicio": torneo.fecha_inicio.isoformat() if torneo.fecha_inicio else None,
-                "fecha_fin": torneo.fecha_fin.isoformat() if torneo.fecha_fin else None,
-                "lugar": torneo.lugar,
-                "mi_inscripcion": info_pareja
-            })
-        
-        return {"torneos": resultado}
-    except Exception as e:
-        import traceback
-        traceback.print_exc()
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
-
-
 @router.get("/{torneo_id}/parejas")
 def listar_parejas(
     torneo_id: int,
@@ -645,7 +645,7 @@ def listar_parejas(
     - **categoria_id**: Filtrar por categoría (opcional)
     """
     from ..models.torneo_models import TorneoPareja, TorneoCategoria
-    from ..models.playt_models import PerfilUsuario
+    from ..models.Drive+_models import PerfilUsuario
     
     try:
         # Query optimizada
@@ -716,7 +716,7 @@ def listar_parejas(
 
 def _pareja_to_dict(db: Session, pareja) -> dict:
     """Helper para convertir pareja a dict con nombres de jugadores"""
-    from ..models.playt_models import PerfilUsuario
+    from ..models.Drive+_models import PerfilUsuario
     perfil1 = db.query(PerfilUsuario).filter(PerfilUsuario.id_usuario == pareja.jugador1_id).first()
     perfil2 = db.query(PerfilUsuario).filter(PerfilUsuario.id_usuario == pareja.jugador2_id).first()
     jugador1_nombre = f"{perfil1.nombre} {perfil1.apellido}" if perfil1 else f"Usuario {pareja.jugador1_id}"
@@ -912,7 +912,7 @@ def listar_zonas(
 ):
     """Lista todas las zonas del torneo con sus parejas"""
     from ..services.torneo_zona_service import TorneoZonaService
-    from ..models.playt_models import PerfilUsuario
+    from ..models.Drive+_models import PerfilUsuario
     
     try:
         zonas = TorneoZonaService.listar_zonas(db, torneo_id)
@@ -942,7 +942,7 @@ def obtener_tabla_zona(
 ):
     """Obtiene la tabla de posiciones de una zona"""
     from ..services.torneo_zona_service import TorneoZonaService
-    from ..models.playt_models import PerfilUsuario
+    from ..models.Drive+_models import PerfilUsuario
     
     try:
         tabla = TorneoZonaService.obtener_tabla_posiciones(db, zona_id)
@@ -1063,7 +1063,7 @@ def listar_partidos_torneo(
     - **zona_id**: Filtrar por zona (opcional)
     - **categoria_id**: Filtrar por categoría (opcional)
     """
-    from ..models.playt_models import Partido, PerfilUsuario
+    from ..models.Drive+_models import Partido, PerfilUsuario
     from ..models.torneo_models import TorneoPareja
     
     try:
@@ -1328,7 +1328,7 @@ def listar_partidos_playoffs(
     - **categoria_id**: Filtrar por categoría (opcional)
     """
     from ..services.torneo_playoff_service import TorneoPlayoffService
-    from ..models.playt_models import PerfilUsuario
+    from ..models.Drive+_models import PerfilUsuario
     from ..models.torneo_models import TorneoPareja
     
     try:
@@ -1399,7 +1399,7 @@ def listar_todos_partidos_playoffs(
     Lista todos los partidos de playoffs en una sola lista (sin agrupar)
     """
     from ..models.torneo_models import FasePartido, TorneoPareja
-    from ..models.playt_models import Partido, PerfilUsuario
+    from ..models.Drive+_models import Partido, PerfilUsuario
     
     try:
         partidos = db.query(Partido).filter(
@@ -1737,7 +1737,7 @@ def limpiar_programacion(
     Solo organizadores pueden limpiar la programación
     """
     from ..models.torneo_models import TorneoSlot
-    from ..models.playt_models import Partido
+    from ..models.Drive+_models import Partido
     from ..services.torneo_zona_service import TorneoZonaService
     
     try:
@@ -1798,7 +1798,7 @@ def programar_partidos_automatico(
     - hora_inicio_finde/hora_fin_finde: Horarios Sab-Dom (default: 09:00-21:00)
     """
     from ..models.torneo_models import TorneoSlot, TorneoCancha, TorneoBloqueoJugador, TorneoPareja
-    from ..models.playt_models import Partido
+    from ..models.Drive+_models import Partido
     from ..services.torneo_zona_service import TorneoZonaService
     from datetime import datetime, timedelta
     
@@ -1949,7 +1949,7 @@ def programar_partidos_automatico(
         parejas_dict = {p.id: p for p in todas_parejas}
         
         # PRE-CARGAR todos los perfiles de usuarios involucrados (optimización)
-        from ..models.playt_models import PerfilUsuario
+        from ..models.Drive+_models import PerfilUsuario
         jugadores_ids = set()
         for p in todas_parejas:
             jugadores_ids.add(p.jugador1_id)
@@ -2127,7 +2127,7 @@ def reprogramar_partido(
     Reprograma un partido a un slot específico
     """
     from ..models.torneo_models import TorneoSlot
-    from ..models.playt_models import Partido
+    from ..models.Drive+_models import Partido
     from ..services.torneo_zona_service import TorneoZonaService
     
     try:
