@@ -6,7 +6,7 @@ import os
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
 from src.database.config import SessionLocal
-from src.models.playt_models import Usuario, HistorialRating, PartidoJugador
+from src.models.Drive+_models import Usuario, HistorialRating, PartidoJugador
 
 def verificar_rating():
     """Verificar rating de usuario"""

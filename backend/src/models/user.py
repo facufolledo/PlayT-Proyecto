@@ -16,9 +16,9 @@ from src.controllers.partido_controller import router as partido_router
 
 # Crear la app FastAPI
 app = FastAPI(
-    title=os.getenv("APP_NAME", "PlayT API"),
+    title=os.getenv("APP_NAME", "Drive+ API"),
     version=os.getenv("APP_VERSION", "1.0.0"),
-    description="API para el sistema de pádel PlayT con ranking Elo",
+    description="API para el sistema de pádel Drive+ con ranking Elo",
     docs_url="/docs",
     redoc_url="/redoc",
 )
@@ -52,7 +52,7 @@ app.include_router(partido_router)
 @app.on_event("startup")
 async def startup_event():
     """Chequeo simple de conexión a la base al iniciar."""
-    print("🚀 Iniciando PlayT API...")
+    print("🚀 Iniciando Drive+ API...")
     try:
         from sqlalchemy import text
         with engine.connect() as conn:
@@ -65,7 +65,7 @@ async def startup_event():
 @app.get("/")
 async def root():
     return {
-        "message": "¡Bienvenido a PlayT API! 🎾",
+        "message": "¡Bienvenido a Drive+ API! 🎾",
         "version": os.getenv("APP_VERSION", "1.0.0"),
         "status": "running",
         "docs": "/docs",
@@ -75,14 +75,14 @@ async def root():
 async def health_check():
     return {
         "status": "healthy",
-        "service": "PlayT API",
+        "service": "Drive+ API",
         "database": "connected",
     }
 
 @app.get("/api/info")
 async def api_info():
     return {
-        "name": "PlayT API",
+        "name": "Drive+ API",
         "description": "Sistema de pádel con ranking Elo",
         "version": os.getenv("APP_VERSION", "1.0.0"),
         "features": [

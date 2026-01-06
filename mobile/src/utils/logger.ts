@@ -3,15 +3,15 @@ const isDev = __DEV__;
 
 export const logger = {
   log: (...args: any[]) => {
-    if (isDev) console.log('[PlayR]', ...args);
+    if (isDev) console.log('[Drive+]', ...args);
   },
   error: (...args: any[]) => {
-    if (isDev) console.error('[PlayR ERROR]', ...args);
+    if (isDev) console.error('[Drive+ ERROR]', ...args);
   },
   warn: (...args: any[]) => {
-    if (isDev) console.warn('[PlayR WARN]', ...args);
+    if (isDev) console.warn('[Drive+ WARN]', ...args);
   },
   info: (...args: any[]) => {
-    if (isDev) console.info('[PlayR INFO]', ...args);
+    if (isDev) console.info('[Drive+ INFO]', ...args);
   }
 };

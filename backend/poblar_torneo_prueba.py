@@ -44,7 +44,7 @@ def main():
         result = conn.execute(text("""
             INSERT INTO torneos (nombre, descripcion, tipo, categoria, estado, fecha_inicio, fecha_fin, lugar, creado_por)
             VALUES (
-                'Torneo de Prueba PlayT',
+                'Torneo de Prueba Drive+',
                 'Torneo para probar todas las funcionalidades: zonas, playoffs, cambios de último momento',
                 'clasico',
                 '4ta',

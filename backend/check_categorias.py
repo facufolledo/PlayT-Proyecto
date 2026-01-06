@@ -3,7 +3,7 @@ import os
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
 from src.database.config import get_db
-from src.models.playt_models import Categoria
+from src.models.Drive+_models import Categoria
 
 def check_and_populate_categorias():
     """Verificar y poblar categorías si es necesario"""

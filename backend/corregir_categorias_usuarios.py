@@ -1,69 +1,101 @@
 #!/usr/bin/env python3
-"""Script para corregir categorías de usuarios según su rating"""
+"""
+Script para corregir las categorías de usuarios según su rating actual
+"""
 import os
-from dotenv import load_dotenv
-from sqlalchemy import create_engine, text
+import sys
+sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
-load_dotenv()
+from sqlalchemy.orm import Session
+from src.database.config import SessionLocal
+from src.models.driveplus_models import Usuario, Categoria
+from src.services.categoria_service import obtener_categoria_por_rating
 
 def corregir_categorias():
-    db_url = os.getenv("DATABASE_URL")
-    engine = create_engine(db_url)
+    """Corrige las categorías de todos los usuarios según su rating actual"""
+    db = SessionLocal()
     
     try:
-        with engine.connect() as conn:
-            print("🔍 Buscando usuarios con categoría incorrecta...")
-            
-            # Actualizar categorías según rating para usuarios masculinos
-            result = conn.execute(text("""
-                UPDATE usuarios u
-                SET id_categoria = (
-                    SELECT c.id_categoria
-                    FROM categorias c
-                    WHERE c.sexo = u.sexo
-                    AND (c.rating_min IS NULL OR u.rating >= c.rating_min)
-                    AND (c.rating_max IS NULL OR u.rating <= c.rating_max)
-                    ORDER BY c.rating_min DESC NULLS LAST
-                    LIMIT 1
-                )
-                WHERE u.id_categoria IS NOT NULL
-                RETURNING u.id_usuario, u.nombre_usuario, u.rating, u.id_categoria
-            """))
-            
-            usuarios_actualizados = list(result)
-            conn.commit()
-            
-            if usuarios_actualizados:
-                print(f"\n✅ Actualizados {len(usuarios_actualizados)} usuarios:")
-                for row in usuarios_actualizados:
-                    print(f"  - {row[1]}: Rating {row[2]} → Categoría ID {row[3]}")
-            else:
-                print("\n✅ Todas las categorías están correctas")
-            
-            # Verificar resultado
-            print("\n📊 Verificando resultado:")
-            result = conn.execute(text("""
-                SELECT 
-                    u.nombre_usuario,
-                    u.rating,
-                    u.sexo,
-                    c.nombre as categoria
-                FROM usuarios u
-                LEFT JOIN categorias c ON u.id_categoria = c.id_categoria
-                WHERE u.rating >= 1500
-                ORDER BY u.rating DESC
-            """))
-            
-            print("-" * 70)
-            print(f"{'Usuario':<20} {'Rating':<10} {'Sexo':<8} {'Categoría':<15}")
-            print("-" * 70)
-            for row in result:
-                print(f"{row[0]:<20} {row[1]:<10} {row[2]:<8} {row[3] or 'NULL':<15}")
+        print("🔍 Verificando categorías de usuarios...")
         
+        # Obtener todos los usuarios activos
+        usuarios = db.query(Usuario).filter(Usuario.activo == True).all()
+        
+        usuarios_corregidos = 0
+        
+        for usuario in usuarios:
+            if not usuario.sexo:
+                print(f"⚠️  Usuario {usuario.nombre_usuario} no tiene sexo definido, saltando...")
+                continue
+                
+            # Obtener la categoría correcta según el rating
+            categoria_correcta = obtener_categoria_por_rating(
+                db, usuario.rating or 1200, usuario.sexo
+            )
+            
+            if not categoria_correcta:
+                print(f"⚠️  No se encontró categoría para {usuario.nombre_usuario} (Rating: {usuario.rating}, Sexo: {usuario.sexo})")
+                continue
+            
+            # Verificar si la categoría actual es incorrecta
+            if usuario.id_categoria != categoria_correcta.id_categoria:
+                categoria_anterior = None
+                if usuario.id_categoria:
+                    categoria_anterior = db.query(Categoria).filter(
+                        Categoria.id_categoria == usuario.id_categoria
+                    ).first()
+                
+                print(f"🔧 Corrigiendo {usuario.nombre_usuario}:")
+                print(f"   Rating: {usuario.rating}")
+                print(f"   Categoría anterior: {categoria_anterior.nombre if categoria_anterior else 'Ninguna'}")
+                print(f"   Categoría correcta: {categoria_correcta.nombre}")
+                
+                # Actualizar la categoría
+                usuario.id_categoria = categoria_correcta.id_categoria
+                usuarios_corregidos += 1
+            else:
+                categoria_actual = db.query(Categoria).filter(
+                    Categoria.id_categoria == usuario.id_categoria
+                ).first()
+                print(f"✅ {usuario.nombre_usuario}: Rating {usuario.rating} - {categoria_actual.nombre if categoria_actual else 'Sin categoría'} (Correcto)")
+        
+        if usuarios_corregidos > 0:
+            db.commit()
+            print(f"\n✅ Se corrigieron {usuarios_corregidos} usuarios")
+        else:
+            print("\n✅ Todas las categorías están correctas")
+            
+    except Exception as e:
+        print(f"❌ Error: {e}")
+        db.rollback()
+    finally:
+        db.close()
+
+def mostrar_rangos_categorias():
+    """Muestra los rangos de rating de cada categoría"""
+    db = SessionLocal()
+    
+    try:
+        print("\n📊 RANGOS DE CATEGORÍAS:")
+        print("-" * 50)
+        
+        categorias = db.query(Categoria).order_by(
+            Categoria.sexo, Categoria.rating_min.desc()
+        ).all()
+        
+        for categoria in categorias:
+            rating_min = categoria.rating_min or "Sin límite"
+            rating_max = categoria.rating_max or "Sin límite"
+            print(f"{categoria.nombre} ({categoria.sexo}): {rating_min} - {rating_max}")
+            
     except Exception as e:
         print(f"❌ Error: {e}")
     finally:
-        engine.dispose()
+        db.close()
 
 if __name__ == "__main__":
+    print("🚗⚡ CORRECCIÓN DE CATEGORÍAS - Drive+")
+    print("=" * 50)
+    
+    mostrar_rangos_categorias()
     corregir_categorias()

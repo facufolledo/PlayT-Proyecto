@@ -187,7 +187,7 @@ def main():
             
             # Aplicar Elo usando el método del servicio
             try:
-                from src.models.playt_models import Partido as PartidoModel
+                from src.models.Drive+_models import Partido as PartidoModel
                 partido_obj = db.query(PartidoModel).filter(PartidoModel.id_partido == partido_id).first()
                 
                 if partido_obj:

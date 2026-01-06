@@ -1,14 +1,14 @@
 """
-Excepciones personalizadas para PlayT.
+Excepciones personalizadas para Drive+.
 Permiten manejo consistente de errores en toda la aplicación.
 """
 from typing import Optional, Any
 
 
-class PlayTException(Exception):
-    """Excepción base para todas las excepciones de PlayT"""
+class Drive+Exception(Exception):
+    """Excepción base para todas las excepciones de Drive+"""
     
-    def __init__(self, message: str, code: str = "PLAYT_ERROR", details: Optional[Any] = None):
+    def __init__(self, message: str, code: str = "Drive+_ERROR", details: Optional[Any] = None):
         self.message = message
         self.code = code
         self.details = details
@@ -17,7 +17,7 @@ class PlayTException(Exception):
 
 # ============ Errores de Negocio (400) ============
 
-class BusinessError(PlayTException):
+class BusinessError(Drive+Exception):
     """Error de lógica de negocio - HTTP 400"""
     pass
 
@@ -52,7 +52,7 @@ class LimitExceededError(BusinessError):
 
 # ============ Errores de Autenticación (401) ============
 
-class AuthenticationError(PlayTException):
+class AuthenticationError(Drive+Exception):
     """Error de autenticación - HTTP 401"""
     
     def __init__(self, message: str = "No autenticado"):
@@ -77,7 +77,7 @@ class InvalidTokenError(AuthenticationError):
 
 # ============ Errores de Autorización (403) ============
 
-class AuthorizationError(PlayTException):
+class AuthorizationError(Drive+Exception):
     """Error de autorización - HTTP 403"""
     
     def __init__(self, message: str = "No tienes permiso para esta acción"):
@@ -102,7 +102,7 @@ class NotParticipantError(AuthorizationError):
 
 # ============ Errores de Recurso (404) ============
 
-class NotFoundError(PlayTException):
+class NotFoundError(Drive+Exception):
     """Recurso no encontrado - HTTP 404"""
     
     def __init__(self, resource: str = "Recurso", id: Optional[Any] = None):
@@ -142,7 +142,7 @@ class TorneoNotFoundError(NotFoundError):
 
 # ============ Errores de Conflicto (409) ============
 
-class ConflictError(PlayTException):
+class ConflictError(Drive+Exception):
     """Conflicto con el estado actual - HTTP 409"""
     
     def __init__(self, message: str):
@@ -167,7 +167,7 @@ class AlreadyInscribedError(ConflictError):
 
 # ============ Mapeo a HTTP Status Codes ============
 
-def get_http_status(exception: PlayTException) -> int:
+def get_http_status(exception: Drive+Exception) -> int:
     """Obtener código HTTP para una excepción"""
     if isinstance(exception, NotFoundError):
         return 404

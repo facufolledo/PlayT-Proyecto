@@ -1,15 +1,15 @@
-// Service Worker para PlayR PWA
-const CACHE_NAME = 'playr-v1.0.1'; // Incrementado para forzar actualización
-const RUNTIME_CACHE = 'playr-runtime-v1.0.1';
-const API_CACHE = 'playr-api-v1.0.1';
-const BASE_PATH = '/PlayR';
+// Service Worker para Drive+ PWA
+const CACHE_NAME = 'drive-plus-v1.0.1'; // Incrementado para forzar actualización
+const RUNTIME_CACHE = 'drive-plus-runtime-v1.0.1';
+const API_CACHE = 'drive-plus-api-v1.0.1';
+const BASE_PATH = '/DriveP';
 
 // Assets críticos para cachear en instalación
 const PRECACHE_ASSETS = [
   `${BASE_PATH}/`,
   `${BASE_PATH}/index.html`,
   `${BASE_PATH}/manifest.json`,
-  `${BASE_PATH}/logo-playr.png`
+  `${BASE_PATH}/logo-drive-plus.png`
 ];
 
 // Instalación del Service Worker
@@ -51,7 +51,7 @@ self.addEventListener('fetch', (event) => {
   if (!url.protocol.startsWith('http')) return;
 
   // API Requests - Network First, fallback to cache
-  if (url.pathname.startsWith('/api') || url.origin.includes('playr-proyecto-production.up.railway.app') || url.origin.includes('localhost:8000')) {
+  if (url.pathname.startsWith('/api') || url.origin.includes('drive-plus-production.up.railway.app') || url.origin.includes('localhost:8000')) {
     event.respondWith(
       fetch(request)
         .then((response) => {
@@ -130,7 +130,7 @@ self.addEventListener('push', (event) => {
   const data = event.data ? event.data.json() : {};
   
   const options = {
-    body: data.body || 'Nueva notificación de PlayR',
+    body: data.body || 'Nueva notificación de Drive+',
     icon: '/icons/icon-192x192.png',
     badge: '/icons/icon-72x72.png',
     vibrate: [200, 100, 200],
@@ -142,7 +142,7 @@ self.addEventListener('push', (event) => {
   };
 
   event.waitUntil(
-    self.registration.showNotification(data.title || 'PlayR', options)
+    self.registration.showNotification(data.title || 'Drive+', options)
   );
 });
 

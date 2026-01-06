@@ -12,7 +12,7 @@ sys.path.insert(0, str(Path(__file__).parent))
 
 from sqlalchemy.orm import Session
 from src.database.config import get_db, SessionLocal
-from src.models.playt_models import Usuario, PerfilUsuario, Categoria
+from src.models.Drive+_models import Usuario, PerfilUsuario, Categoria
 from src.auth.jwt_handler import JWTHandler
 
 def create_test_user():
@@ -25,7 +25,7 @@ def create_test_user():
         # Datos del usuario de prueba
         test_user_data = {
             "nombre_usuario": "demo",
-            "email": "demo@playr.com",
+            "email": "demo@driveplus.com",
             "password": "demo123",
             "nombre": "Demo",
             "apellido": "Usuario",

@@ -154,7 +154,7 @@ def test_disponibilidad_horaria():
         respuesta = input().strip().lower()
         if respuesta == 's':
             # Eliminar partidos y bloqueos manualmente
-            from src.models.playt_models import Partido
+            from src.models.Drive+_models import Partido
             db.query(Partido).filter(Partido.id_torneo == torneo.id).delete()
             
             with engine.connect() as conn:

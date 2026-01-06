@@ -5,7 +5,7 @@ from typing import Optional
 from .jwt_handler import JWTHandler
 from .firebase_handler import FirebaseHandler
 from ..database.config import get_db
-from ..models.playt_models import Usuario
+from ..models.Drive+_models import Usuario
 
 security = HTTPBearer()
 

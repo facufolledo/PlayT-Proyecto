@@ -109,7 +109,7 @@ def test_fixture_con_disponibilidad():
         
         # 6. Listar partidos generados
         print("\n6. Listando partidos generados...")
-        from src.models.playt_models import Partido
+        from src.models.Drive+_models import Partido
         partidos = db.query(Partido).filter(Partido.id_torneo == torneo.id).all()
         
         print(f"\nPartidos generados ({len(partidos)} total):")

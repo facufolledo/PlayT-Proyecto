@@ -86,13 +86,13 @@ def test_cors_preflight(backend_url, origin):
         print(f"❌ Error en preflight request: {e}")
 
 if __name__ == "__main__":
-    print("🚀 Verificador CORS para PlayR Backend\n")
+    print("🚀 Verificador CORS para Drive+ Backend\n")
     
     # Verificar configuración
     origins = test_cors_configuration()
     
     # URL del backend
-    backend_url = "https://playr-proyecto-production.up.railway.app"
+    backend_url = "https://drive-plus-production.up.railway.app"
     
     # Probar conectividad
     test_backend_health(backend_url)

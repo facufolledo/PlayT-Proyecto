@@ -7,7 +7,7 @@ export const CorsDebugPage: React.FC = () => {
       <div className="container mx-auto px-4">
         <div className="text-center mb-8">
           <h1 className="text-3xl font-bold text-gray-800 mb-2">
-            🔧 Diagnóstico CORS - PlayR
+            🔧 Diagnóstico CORS - Drive+
           </h1>
           <p className="text-gray-600">
             Herramienta para diagnosticar problemas de conectividad con el backend

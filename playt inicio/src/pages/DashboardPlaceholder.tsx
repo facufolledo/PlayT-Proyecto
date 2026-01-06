@@ -19,7 +19,7 @@ export default function DashboardPlaceholder() {
         </div>
 
         <h1 className="text-4xl md:text-5xl font-bold mb-4">
-          Dashboard <span className="text-[#0071FF]">PlayR</span>
+          Dashboard <span className="text-[#0071FF]">Drive+</span>
         </h1>
 
         <p className="text-[#9DA3AF] text-lg mb-8">

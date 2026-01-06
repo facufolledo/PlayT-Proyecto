@@ -13,7 +13,7 @@ export default function LogoText({ size = 'md', className = '' }: LogoTextProps)
   return (
     <div className={`inline-flex items-center justify-center ${className}`}>
       <h1 className={`${sizes[size]} font-black text-textPrimary`}>
-        Play<span className="text-primary">R</span>
+        Drive<span className="text-primary">+</span>
       </h1>
     </div>
   );

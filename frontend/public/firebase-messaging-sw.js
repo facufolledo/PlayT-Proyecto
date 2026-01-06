@@ -22,8 +22,8 @@ messaging.onBackgroundMessage((payload) => {
   const notificationTitle = payload.notification?.title || 'PlayT';
   const notificationOptions = {
     body: payload.notification?.body || '',
-    icon: '/logo-playr.png',
-    badge: '/logo-playr.png',
+    icon: '/logo-drive-plus.png',
+    badge: '/logo-drive-plus.png',
     tag: payload.data?.tipo || 'default',
     data: payload.data,
     actions: getActionsForType(payload.data?.tipo)

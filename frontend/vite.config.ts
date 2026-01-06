@@ -4,8 +4,8 @@ import react from '@vitejs/plugin-react';
 // https://vitejs.dev/config/
 export default defineConfig(({ mode }) => ({
   plugins: [react()],
-  // Configuración para kioskito.click/PlayR
-  base: mode === 'production' ? '/PlayR/' : '/',
+  // Configuración para kioskito.click/DriveP
+  base: mode === 'production' ? '/DriveP/' : '/',
   optimizeDeps: {
     exclude: ['lucide-react'],
     include: ['react', 'react-dom', 'react-router-dom']

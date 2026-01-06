@@ -16,8 +16,8 @@ export default function Logo({ size = 48, className = '', animated = false, clic
 
   const LogoImage = (
     <img
-      src={`${import.meta.env.BASE_URL}logo-playr.png`}
-      alt="PlayR Logo"
+      src={`${import.meta.env.BASE_URL}logo-Drive+.png`}
+      alt="Drive+ Logo"
       width={size}
       height={size}
       className={`${className} object-contain ${clickable ? 'cursor-pointer' : ''}`}

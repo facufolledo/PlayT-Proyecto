@@ -22,7 +22,7 @@ db = Session()
 
 def arreglar_playoffs(torneo_id: int):
     """Arregla los playoffs de un torneo específico"""
-    from src.models.playt_models import Partido
+    from src.models.Drive+_models import Partido
     
     # Obtener todos los partidos de playoffs del torneo
     partidos = db.query(Partido).filter(

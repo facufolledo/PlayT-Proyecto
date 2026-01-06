@@ -6,7 +6,7 @@ from sqlalchemy import func
 from typing import List, Optional
 import random
 from ..models.torneo_models import Torneo, TorneoZona, TorneoPareja, TorneoZonaPareja
-from ..models.playt_models import Usuario
+from ..models.Drive+_models import Usuario
 
 
 class TorneoZonaService:
@@ -267,7 +267,7 @@ class TorneoZonaService:
         - Games ganados/perdidos
         - Puntos
         """
-        from ..models.playt_models import Partido
+        from ..models.Drive+_models import Partido
         
         zona = db.query(TorneoZona).filter(TorneoZona.id == zona_id).first()
         if not zona:
@@ -378,7 +378,7 @@ class TorneoZonaService:
         ))
         
         # Obtener nombres y usernames de jugadores
-        from ..models.playt_models import Usuario, PerfilUsuario
+        from ..models.Drive+_models import Usuario, PerfilUsuario
         jugadores_ids = set()
         for item in tabla:
             jugadores_ids.add(item['jugador1_id'])

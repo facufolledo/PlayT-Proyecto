@@ -12,7 +12,7 @@ const CATEGORIAS = ['Principiantes', '8va', '7ma', '6ta', '5ta', '4ta', 'Libre']
 
 export default function CompletarPerfil() {
   const navigate = useNavigate();
-  const { firebaseUser, completeProfile } = useAuth();
+  const { firebaseUser, completeProfile, logout } = useAuth();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   // Polling para verificar si el email fue verificado
@@ -48,6 +48,29 @@ export default function CompletarPerfil() {
     telefono: '',
     ciudad: ''
   });
+
+  const handleCancel = async () => {
+    // Confirmar antes de cancelar
+    const confirmar = window.confirm(
+      '¿Estás seguro que querés cancelar el registro?\n\n' +
+      'Se perderán todos los datos ingresados y tendrás que volver a crear una cuenta.'
+    );
+    
+    if (!confirmar) return;
+
+    try {
+      setLoading(true);
+      // Hacer logout completo para limpiar Firebase y estado local
+      await logout();
+      navigate('/');
+    } catch (error) {
+      console.error('Error al cancelar:', error);
+      // Si falla el logout, al menos navegar al inicio
+      navigate('/');
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -296,7 +319,7 @@ export default function CompletarPerfil() {
               <Button
                 type="button"
                 variant="ghost"
-                onClick={() => navigate('/')}
+                onClick={handleCancel}
                 className="flex-1 text-sm md:text-base py-2.5 md:py-3"
                 disabled={loading}
               >

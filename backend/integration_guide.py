@@ -24,7 +24,7 @@ from cache_system import cache
 3. Agregar middleware a tu app (DESPUÉS de crear la app FastAPI):
 """
 
-# app = FastAPI(title="PlayT API", version="1.0.0")
+# app = FastAPI(title="Drive+ API", version="1.0.0")
 
 # Agregar middleware (el orden importa)
 app.add_middleware(SecurityHeadersMiddleware)
@@ -170,7 +170,7 @@ from endpoints_logging import router as logging_router
 from endpoints_notifications import router as notifications_router
 from cache_system import cache, cached
 
-app = FastAPI(title="PlayT API", version="1.0.0")
+app = FastAPI(title="Drive+ API", version="1.0.0")
 
 # CORS (tu configuración actual)
 origins = [

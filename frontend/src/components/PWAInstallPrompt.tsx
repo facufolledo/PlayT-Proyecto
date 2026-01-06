@@ -75,7 +75,7 @@ export default function PWAInstallPrompt() {
                 
                 <div className="flex-1 min-w-0">
                   <h3 className="text-textPrimary font-bold text-xs mb-0.5">
-                    Instalar PlayR
+                    Instalar Drive+
                   </h3>
                   <p className="text-textSecondary text-[10px] mb-1.5">
                     Acceso rápido

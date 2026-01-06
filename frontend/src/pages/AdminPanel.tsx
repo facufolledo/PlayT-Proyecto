@@ -112,7 +112,7 @@ export default function AdminPanel() {
           </h1>
         </div>
         <p className="text-textSecondary text-xs md:text-base ml-10 md:ml-15">
-          Monitoreo y gestión del sistema PlayT
+          Monitoreo y gestión del sistema Drive+
         </p>
       </motion.div>
 
