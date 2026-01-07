@@ -31,6 +31,7 @@ const CompletarPerfil = lazy(() => import('./pages/CompletarPerfil'));
 const PerfilPublico = lazy(() => import('./pages/PerfilPublico'));
 const BuscarJugadores = lazy(() => import('./pages/BuscarJugadores'));
 const AdminPanel = lazy(() => import('./pages/AdminPanel'));
+const DebugAuth = lazy(() => import('./pages/DebugAuth'));
 
 // Loading component
 const PageLoader = () => (
@@ -65,6 +66,7 @@ function App() {
               <Route path="/register" element={<Register />} />
               <Route path="/forgot-password" element={<ForgotPassword />} />
               <Route path="/cors-debug" element={<CorsDebugPage />} />
+              <Route path="/debug-auth" element={<DebugAuth />} />
               
               {/* Ruta semi-protegida: requiere Firebase auth pero no usuario completo */}
               <Route

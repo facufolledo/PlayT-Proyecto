@@ -79,8 +79,8 @@ class AuthService {
       
       // Configuración opcional para personalizar el email
       const actionCodeSettings = {
-        // URL a la que redirigir después de verificar
-        url: `${window.location.origin}${import.meta.env.BASE_URL}login?verified=true`,
+        // URL a la que redirigir después de verificar - Simplificada para debug
+        url: `${window.location.origin}/Drive/login?verified=true`,
         // Esto permite que el enlace se abra en la misma ventana
         handleCodeInApp: false,
       };
@@ -180,7 +180,7 @@ class AuthService {
       
       // Configuración opcional para personalizar el email
       const actionCodeSettings = {
-        url: `${window.location.origin}${import.meta.env.BASE_URL}login?reset=true`,
+        url: `${window.location.origin}/Drive/login?reset=true`,
         handleCodeInApp: false,
       };
       
