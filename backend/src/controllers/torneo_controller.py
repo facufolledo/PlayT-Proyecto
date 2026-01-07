@@ -47,6 +47,12 @@ def test_simple():
     return {"status": "ok", "message": "Torneo controller funcionando"}
 
 
+@router.get("/lista")
+def listar_torneos_alternativo():
+    """Endpoint alternativo para listar torneos"""
+    return {"torneos": [], "total": 0, "message": "Lista de torneos (alternativo)"}
+
+
 @router.get("/")
 def listar_torneos(
     skip: int = 0,
