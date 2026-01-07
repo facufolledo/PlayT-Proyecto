@@ -1055,10 +1055,24 @@ def obtener_tabla_zona(
     try:
         tabla = TorneoZonaService.obtener_tabla_posiciones(db, zona_id)
         
-        # Agregar nombres de jugadores a cada pareja
+        # PRE-CARGAR todos los perfiles de una vez (optimización)
+        jugadores_ids = set()
         for item in tabla['tabla']:
-            perfil1 = db.query(PerfilUsuario).filter(PerfilUsuario.id_usuario == item['jugador1_id']).first()
-            perfil2 = db.query(PerfilUsuario).filter(PerfilUsuario.id_usuario == item['jugador2_id']).first()
+            jugadores_ids.add(item['jugador1_id'])
+            jugadores_ids.add(item['jugador2_id'])
+        
+        # UNA SOLA QUERY para todos los perfiles
+        perfiles = db.query(PerfilUsuario).filter(
+            PerfilUsuario.id_usuario.in_(jugadores_ids)
+        ).all() if jugadores_ids else []
+        
+        # Crear diccionario para acceso rápido
+        perfiles_dict = {p.id_usuario: p for p in perfiles}
+        
+        # Agregar nombres usando el cache
+        for item in tabla['tabla']:
+            perfil1 = perfiles_dict.get(item['jugador1_id'])
+            perfil2 = perfiles_dict.get(item['jugador2_id'])
             
             nombre1 = f"{perfil1.nombre} {perfil1.apellido}" if perfil1 else f"Jugador {item['jugador1_id']}"
             nombre2 = f"{perfil2.nombre} {perfil2.apellido}" if perfil2 else f"Jugador {item['jugador2_id']}"
@@ -1068,6 +1082,8 @@ def obtener_tabla_zona(
         return tabla
     except ValueError as e:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
     except Exception as e:
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
 
