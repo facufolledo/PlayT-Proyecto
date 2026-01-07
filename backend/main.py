@@ -27,7 +27,7 @@ from src.controllers.ranking_controller import router as ranking_router
 from src.controllers.estadisticas_controller import router as estadisticas_router
 from src.controllers.sala_controller import router as sala_router
 from src.controllers.resultado_controller import router as resultado_router
-from src.controllers.torneo import router as torneo_router
+from src.controllers.torneo_controller import router as torneo_router
 from src.controllers.health_controller import router as health_router
 from src.controllers.logs_controller import router as logs_router
 from src.controllers.admin_controller import router as admin_router
