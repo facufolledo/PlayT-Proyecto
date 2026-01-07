@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { useNavigate, Link } from 'react-router-dom';
+import { useNavigate, Link, useSearchParams } from 'react-router-dom';
 import { Mail, Lock, Eye, EyeOff } from 'lucide-react';
 import Button from '../components/Button';
 import Input from '../components/Input';
@@ -9,6 +9,7 @@ import { useAuth } from '../context/AuthContext';
 
 export default function Login() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const { login, loginWithGoogle, isLoading, needsProfileCompletion, isAuthenticated, usuario } = useAuth();
   const [showPassword, setShowPassword] = useState(false);
   const [formData, setFormData] = useState({
@@ -16,6 +17,19 @@ export default function Login() {
     password: '',
   });
   const [error, setError] = useState('');
+  const [successMessage, setSuccessMessage] = useState('');
+
+  // Verificar parámetros de URL para mostrar mensajes
+  useEffect(() => {
+    const verified = searchParams.get('verified');
+    const reset = searchParams.get('reset');
+    
+    if (verified === 'true') {
+      setSuccessMessage('¡Email verificado exitosamente! Ya puedes iniciar sesión.');
+    } else if (reset === 'true') {
+      setSuccessMessage('Si el email existe, recibirás un enlace para restablecer tu contraseña.');
+    }
+  }, [searchParams]);
 
   // Redirigir automáticamente si ya está autenticado
   useEffect(() => {
@@ -122,6 +136,16 @@ export default function Login() {
         {/* Formulario */}
         <div className="bg-cardBg rounded-xl md:rounded-2xl p-5 md:p-8 border border-cardBorder shadow-2xl">
           <h2 className="text-xl md:text-2xl font-bold text-textPrimary mb-4 md:mb-6">Iniciar Sesión</h2>
+
+          {successMessage && (
+            <motion.div
+              initial={{ opacity: 0, y: -10 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="bg-green-500/10 border border-green-500/50 rounded-lg p-3 mb-4"
+            >
+              <p className="text-green-500 text-sm">{successMessage}</p>
+            </motion.div>
+          )}
 
           {error && (
             <motion.div

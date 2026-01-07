@@ -80,7 +80,7 @@ class AuthService {
       // Configuración opcional para personalizar el email
       const actionCodeSettings = {
         // URL a la que redirigir después de verificar
-        url: `${window.location.origin}/login?verified=true`,
+        url: `${window.location.origin}${import.meta.env.BASE_URL}login?verified=true`,
         // Esto permite que el enlace se abra en la misma ventana
         handleCodeInApp: false,
       };
@@ -180,7 +180,7 @@ class AuthService {
       
       // Configuración opcional para personalizar el email
       const actionCodeSettings = {
-        url: `${window.location.origin}/login?reset=true`,
+        url: `${window.location.origin}${import.meta.env.BASE_URL}login?reset=true`,
         handleCodeInApp: false,
       };
       
