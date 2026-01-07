@@ -53,6 +53,7 @@ def listar_torneos_alternativo():
     return {"torneos": [], "total": 0, "message": "Lista de torneos (alternativo)"}
 
 
+@router.get("")
 @router.get("/")
 def listar_torneos(
     skip: int = 0,
