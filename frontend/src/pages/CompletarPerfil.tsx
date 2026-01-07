@@ -8,7 +8,7 @@ import Card from '../components/Card';
 import { PerfilCompleto } from '../services/auth.service';
 import { useAuth } from '../context/AuthContext';
 
-const CATEGORIAS = ['8va', '7ma', '6ta', '5ta', '4ta', 'Libre'];
+const CATEGORIAS = ['Principiante', '8va', '7ma', '6ta', '5ta', '4ta', 'Libre'];
 
 export default function CompletarPerfil() {
   const navigate = useNavigate();
@@ -42,7 +42,7 @@ export default function CompletarPerfil() {
     dni: '',
     fecha_nacimiento: '',
     genero: 'masculino',
-    categoria_inicial: '8va',
+    categoria_inicial: 'Principiante',
     mano_habil: 'derecha',
     posicion_preferida: 'indiferente',
     telefono: '',
