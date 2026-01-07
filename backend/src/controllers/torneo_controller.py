@@ -1000,12 +1000,28 @@ def listar_zonas(
     try:
         zonas = TorneoZonaService.listar_zonas(db, torneo_id)
         
-        # Agregar nombres a cada pareja en cada zona
+        # PRE-CARGAR todos los perfiles de una vez (optimización)
+        jugadores_ids = set()
         for zona in zonas:
             if 'parejas' in zona:
                 for pareja in zona['parejas']:
-                    perfil1 = db.query(PerfilUsuario).filter(PerfilUsuario.id_usuario == pareja['jugador1_id']).first()
-                    perfil2 = db.query(PerfilUsuario).filter(PerfilUsuario.id_usuario == pareja['jugador2_id']).first()
+                    jugadores_ids.add(pareja['jugador1_id'])
+                    jugadores_ids.add(pareja['jugador2_id'])
+        
+        # UNA SOLA QUERY para todos los perfiles
+        perfiles = db.query(PerfilUsuario).filter(
+            PerfilUsuario.id_usuario.in_(jugadores_ids)
+        ).all() if jugadores_ids else []
+        
+        # Crear diccionario para acceso rápido
+        perfiles_dict = {p.id_usuario: p for p in perfiles}
+        
+        # Agregar nombres usando el cache
+        for zona in zonas:
+            if 'parejas' in zona:
+                for pareja in zona['parejas']:
+                    perfil1 = perfiles_dict.get(pareja['jugador1_id'])
+                    perfil2 = perfiles_dict.get(pareja['jugador2_id'])
                     
                     nombre1 = f"{perfil1.nombre} {perfil1.apellido}" if perfil1 else f"Jugador {pareja['jugador1_id']}"
                     nombre2 = f"{perfil2.nombre} {perfil2.apellido}" if perfil2 else f"Jugador {pareja['jugador2_id']}"
