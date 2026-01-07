@@ -9,7 +9,7 @@ const PRECACHE_ASSETS = [
   `${BASE_PATH}/`,
   `${BASE_PATH}/index.html`,
   `${BASE_PATH}/manifest.json`,
-  `${BASE_PATH}/logo-drive-plus.png`
+  `${BASE_PATH}/logo-drive.png`
 ];
 
 // Instalación del Service Worker

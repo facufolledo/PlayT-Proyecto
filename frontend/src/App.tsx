@@ -46,8 +46,8 @@ const PageLoader = () => (
 // El usuario decide cuándo entrar a la app
 
 function App() {
-  // Configuración para kioskito.click/DriveP
-  const basename = import.meta.env.PROD ? '/DriveP' : '/';
+  // Configuración para kioskito.click/Drive
+  const basename = import.meta.env.PROD ? '/Drive' : '/';
   
   return (
     <ErrorBoundary>

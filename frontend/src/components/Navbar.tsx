@@ -73,7 +73,7 @@ export default function Navbar({ onMenuClick }: NavbarProps) {
             whileTap={{ scale: 0.98 }}
           >
             <img 
-              src={`${import.meta.env.BASE_URL}logo-drive-plus.png`}
+              src={`${import.meta.env.BASE_URL}logo-drive.png`}
               alt="Drive+ Logo" 
               className="w-8 h-8"
             />

@@ -9,7 +9,7 @@ git init
 git add .
 git commit -m "Preparar para deployment"
 git branch -M main
-git remote add origin https://github.com/tu-usuario/playr-backend.git
+git remote add origin https://github.com/tu-usuario/drive-plus-backend.git
 git push -u origin main
 ```
 
@@ -25,11 +25,11 @@ git push -u origin main
 ### 2.2 Crear Web Service
 1. Dashboard > "New +" > "Web Service"
 2. Conectar repositorio de GitHub
-3. Seleccionar el repo de PlayR
+3. Seleccionar el repo de Drive+
 
 ### 2.3 Configuración del Service
 ```
-Name: playr-api
+Name: drive-plus-api
 Region: Oregon (o el más cercano)
 Branch: main
 Root Directory: backend (si está en subcarpeta)
@@ -111,15 +111,15 @@ if firebase_creds:
    - Clona el repo
    - Instala dependencias
    - Ejecuta el comando de inicio
-   - Asigna URL: `https://playr-api.onrender.com`
+   - Asigna URL: `https://drive-plus-api.onrender.com`
 
 ### 4.2 Verificar Deploy
 ```bash
 # Health check
-curl https://playr-api.onrender.com/health
+curl https://drive-plus-api.onrender.com/health
 
 # API Docs
-# Abrir: https://playr-api.onrender.com/docs
+# Abrir: https://drive-plus-api.onrender.com/docs
 ```
 
 ---
@@ -152,7 +152,7 @@ Render soporta WebSockets automáticamente en el plan Free.
 
 ### 6.2 URL de WebSocket
 ```
-wss://playr-api.onrender.com/ws/salas/{sala_id}
+wss://drive-plus-api.onrender.com/ws/salas/{sala_id}
 ```
 
 ---
@@ -191,7 +191,7 @@ Settings > Build & Deploy > Auto-Deploy: Off
 2. Add Custom Domain: `api.tudominio.com`
 3. Agregar CNAME en tu DNS:
 ```
-CNAME api.tudominio.com -> playr-api.onrender.com
+CNAME api.tudominio.com -> drive-plus-api.onrender.com
 ```
 
 ---
@@ -201,7 +201,7 @@ CNAME api.tudominio.com -> playr-api.onrender.com
 ### 10.1 Variable de Entorno
 En Hostinger, actualizar:
 ```env
-VITE_API_URL=https://playr-api.onrender.com
+VITE_API_URL=https://drive-plus-api.onrender.com
 ```
 
 ### 10.2 Rebuild Frontend
@@ -280,10 +280,10 @@ git push
 ## 🎯 URL Final
 
 ```
-API: https://playr-api.onrender.com
-Docs: https://playr-api.onrender.com/docs
-Health: https://playr-api.onrender.com/health
-WebSocket: wss://playr-api.onrender.com/ws/salas/{id}
+API: https://drive-plus-api.onrender.com
+Docs: https://drive-plus-api.onrender.com/docs
+Health: https://drive-plus-api.onrender.com/health
+WebSocket: wss://drive-plus-api.onrender.com/ws/salas/{id}
 ```
 
 ---

@@ -1,9 +1,9 @@
-# Generación de Iconos PWA para PlayR
+# Generación de Iconos PWA para Drive+
 
 ## Opción 1: Usar herramienta online (Recomendado)
 
 1. Ve a: https://www.pwabuilder.com/imageGenerator
-2. Sube tu logo (`/public/logo playR.png`)
+2. Sube tu logo (`/public/logo-drive+.png`)
 3. Descarga el paquete de iconos
 4. Extrae los archivos en `/public/icons/`
 
@@ -15,7 +15,7 @@ npm install -g pwa-asset-generator
 
 # Generar iconos desde la carpeta frontend
 cd frontend
-pwa-asset-generator public/logo\ playR.png public/icons --icon-only --favicon --type png
+pwa-asset-generator public/logo-drive+.png public/icons --icon-only --favicon --type png
 ```
 
 ## Opción 3: Crear manualmente con ImageMagick
@@ -33,14 +33,14 @@ cd frontend/public
 mkdir icons
 
 # Generar cada tamaño
-magick "logo playR.png" -resize 72x72 icons/icon-72x72.png
-magick "logo playR.png" -resize 96x96 icons/icon-96x96.png
-magick "logo playR.png" -resize 128x128 icons/icon-128x128.png
-magick "logo playR.png" -resize 144x144 icons/icon-144x144.png
-magick "logo playR.png" -resize 152x152 icons/icon-152x152.png
-magick "logo playR.png" -resize 192x192 icons/icon-192x192.png
-magick "logo playR.png" -resize 384x384 icons/icon-384x384.png
-magick "logo playR.png" -resize 512x512 icons/icon-512x512.png
+magick "logo-drive+.png" -resize 72x72 icons/icon-72x72.png
+magick "logo-drive+.png" -resize 96x96 icons/icon-96x96.png
+magick "logo-drive+.png" -resize 128x128 icons/icon-128x128.png
+magick "logo-drive+.png" -resize 144x144 icons/icon-144x144.png
+magick "logo-drive+.png" -resize 152x152 icons/icon-152x152.png
+magick "logo-drive+.png" -resize 192x192 icons/icon-192x192.png
+magick "logo-drive+.png" -resize 384x384 icons/icon-384x384.png
+magick "logo-drive+.png" -resize 512x512 icons/icon-512x512.png
 ```
 
 ## Tamaños requeridos:

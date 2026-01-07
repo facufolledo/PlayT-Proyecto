@@ -1,17 +1,17 @@
-# Configuración para PlayR en Hostinger
-# Este archivo debe ir en public_html/PlayR/.htaccess
+# Configuración para Drive+ en Hostinger
+# Este archivo debe ir en public_html/Drive/.htaccess
 
 # Habilitar rewrite engine
 RewriteEngine On
 
-# Configurar base para el subdirectorio PlayR
-RewriteBase /PlayR/
+# Configurar base para el subdirectorio Drive
+RewriteBase /Drive/
 
 # Manejar rutas de React Router (SPA)
 RewriteCond %{REQUEST_FILENAME} !-f
 RewriteCond %{REQUEST_FILENAME} !-d
-RewriteCond %{REQUEST_URI} !^/PlayR/assets/
-RewriteRule ^(.*)$ /PlayR/index.html [L,QSA]
+RewriteCond %{REQUEST_URI} !^/Drive/assets/
+RewriteRule ^(.*)$ /Drive/index.html [L,QSA]
 
 # Configurar headers para assets
 <FilesMatch "\.(js|css|png|jpg|jpeg|gif|svg|ico|woff|woff2|ttf|eot)$">
@@ -70,4 +70,4 @@ AddType image/svg+xml .svg
 </Files>
 
 # Error pages personalizadas
-ErrorDocument 404 /PlayR/index.html
+ErrorDocument 404 /Drive/index.html

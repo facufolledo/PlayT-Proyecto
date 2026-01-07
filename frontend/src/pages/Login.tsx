@@ -108,7 +108,7 @@ export default function Login() {
             className="inline-flex flex-col items-center justify-center mb-3 md:mb-4"
           >
             <img 
-              src={`${import.meta.env.BASE_URL}logo-drive-plus.png`}
+              src={`${import.meta.env.BASE_URL}logo-drive.png`}
               alt="Drive+ Logo" 
               className="w-20 h-20 md:w-28 md:h-28 mb-2 md:mb-3"
             />

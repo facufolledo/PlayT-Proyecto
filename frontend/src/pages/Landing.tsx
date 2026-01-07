@@ -56,7 +56,7 @@ export default function Landing() {
             className="flex items-center gap-2 md:gap-3 hover:opacity-80 transition-opacity cursor-pointer"
           >
             <img 
-              src={`${import.meta.env.BASE_URL}logo-drive-plus.png`}
+              src={`${import.meta.env.BASE_URL}logo-drive.png`}
               alt="Drive+ Logo" 
               className="w-8 h-8 md:w-10 md:h-10"
             />
