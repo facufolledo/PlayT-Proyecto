@@ -598,25 +598,57 @@ def inscribir_pareja(
     current_user: Usuario = Depends(get_current_user)
 ):
     """
-    Inscribe una pareja en el torneo (requiere confirmación del compañero)
+    Inscribe una pareja en el torneo
     
-    Retorna un código que el compañero debe usar para confirmar.
-    También se envía notificación push al compañero.
+    - Si es ORGANIZADOR: Inscripción directa y confirmada
+    - Si es JUGADOR: Requiere confirmación del compañero
     """
     from ..services.torneo_confirmacion_service import TorneoConfirmacionService
+    from ..services.torneo_zona_service import TorneoZonaService
+    from ..models.torneo_models import TorneoPareja
     
     try:
         user_id = current_user.id_usuario
-        resultado = TorneoConfirmacionService.crear_inscripcion_pendiente(
-            db=db,
-            torneo_id=torneo_id,
-            jugador1_id=pareja_data.jugador1_id,
-            jugador2_id=pareja_data.jugador2_id,
-            categoria_id=getattr(pareja_data, 'categoria_id', None),
-            creador_id=user_id,
-            observaciones=pareja_data.observaciones
-        )
-        return resultado
+        
+        # Verificar si el usuario es organizador del torneo
+        es_organizador = TorneoZonaService._es_organizador(db, torneo_id, user_id)
+        
+        if es_organizador:
+            # ORGANIZADOR: Inscripción directa y confirmada
+            pareja = TorneoPareja(
+                torneo_id=torneo_id,
+                categoria_id=getattr(pareja_data, 'categoria_id', None),
+                jugador1_id=pareja_data.jugador1_id,
+                jugador2_id=pareja_data.jugador2_id,
+                estado='confirmada',  # Directamente confirmada
+                confirmado_jugador1=True,
+                confirmado_jugador2=True,  # Ambos confirmados automáticamente
+                creado_por_id=user_id,
+                observaciones=pareja_data.observaciones
+            )
+            db.add(pareja)
+            db.commit()
+            db.refresh(pareja)
+            
+            return {
+                "mensaje": "Pareja inscrita y confirmada automáticamente (organizador)",
+                "pareja_id": pareja.id,
+                "estado": "confirmada",
+                "es_organizador": True
+            }
+        else:
+            # JUGADOR: Proceso normal con confirmación
+            resultado = TorneoConfirmacionService.crear_inscripcion_pendiente(
+                db=db,
+                torneo_id=torneo_id,
+                jugador1_id=pareja_data.jugador1_id,
+                jugador2_id=pareja_data.jugador2_id,
+                categoria_id=getattr(pareja_data, 'categoria_id', None),
+                creador_id=user_id,
+                observaciones=pareja_data.observaciones
+            )
+            return resultado
+            
     except ValueError as e:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
     except Exception as e:
@@ -1447,67 +1479,101 @@ def listar_partidos_playoffs(
     db: Session = Depends(get_db)
 ):
     """
-    Lista todos los partidos de playoffs agrupados por fase
+    Lista todos los partidos de playoffs agrupados por fase y categoría
     
-    - **categoria_id**: Filtrar por categoría (opcional)
+    - **categoria_id**: Filtrar por categoría específica (opcional)
+    
+    Si no se especifica categoria_id, devuelve playoffs agrupados por categoría
     """
     from ..services.torneo_playoff_service import TorneoPlayoffService
     from ..models.driveplus_models import PerfilUsuario
-    from ..models.torneo_models import TorneoPareja
+    from ..models.torneo_models import TorneoPareja, TorneoCategoria
     
     try:
-        partidos_por_fase = TorneoPlayoffService.listar_partidos_playoffs(db, torneo_id, categoria_id)
+        if categoria_id:
+            # Caso específico: una sola categoría
+            partidos_por_fase = TorneoPlayoffService.listar_partidos_playoffs(db, torneo_id, categoria_id)
+            
+            # PRE-CARGAR parejas y perfiles (optimización)
+            parejas = db.query(TorneoPareja).filter(TorneoPareja.torneo_id == torneo_id).all()
+            parejas_dict = {p.id: p for p in parejas}
+            
+            jugadores_ids = set()
+            for p in parejas:
+                jugadores_ids.add(p.jugador1_id)
+                jugadores_ids.add(p.jugador2_id)
+            
+            perfiles = db.query(PerfilUsuario).filter(
+                PerfilUsuario.id_usuario.in_(jugadores_ids)
+            ).all() if jugadores_ids else []
+            perfiles_dict = {p.id_usuario: p for p in perfiles}
+            
+            def get_nombre_pareja(pareja_id):
+                if not pareja_id:
+                    return None
+                pareja = parejas_dict.get(pareja_id)
+                if not pareja:
+                    return None
+                p1 = perfiles_dict.get(pareja.jugador1_id)
+                p2 = perfiles_dict.get(pareja.jugador2_id)
+                n1 = f"{p1.nombre} {p1.apellido}" if p1 else f"Jugador {pareja.jugador1_id}"
+                n2 = f"{p2.nombre} {p2.apellido}" if p2 else f"Jugador {pareja.jugador2_id}"
+                return f"{n1} / {n2}"
+            
+            resultado = {}
+            for fase, partidos in partidos_por_fase.items():
+                resultado[fase] = [
+                    {
+                        "id": p.id_partido,
+                        "numero_partido": p.numero_partido,
+                        "pareja1_id": p.pareja1_id,
+                        "pareja2_id": p.pareja2_id,
+                        "pareja1_nombre": get_nombre_pareja(p.pareja1_id),
+                        "pareja2_nombre": get_nombre_pareja(p.pareja2_id),
+                        "ganador_id": p.ganador_pareja_id,
+                        "resultado": p.resultado_padel,
+                        "fase": fase,
+                        "categoria_id": getattr(p, 'categoria_id', None),
+                        "estado": p.estado.value if hasattr(p.estado, 'value') else str(p.estado)
+                    }
+                    for p in partidos
+                ]
+            
+            todos_partidos = []
+            for partidos_fase in resultado.values():
+                todos_partidos.extend(partidos_fase)
+            
+            return {"partidos": todos_partidos, "por_fase": resultado}
         
-        # PRE-CARGAR todas las parejas y perfiles (optimización)
-        parejas = db.query(TorneoPareja).filter(TorneoPareja.torneo_id == torneo_id).all()
-        parejas_dict = {p.id: p for p in parejas}
-        
-        jugadores_ids = set()
-        for p in parejas:
-            jugadores_ids.add(p.jugador1_id)
-            jugadores_ids.add(p.jugador2_id)
-        
-        perfiles = db.query(PerfilUsuario).filter(
-            PerfilUsuario.id_usuario.in_(jugadores_ids)
-        ).all() if jugadores_ids else []
-        perfiles_dict = {p.id_usuario: p for p in perfiles}
-        
-        def get_nombre_pareja(pareja_id):
-            if not pareja_id:
-                return None
-            pareja = parejas_dict.get(pareja_id)
-            if not pareja:
-                return None
-            p1 = perfiles_dict.get(pareja.jugador1_id)
-            p2 = perfiles_dict.get(pareja.jugador2_id)
-            n1 = f"{p1.nombre} {p1.apellido}" if p1 else f"Jugador {pareja.jugador1_id}"
-            n2 = f"{p2.nombre} {p2.apellido}" if p2 else f"Jugador {pareja.jugador2_id}"
-            return f"{n1} / {n2}"
-        
-        resultado = {}
-        for fase, partidos in partidos_por_fase.items():
-            resultado[fase] = [
-                {
-                    "id": p.id_partido,
-                    "numero_partido": p.numero_partido,
-                    "pareja1_id": p.pareja1_id,
-                    "pareja2_id": p.pareja2_id,
-                    "pareja1_nombre": get_nombre_pareja(p.pareja1_id),
-                    "pareja2_nombre": get_nombre_pareja(p.pareja2_id),
-                    "ganador_id": p.ganador_pareja_id,
-                    "resultado": p.resultado_padel,
-                    "fase": fase,
-                    "categoria_id": getattr(p, 'categoria_id', None),
-                    "estado": p.estado.value if hasattr(p.estado, 'value') else str(p.estado)
-                }
-                for p in partidos
-            ]
-        
-        todos_partidos = []
-        for partidos_fase in resultado.values():
-            todos_partidos.extend(partidos_fase)
-        
-        return {"partidos": todos_partidos, "por_fase": resultado}
+        else:
+            # Caso general: todas las categorías, agrupadas por categoría
+            categorias = db.query(TorneoCategoria).filter(
+                TorneoCategoria.torneo_id == torneo_id
+            ).all()
+            
+            if not categorias:
+                # Sin categorías, usar el método original
+                return listar_partidos_playoffs(torneo_id, None, db)
+            
+            resultado_por_categoria = {}
+            
+            for categoria in categorias:
+                partidos_categoria = TorneoPlayoffService.listar_partidos_playoffs(db, torneo_id, categoria.id)
+                
+                if partidos_categoria:  # Solo incluir si hay partidos
+                    resultado_por_categoria[categoria.nombre] = {
+                        "categoria_id": categoria.id,
+                        "categoria_nombre": categoria.nombre,
+                        "genero": categoria.genero,
+                        "partidos_por_fase": partidos_categoria,
+                        "total_partidos": sum(len(partidos) for partidos in partidos_categoria.values())
+                    }
+            
+            return {
+                "por_categoria": resultado_por_categoria,
+                "mensaje": "Playoffs separados por categoría. Use categoria_id para obtener una categoría específica."
+            }
+            
     except Exception as e:
         import traceback
         traceback.print_exc()
