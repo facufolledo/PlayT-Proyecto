@@ -41,6 +41,12 @@ def crear_torneo(
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
 
 
+@router.get("/test-simple")
+def test_simple():
+    """Endpoint de prueba ultra simple"""
+    return {"status": "ok", "message": "Torneo controller funcionando"}
+
+
 @router.get("/")
 def listar_torneos(
     skip: int = 0,
