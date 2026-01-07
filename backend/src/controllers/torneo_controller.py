@@ -63,7 +63,46 @@ def listar_torneos(
     - **estado**: Filtrar por estado (inscripcion, fase_grupos, etc.)
     - **categoria**: Filtrar por categoría
     """
-    from ..models.torneo_models import TorneoPareja
+    try:
+        # Simplificar temporalmente para debug
+        from ..models.torneo_models import Torneo
+        
+        query = db.query(Torneo)
+        
+        if estado:
+            query = query.filter(Torneo.estado == estado)
+        
+        if categoria:
+            query = query.filter(Torneo.categoria == categoria)
+        
+        # Usar created_at en lugar de fecha_inicio para el ordenamiento
+        torneos = query.order_by(Torneo.created_at.desc()).offset(skip).limit(limit).all()
+        
+        # Convertir a formato simple para evitar problemas de serialización
+        resultado = []
+        for torneo in torneos:
+            resultado.append({
+                "id": torneo.id,
+                "nombre": torneo.nombre,
+                "descripcion": torneo.descripcion,
+                "tipo": torneo.tipo,
+                "categoria": torneo.categoria,
+                "genero": torneo.genero or 'masculino',
+                "estado": torneo.estado,
+                "fecha_inicio": torneo.fecha_inicio.isoformat() if torneo.fecha_inicio else None,
+                "fecha_fin": torneo.fecha_fin.isoformat() if torneo.fecha_fin else None,
+                "lugar": torneo.lugar,
+                "created_at": torneo.created_at.isoformat() if torneo.created_at else None,
+                "parejas_inscritas": 0  # Temporalmente 0, se puede calcular después
+            })
+        
+        return resultado
+        
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, 
+            detail=f"Error al listar torneos: {str(e)}"
+        )
     
     try:
         torneos = TorneoService.listar_torneos(db, skip, limit, estado, categoria)
