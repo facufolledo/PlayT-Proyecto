@@ -19,11 +19,11 @@ const messaging = firebase.messaging();
 messaging.onBackgroundMessage((payload) => {
   console.log('[SW] Mensaje en background:', payload);
 
-  const notificationTitle = payload.notification?.title || 'PlayT';
+  const notificationTitle = payload.notification?.title || 'Drive+';
   const notificationOptions = {
     body: payload.notification?.body || '',
-    icon: '/logo-playr.png',
-    badge: '/logo-playr.png',
+    icon: '/logo-drive.png',
+    badge: '/logo-drive.png',
     tag: payload.data?.tipo || 'default',
     data: payload.data,
     actions: getActionsForType(payload.data?.tipo)

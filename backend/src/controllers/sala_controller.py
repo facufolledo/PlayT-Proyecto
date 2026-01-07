@@ -5,7 +5,7 @@ from datetime import datetime
 
 from ..database.config import get_db
 from ..models.sala import Sala, SalaJugador
-from ..models.playt_models import Usuario, PerfilUsuario
+from ..models.driveplus_models import Usuario, PerfilUsuario
 from ..schemas.sala import SalaCreate, SalaResponse, SalaJoin, SalaCompleta
 from ..auth.auth_utils import get_current_user
 
@@ -169,7 +169,7 @@ async def obtener_sala(
             })
     
     # Obtener resultado del partido si existe
-    from ..models.playt_models import Partido, ResultadoPartido
+    from ..models.driveplus_models import Partido, ResultadoPartido
     resultado = None
     estado_confirmacion = None
     
@@ -284,7 +284,7 @@ async def listar_salas(
         })
     
     # Obtener resultados de partidos y cambios de Elo
-    from ..models.playt_models import Partido, PartidoJugador, ResultadoPartido
+    from ..models.driveplus_models import Partido, PartidoJugador, ResultadoPartido
     from ..models.confirmacion import Confirmacion
     partidos_ids = [s.id_partido for s in salas if s.id_partido]
     partidos_dict = {}
@@ -507,7 +507,7 @@ async def iniciar_partido(
     
     try:
         # Crear el partido en la tabla de partidos
-        from ..models.playt_models import Partido, PartidoJugador
+        from ..models.driveplus_models import Partido, PartidoJugador
         
         db_partido = Partido(
             fecha=sala.fecha if sala.fecha else datetime.now(),
@@ -570,7 +570,7 @@ async def cargar_resultado(
 ):
     """Cargar resultado del partido (solo creador) - UNIFICADO"""
     from ..schemas.resultado_padel import ResultadoPadelSchema
-    from ..models.playt_models import Partido, ResultadoPartido
+    from ..models.driveplus_models import Partido, ResultadoPartido
     
     sala = db.query(Sala).filter(Sala.id_sala == sala_id).first()
     
@@ -759,7 +759,7 @@ async def obtener_resultado(
     db: Session = Depends(get_db)
 ):
     """Obtener resultado del partido"""
-    from ..models.playt_models import Partido
+    from ..models.driveplus_models import Partido
     from ..services.confirmacion_service import ConfirmacionService
     
     sala = db.query(Sala).filter(Sala.id_sala == sala_id).first()
@@ -909,7 +909,7 @@ async def obtener_confirmaciones_pendientes(
     db: Session = Depends(get_db)
 ):
     """Obtener salas con confirmaciones pendientes del usuario"""
-    from ..models.playt_models import Partido, PartidoJugador
+    from ..models.driveplus_models import Partido, PartidoJugador
     from sqlalchemy import and_
     
     # Buscar partidos donde el usuario participa y están pendientes de confirmación
@@ -989,7 +989,7 @@ async def eliminar_sala(
         
         # Eliminar registros del historial anti-trampa si existen
         # Buscar partidos asociados a esta sala y eliminar su historial
-        from ..models.playt_models import Partido
+        from ..models.driveplus_models import Partido
         from ..models.historial_enfrentamiento import HistorialEnfrentamiento
         partidos_sala = db.query(Partido).filter(Partido.id_sala == id_sala).all()
         for partido in partidos_sala:

@@ -4,7 +4,7 @@ from typing import List, Optional
 from datetime import datetime
 
 from ..database.config import get_db
-from ..models.playt_models import Partido, PartidoJugador, ResultadoPartido, Usuario, Club, HistorialRating, PerfilUsuario, Categoria
+from ..models.driveplus_models import Partido, PartidoJugador, ResultadoPartido, Usuario, Club, HistorialRating, PerfilUsuario, Categoria
 from ..schemas.partido import PartidoCreate, PartidoResponse, PartidoCompleto, ResultadoCreate
 from ..auth.auth_utils import get_current_user
 from ..services.elo_service import EloService

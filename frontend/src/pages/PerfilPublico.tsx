@@ -22,6 +22,7 @@ import LoadingSkeleton from '../components/LoadingSkeleton';
 import { PartidoCardSkeleton } from '../components/SkeletonLoader';
 import { PlayerLink } from '../components/UserLink';
 import { perfilService, PerfilPublico as PerfilPublicoType, EstadisticasJugador, PartidoHistorial } from '../services/perfil.service';
+import { apiService } from '../services/api';
 import { useAuth } from '../context/AuthContext';
 import { clientLogger } from '../utils/clientLogger';
 
@@ -38,12 +39,33 @@ export default function PerfilPublico() {
   const [filtro, setFiltro] = useState<'todos' | 'torneos' | 'amistosos'>('todos');
   const [mostrarTodos, setMostrarTodos] = useState(false);
   const [detallesAbiertos, setDetallesAbiertos] = useState<Set<number>>(new Set());
+  const [categorias, setCategorias] = useState<any[]>([]);
 
   useEffect(() => {
     if (username) {
       cargarPerfil(username);
+      cargarCategorias();
     }
   }, [username]);
+
+  const cargarCategorias = async () => {
+    try {
+      const categoriasData = await apiService.getCategorias();
+      setCategorias(categoriasData);
+    } catch (error) {
+      console.error('Error al cargar categorías:', error);
+    }
+  };
+
+  const obtenerNombreCategoria = () => {
+    // Si el backend ya devuelve el nombre de la categoría, usarlo directamente
+    if (perfil?.categoria) return perfil.categoria;
+    
+    // Si no, buscar por categoria_id
+    if (!perfil?.categoria_id || !categorias.length) return null;
+    const categoria = categorias.find(cat => cat.id_categoria === perfil.categoria_id);
+    return categoria?.nombre || null;
+  };
 
   const cargarPerfil = async (username: string) => {
     try {
@@ -54,6 +76,7 @@ export default function PerfilPublico() {
       
       // Cargar perfil
       const perfilData = await perfilService.getPerfilPublico(username);
+      console.log('Perfil data:', perfilData); // Debug
       setPerfil(perfilData);
       
       // Cargar estadísticas y partidos en paralelo
@@ -140,7 +163,7 @@ export default function PerfilPublico() {
 
   const compartirPerfil = async () => {
     const url = window.location.href;
-    const texto = `Mira el perfil de ${perfil?.nombre} ${perfil?.apellido} en PlayT`;
+    const texto = `Mira el perfil de ${perfil?.nombre} ${perfil?.apellido} en Drive+`;
     
     if (navigator.share) {
       try {
@@ -278,10 +301,17 @@ export default function PerfilPublico() {
                 )}
               </div>
 
-              {/* Rating */}
+              {/* Rating y Categoría */}
               <div className="text-center mb-3 p-2 md:p-4 bg-primary/10 rounded-lg">
                 <p className="text-textSecondary text-[10px] md:text-sm mb-0.5">Rating</p>
                 <p className="text-2xl md:text-4xl font-black text-primary">{perfil.rating || 1200}</p>
+                {obtenerNombreCategoria() && (
+                  <div className="mt-1 px-2 py-0.5 bg-primary/20 rounded-full inline-block">
+                    <p className="text-primary text-[9px] md:text-xs font-semibold">
+                      {obtenerNombreCategoria()}
+                    </p>
+                  </div>
+                )}
               </div>
 
               {/* Info Adicional */}

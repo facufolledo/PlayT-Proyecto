@@ -12,7 +12,7 @@ from src.services.torneo_zona_service import TorneoZonaService
 from src.services.torneo_fixture_service import TorneoFixtureService
 from src.services.torneo_resultado_service import TorneoResultadoService
 from src.schemas.torneo_schemas import TorneoCreate, ParejaInscripcion
-from src.models.playt_models import Partido
+from src.models.driveplus_models import Partido
 from datetime import datetime, timedelta
 
 

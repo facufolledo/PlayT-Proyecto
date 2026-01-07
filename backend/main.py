@@ -31,13 +31,14 @@ from src.controllers.torneo import router as torneo_router
 from src.controllers.health_controller import router as health_router
 from src.controllers.logs_controller import router as logs_router
 from src.controllers.admin_controller import router as admin_router
+from src.controllers.categoria_maintenance_controller import router as categoria_maintenance_router
 
 
 # ---- Lifespan (startup/shutdown) ----
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # Startup
-    logger.info("🚀 Iniciando PlayT API...")
+    logger.info("🚀 Iniciando Drive+ API...")
     try:
         with engine.connect() as conn:
             conn.execute(text("SELECT 1"))
@@ -55,17 +56,33 @@ async def lifespan(app: FastAPI):
     except Exception as e:
         logger.error(f"❌ Error al inicializar Firebase Admin: {e}")
 
+    # Inicializar tareas programadas
+    try:
+        import asyncio
+        from src.services.scheduled_tasks import start_background_tasks
+        # Ejecutar en background sin bloquear el startup
+        asyncio.create_task(start_background_tasks())
+        logger.info("✅ Tareas programadas iniciadas")
+    except Exception as e:
+        logger.error(f"❌ Error al inicializar tareas programadas: {e}")
+
     yield
 
     # Shutdown
-    logger.info("🛑 Cerrando PlayT API...")
+    logger.info("🛑 Cerrando Drive+ API...")
+    try:
+        from src.services.scheduled_tasks import stop_background_tasks
+        stop_background_tasks()
+        logger.info("✅ Tareas programadas detenidas")
+    except Exception as e:
+        logger.error(f"❌ Error al detener tareas programadas: {e}")
 
 
 # ---- Crear app ----
 app = FastAPI(
-    title=os.getenv("APP_NAME", "PlayT API"),
+    title=os.getenv("APP_NAME", "Drive+ API"),
     version=os.getenv("APP_VERSION", "1.0.0"),
-    description="API para el sistema de pádel PlayT con ranking Elo",
+    description="API para el sistema de pádel Drive+ con ranking Elo",
     docs_url="/docs",
     redoc_url="/redoc",
     lifespan=lifespan,  # 👈 reemplaza on_event
@@ -107,12 +124,13 @@ app.include_router(torneo_router)
 app.include_router(health_router)
 app.include_router(logs_router)
 app.include_router(admin_router)
+app.include_router(categoria_maintenance_router)
 
 # ---- Endpoints básicos ----
 @app.get("/")
 async def root():
     return {
-        "message": "¡Bienvenido a PlayT API! 🎾",
+        "message": "¡Bienvenido a Drive+ API! 🚗⚡",
         "version": os.getenv("APP_VERSION", "1.0.0"),
         "status": "running",
         "docs": "/docs",
@@ -120,7 +138,7 @@ async def root():
 
 @app.get("/health")
 async def health_check():
-    return {"status": "healthy", "service": "PlayT API", "database": "connected", "cors": "enabled"}
+    return {"status": "healthy", "service": "Drive+ API", "database": "connected", "cors": "enabled"}
 
 @app.get("/api/test-cors")
 async def test_cors():
@@ -170,8 +188,8 @@ async def firebase_debug():
 @app.get("/api/info")
 async def api_info():
     return {
-        "name": "PlayT API",
-        "description": "Sistema de pádel con ranking Elo",
+        "name": "Drive+ API",
+        "description": "Sistema de pádel Drive+ con ranking Elo",
         "version": os.getenv("APP_VERSION", "1.0.0"),
         "features": [
             "Sistema de usuarios y autenticación",

@@ -8,7 +8,7 @@ sys.path.insert(0, os.path.dirname(__file__))
 from sqlalchemy import text
 from src.database.config import SessionLocal
 from src.models.torneo_models import Torneo, TorneoPareja, TorneoZona, TorneoZonaPareja
-from src.models.playt_models import Partido
+from src.models.driveplus_models import Partido
 
 def verificar_torneo():
     db = SessionLocal()

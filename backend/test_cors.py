@@ -7,7 +7,7 @@ import json
 from datetime import datetime
 
 # URLs a probar
-BASE_URL = "https://playr-proyecto-production.up.railway.app"
+BASE_URL = "https://drive-plus-production.up.railway.app"
 FRONTEND_ORIGIN = "https://kioskito.click"
 
 def test_cors_preflight():

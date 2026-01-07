@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Script para mostrar la estructura completa de la base de datos PlayT
+Script para mostrar la estructura completa de la base de datos Drive+
 """
 import os
 from dotenv import load_dotenv

@@ -5,7 +5,7 @@ from typing import List, Optional
 from datetime import datetime, timedelta
 
 from ..database.config import get_db
-from ..models.playt_models import Usuario, PerfilUsuario, Categoria
+from ..models.driveplus_models import Usuario, PerfilUsuario, Categoria
 from ..schemas.ranking import RankingResponse, TopWeeklyResponse
 from ..auth.auth_utils import get_current_user
 from ..utils.cache import cache, CACHE_TTL
@@ -15,7 +15,7 @@ router = APIRouter(prefix="/ranking", tags=["Ranking"])
 
 def _get_ranking_from_db(db: Session, limit: int, offset: int, sexo: Optional[str]) -> List[dict]:
     """Lógica de ranking extraída para poder cachear"""
-    from ..models.playt_models import PartidoJugador, ResultadoPartido, Partido
+    from ..models.driveplus_models import PartidoJugador, ResultadoPartido, Partido
     
     # Subquery para calcular partidos ganados de forma eficiente
     partidos_ganados_subq = (

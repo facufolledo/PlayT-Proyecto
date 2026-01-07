@@ -7,6 +7,8 @@ export interface PerfilPublico {
   nombre_usuario: string;
   email?: string;
   rating: number;
+  categoria_id?: number;
+  categoria?: string;
   posicion_preferida?: string;
   mano_dominante?: string;
   ciudad?: string;
@@ -64,17 +66,32 @@ export interface PartidoHistorial {
 class PerfilService {
   async getPerfilPublico(username: string): Promise<PerfilPublico> {
     try {
-      const response = await api.get(`/usuarios/perfil-publico/${username}`);
-      return response.data;
+      // Usar axios directamente sin headers de autenticación para perfiles públicos
+      const API_URL = import.meta.env.VITE_API_URL || 'https://Drive+-backend.onrender.com';
+      const response = await fetch(`${API_URL}/usuarios/perfil-publico/${username}`, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (!response.ok) {
+        if (response.status === 404) {
+          throw new Error(`El usuario @${username} no fue encontrado`);
+        }
+        throw new Error(`Error ${response.status}: ${response.statusText}`);
+      }
+
+      const data = await response.json();
+      return data;
     } catch (error: any) {
       console.error('Error obteniendo perfil público:', {
         username,
-        status: error.response?.status,
-        message: error.response?.data?.detail || error.message
+        message: error.message
       });
       
-      if (error.response?.status === 404) {
-        throw new Error(`El usuario @${username} no fue encontrado`);
+      if (error.message.includes('no fue encontrado')) {
+        throw error;
       }
       throw new Error('Error al cargar el perfil del usuario');
     }
@@ -104,21 +121,30 @@ class PerfilService {
 
   async buscarJugadores(query: string, limit = 20): Promise<PerfilPublico[]> {
     try {
-      // Intentar primero con el endpoint específico de búsqueda
-      const response = await api.get(`/usuarios/buscar?q=${encodeURIComponent(query)}&limit=${limit}`);
-      return response.data || [];
-    } catch (error: any) {
-      // Si falla, intentar con endpoint alternativo
-      try {
-        const response = await api.get(`/usuarios/search?query=${encodeURIComponent(query)}&limit=${limit}`);
-        return response.data || [];
-      } catch (secondError: any) {
-        console.error('Error buscando jugadores:', error?.response?.data || error.message);
-        if (error?.response?.status === 404) {
+      // Usar el endpoint público de búsqueda sin autenticación
+      const API_URL = import.meta.env.VITE_API_URL || 'https://Drive+-backend.onrender.com';
+      const response = await fetch(`${API_URL}/usuarios/buscar-publico?q=${encodeURIComponent(query)}&limit=${limit}`, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (!response.ok) {
+        if (response.status === 404) {
           return []; // No hay resultados, no es un error
         }
-        throw new Error('Servicio de búsqueda no disponible temporalmente');
+        throw new Error(`Error ${response.status}: ${response.statusText}`);
       }
+
+      const data = await response.json();
+      return data || [];
+    } catch (error: any) {
+      console.error('Error buscando jugadores:', error.message);
+      if (error.message.includes('404')) {
+        return []; // No hay resultados, no es un error
+      }
+      throw new Error('Servicio de búsqueda no disponible temporalmente');
     }
   }
 

@@ -108,12 +108,12 @@ export default function Login() {
             className="inline-flex flex-col items-center justify-center mb-3 md:mb-4"
           >
             <img 
-              src={`${import.meta.env.BASE_URL}logo-playr.png`}
-              alt="PlayR Logo" 
+              src={`${import.meta.env.BASE_URL}logo-drive.png`}
+              alt="Drive+ Logo" 
               className="w-20 h-20 md:w-28 md:h-28 mb-2 md:mb-3"
             />
             <h1 className="text-2xl md:text-3xl font-black text-textPrimary">
-              Play<span className="text-primary">R</span>
+              Drive<span className="text-primary">+</span>
             </h1>
           </motion.div>
           <p className="text-textSecondary text-center text-sm md:text-base">Gestión de torneos de pádel</p>

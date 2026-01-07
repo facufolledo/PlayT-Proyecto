@@ -7,10 +7,11 @@ from typing import Dict, List
 from sqlalchemy.orm import Session
 from sqlalchemy import and_
 
-from ..models.playt_models import Partido, PartidoJugador, Usuario
+from ..models.driveplus_models import Partido, PartidoJugador, Usuario
 from ..models.confirmacion import Confirmacion
 from ..models.historial_enfrentamiento import HistorialEnfrentamiento
 from ..services.elo_service import EloService
+from ..services.categoria_service import actualizar_categoria_usuario
 from ..utils.cache import invalidate_ranking_cache
 
 
@@ -89,7 +90,7 @@ class ConfirmacionService:
         Returns:
             Dict con resultado de la confirmación
         """
-        from ..models.playt_models import ResultadoPartido
+        from ..models.driveplus_models import ResultadoPartido
         
         partido = db.query(Partido).filter(Partido.id_partido == id_partido).first()
         if not partido:
@@ -343,7 +344,7 @@ class ConfirmacionService:
             })
         
         # Extraer datos del resultado (UNIFICADO - desde resultados_partidos)
-        from ..models.playt_models import ResultadoPartido
+        from ..models.driveplus_models import ResultadoPartido
         
         resultado_db = db.query(ResultadoPartido).filter(
             ResultadoPartido.id_partido == partido.id_partido
@@ -417,6 +418,9 @@ class ConfirmacionService:
             j.rating_despues = nuevo_rating
             j.cambio_elo = cambio_elo_int
             
+            # Actualizar categoría según el nuevo rating
+            actualizar_categoria_usuario(db, usuario)
+            
             resultado[j.id_usuario] = {
                 'anterior': int(cambio['anterior']),
                 'nuevo': nuevo_rating,
@@ -436,6 +440,9 @@ class ConfirmacionService:
             j.rating_despues = nuevo_rating
             j.cambio_elo = cambio_elo_int
             
+            # Actualizar categoría según el nuevo rating
+            actualizar_categoria_usuario(db, usuario)
+            
             resultado[j.id_usuario] = {
                 'anterior': int(cambio['anterior']),
                 'nuevo': nuevo_rating,
@@ -449,7 +456,7 @@ class ConfirmacionService:
         invalidate_ranking_cache()
         
         # CRÍTICO: Crear entradas en historial_rating para TODOS los jugadores
-        from ..models.playt_models import HistorialRating
+        from ..models.driveplus_models import HistorialRating
         
         for jugador in jugadores:
             # Verificar si ya existe entrada (por si acaso)

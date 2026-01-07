@@ -1,5 +1,5 @@
 """
-Sistema de caché en memoria para PlayT.
+Sistema de caché en memoria para Drive+.
 Optimizado para escalar a 1000+ usuarios sin necesidad de Redis.
 
 Para datos que cambian poco y se consultan mucho:

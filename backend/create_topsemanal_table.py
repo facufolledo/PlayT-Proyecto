@@ -14,7 +14,7 @@ sys.path.append(str(Path(__file__).parent / "src"))
 from sqlalchemy import create_engine, MetaData, Table, Column, Integer, String, DateTime, ForeignKey, Text, BigInteger
 from sqlalchemy.orm import sessionmaker
 from src.database.config import engine
-from src.models.playt_models import Usuario
+from src.models.driveplus_models import Usuario
 
 def create_topsemanal_table():
     """Crear la tabla topsemanal"""

@@ -9,7 +9,7 @@ from ...database.config import get_db
 from ...services.torneo_service import TorneoService
 from ...schemas.torneo_schemas import TorneoCreate, TorneoUpdate, TorneoResponse, EstadisticasTorneoResponse
 from ...auth.auth_utils import get_current_user
-from ...models.playt_models import Usuario
+from ...models.driveplus_models import Usuario
 from ...utils.exceptions import NotFoundError, AuthorizationError, BusinessError
 from ...utils.logger import get_logger
 
@@ -220,7 +220,7 @@ def cambiar_estado(
 def obtener_estadisticas(torneo_id: int, db: Session = Depends(get_db)):
     """Obtiene estadísticas generales del torneo"""
     from ...models.torneo_models import TorneoPareja, TorneoZona
-    from ...models.playt_models import Partido
+    from ...models.driveplus_models import Partido
     
     torneo = TorneoService.obtener_torneo(db, torneo_id)
     if not torneo:

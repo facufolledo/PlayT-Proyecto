@@ -79,7 +79,7 @@ def test_categorias():
 
 if __name__ == "__main__":
     print("=" * 60)
-    print("🔍 DIAGNÓSTICO DE BACKEND - PlayT API")
+    print("🔍 DIAGNÓSTICO DE BACKEND - Drive+ API")
     print("=" * 60)
     
     results = []

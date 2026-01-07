@@ -1,13 +1,13 @@
 #!/bin/bash
 
-# Script para hacer build y deploy del frontend de PlayR
-# Ejecutar desde PlayRMain/frontend/
+# Script para hacer build y deploy del frontend de Drive+
+# Ejecutar desde DrivePlus/frontend/
 
-echo "🚀 Iniciando build y deploy de PlayR Frontend..."
+echo "🚀 Iniciando build y deploy de Drive+ Frontend..."
 
 # Verificar que estamos en el directorio correcto
 if [ ! -f "package.json" ]; then
-    echo "❌ Error: No se encontró package.json. Ejecuta este script desde PlayRMain/frontend/"
+    echo "❌ Error: No se encontró package.json. Ejecuta este script desde DrivePlus/frontend/"
     exit 1
 fi
 
@@ -48,7 +48,7 @@ echo "2. Asegurar que el servidor sirva index.html para rutas SPA"
 echo "3. Verificar que los archivos .htaccess estén en su lugar"
 echo ""
 echo "🔧 Para probar CORS:"
-echo "   Visita: https://kioskito.click/PlayR/cors-debug"
+echo "   Visita: https://kioskito.click/Drive/cors-debug"
 echo ""
 echo "📊 Archivos generados:"
 find dist/ -type f -name "*.js" -o -name "*.css" -o -name "*.html" | head -10

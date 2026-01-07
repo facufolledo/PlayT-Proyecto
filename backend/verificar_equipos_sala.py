@@ -5,7 +5,7 @@ Script para verificar el estado de equipos en una sala
 import sys
 from src.database.config import get_db
 from src.models.sala import Sala, SalaJugador
-from src.models.playt_models import Usuario
+from src.models.driveplus_models import Usuario
 
 def verificar_equipos_sala(sala_id=None):
     """Verificar equipos asignados en salas"""

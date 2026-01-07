@@ -56,12 +56,12 @@ export default function Landing() {
             className="flex items-center gap-2 md:gap-3 hover:opacity-80 transition-opacity cursor-pointer"
           >
             <img 
-              src={`${import.meta.env.BASE_URL}logo-playr.png`}
-              alt="PlayR Logo" 
+              src={`${import.meta.env.BASE_URL}logo-drive.png`}
+              alt="Drive+ Logo" 
               className="w-8 h-8 md:w-10 md:h-10"
             />
             <h1 className="text-xl md:text-2xl font-black text-white">
-              Play<span className="text-primary">R</span>
+              Drive<span className="text-primary">+</span>
             </h1>
           </button>
           {isAuthenticated ? (
@@ -109,7 +109,7 @@ export default function Landing() {
           >
             <h1 className="text-4xl sm:text-5xl md:text-7xl lg:text-8xl font-bold mb-4 md:mb-6 leading-tight text-white">
               Bienvenido a{" "}
-              <span className="text-white">Play</span><span className="text-primary">R</span>
+              <span className="text-white">Drive</span><span className="text-primary">+</span>
             </h1>
           </motion.div>
 
@@ -190,7 +190,7 @@ export default function Landing() {
       <footer className="fixed bottom-0 left-0 right-0 z-50 backdrop-blur-md bg-[#0E0F11]/80 border-t border-white/10">
         <div className="max-w-7xl mx-auto px-6 py-4 text-center">
           <p className="text-[#9DA3AF] text-sm">
-            © 2025 Plataforma Play<span className="text-primary">R</span> — Todos los derechos reservados
+            © 2025 Plataforma Drive<span className="text-primary">+</span> — Todos los derechos reservados
           </p>
         </div>
       </footer>

@@ -1,11 +1,11 @@
-# Script para hacer build y deploy del frontend de PlayR
-# Ejecutar desde PlayRMain/frontend/
+# Script para hacer build y deploy del frontend de Drive+
+# Ejecutar desde DrivePlus/frontend/
 
-Write-Host "🚀 Iniciando build y deploy de PlayR Frontend..." -ForegroundColor Green
+Write-Host "🚀 Iniciando build y deploy de Drive+ Frontend..." -ForegroundColor Green
 
 # Verificar que estamos en el directorio correcto
 if (-not (Test-Path "package.json")) {
-    Write-Host "❌ Error: No se encontró package.json. Ejecuta este script desde PlayRMain/frontend/" -ForegroundColor Red
+    Write-Host "❌ Error: No se encontró package.json. Ejecuta este script desde DrivePlus/frontend/" -ForegroundColor Red
     exit 1
 }
 
@@ -48,7 +48,7 @@ Write-Host "2. Asegurar que el servidor sirva index.html para rutas SPA"
 Write-Host "3. Verificar que los archivos .htaccess estén en su lugar"
 Write-Host ""
 Write-Host "🔧 Para probar CORS:" -ForegroundColor Cyan
-Write-Host "   Visita: https://kioskito.click/PlayR/cors-debug"
+Write-Host "   Visita: https://kioskito.click/Drive/cors-debug"
 Write-Host ""
 Write-Host "📊 Archivos generados:" -ForegroundColor Magenta
 Get-ChildItem "dist" -Recurse -Include "*.js", "*.css", "*.html" | Select-Object -First 10 | Format-Table Name, Length

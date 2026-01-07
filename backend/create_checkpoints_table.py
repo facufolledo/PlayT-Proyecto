@@ -8,7 +8,7 @@ import os
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
 from src.database.config import engine, Base
-from src.models.playt_models import CategoriaCheckpoint
+from src.models.driveplus_models import CategoriaCheckpoint
 
 def create_checkpoints_table():
     """Crear la tabla categoria_checkpoints"""

@@ -4,7 +4,7 @@ from sqlalchemy.orm import Session
 from typing import List
 
 from ..database.config import get_db
-from ..models.playt_models import Categoria, Usuario
+from ..models.driveplus_models import Categoria, Usuario
 from ..schemas.categoria import CategoriaResponse, JugadoresPorCategoriaResponse, JugadorCategoriaResponse
 
 router = APIRouter(prefix="/categorias", tags=["Categorías"])

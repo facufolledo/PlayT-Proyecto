@@ -113,7 +113,7 @@ MAX_K_FACTOR
 
 ```
 APP_NAME
-PlayR API
+Drive+ API
 ```
 
 ```

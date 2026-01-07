@@ -11,7 +11,7 @@ load_dotenv()
 
 # Configuración
 API_URL = os.getenv("API_URL", "http://localhost:8000")
-# Para producción: API_URL = "https://playt-backend.onrender.com"
+# Para producción: API_URL = "https://Drive+-backend.onrender.com"
 
 def test_firebase_status():
     """Verificar estado de Firebase en el backend"""

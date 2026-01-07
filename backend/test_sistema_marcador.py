@@ -14,7 +14,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'src'))
 
 load_dotenv()
 
-from src.models.playt_models import Usuario, Partido, PartidoJugador
+from src.models.driveplus_models import Usuario, Partido, PartidoJugador
 from src.models.sala import Sala, SalaJugador
 from src.services.anti_trampa_service import AntiTrampaService
 from src.services.confirmacion_service import ConfirmacionService

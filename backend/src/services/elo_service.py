@@ -10,7 +10,7 @@ logger = Loggers.elo()
 class EloService:
     """
     Servicio para el cálculo del algoritmo Elo avanzado para pádel 2 vs 2
-    Implementa el algoritmo diseñado específicamente para el proyecto PlayT
+    Implementa el algoritmo diseñado específicamente para el proyecto Drive+
     """
     
     def __init__(self):
@@ -869,7 +869,7 @@ class EloService:
         # - creado_en: automático
         
         # TODO: Implementar inserción en la tabla HistorialRating
-        # from src.models.playt_models import HistorialRating
+        # from src.models.driveplus_models import HistorialRating
         # from src.database.config import get_db
         # 
         # db = next(get_db())

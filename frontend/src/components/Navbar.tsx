@@ -1,8 +1,9 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Menu, LogOut, User } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useAuth } from '../context/AuthContext';
+import { apiService } from '../services/api';
 
 interface NavbarProps {
   onMenuClick: () => void;
@@ -12,6 +13,32 @@ export default function Navbar({ onMenuClick }: NavbarProps) {
   const { usuario, logout } = useAuth();
   const navigate = useNavigate();
   const [showMenu, setShowMenu] = useState(false);
+  const [categorias, setCategorias] = useState<any[]>([]);
+
+  useEffect(() => {
+    if (usuario) {
+      cargarCategorias();
+    }
+  }, [usuario]);
+
+  const cargarCategorias = async () => {
+    try {
+      const categoriasData = await apiService.getCategorias();
+      setCategorias(categoriasData);
+    } catch (error) {
+      console.error('Error al cargar categorías:', error);
+    }
+  };
+
+  const obtenerNombreCategoria = () => {
+    // Si el backend ya devuelve el nombre de la categoría, usarlo directamente
+    if (usuario?.categoria) return usuario.categoria;
+    
+    // Si no, buscar por id_categoria
+    if (!usuario?.id_categoria || !categorias.length) return null;
+    const categoria = categorias.find(cat => cat.id_categoria === usuario.id_categoria);
+    return categoria?.nombre || null;
+  };
 
   const getInitials = (nombre: string) => {
     return nombre
@@ -46,12 +73,12 @@ export default function Navbar({ onMenuClick }: NavbarProps) {
             whileTap={{ scale: 0.98 }}
           >
             <img 
-              src={`${import.meta.env.BASE_URL}logo-playr.png`}
-              alt="PlayR Logo" 
+              src={`${import.meta.env.BASE_URL}logo-drive.png`}
+              alt="Drive+ Logo" 
               className="w-8 h-8"
             />
             <h1 className="text-2xl font-black text-textPrimary tracking-tight">
-              Play<span className="text-primary">R</span>
+              Drive<span className="text-primary">+</span>
             </h1>
           </motion.button>
         </div>
@@ -104,10 +131,15 @@ export default function Navbar({ onMenuClick }: NavbarProps) {
                       </p>
                       <p className="text-textSecondary text-sm">@{usuario?.nombre_usuario}</p>
                       <p className="text-textSecondary text-xs mt-1">{usuario?.email}</p>
-                      <div className="mt-2 flex gap-2">
+                      <div className="mt-2 flex gap-2 flex-wrap">
                         <span className="text-xs bg-primary/10 text-primary px-2 py-1 rounded-full font-bold">
                           Rating: {usuario?.rating}
                         </span>
+                        {obtenerNombreCategoria() && (
+                          <span className="text-xs bg-secondary/10 text-secondary px-2 py-1 rounded-full font-bold">
+                            {obtenerNombreCategoria()}
+                          </span>
+                        )}
                       </div>
                     </div>
 
@@ -121,6 +153,11 @@ export default function Navbar({ onMenuClick }: NavbarProps) {
                         <div>
                           <p className="text-2xl font-bold text-secondary">{usuario?.rating || 0}</p>
                           <p className="text-xs text-textSecondary">Rating</p>
+                          {obtenerNombreCategoria() && (
+                            <p className="text-[10px] text-primary font-semibold mt-0.5">
+                              {obtenerNombreCategoria()}
+                            </p>
+                          )}
                         </div>
                       </div>
                     </div>

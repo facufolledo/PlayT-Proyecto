@@ -3,7 +3,7 @@
 
 console.log('🚀 Iniciando pruebas CORS...');
 
-const API_URL = 'https://playr-proyecto-production.up.railway.app';
+const API_URL = 'https://drive-plus-production.up.railway.app';
 
 // Función para probar un endpoint
 async function testEndpoint(url, method = 'GET', body = null) {

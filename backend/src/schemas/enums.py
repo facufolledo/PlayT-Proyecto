@@ -1,5 +1,5 @@
 """
-Enums para estados y tipos en PlayT.
+Enums para estados y tipos en Drive+.
 Usar en lugar de strings para mejor tipado y validación.
 """
 from enum import Enum

@@ -282,8 +282,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       await authService.logout();
       setUsuario(null);
       setFirebaseUser(null);
+      setNeedsProfileCompletion(false); // Limpiar estado de perfil incompleto
       localStorage.removeItem('access_token');
       localStorage.removeItem('usuario');
+      localStorage.removeItem('needsProfileCompletion'); // Limpiar flag de perfil
+      localStorage.removeItem('firebase_token'); // Limpiar token de Firebase
+      localStorage.removeItem('firebase_user_email'); // Limpiar email
       clientLogger.info('Logout successful');
     } catch (error: any) {
       logger.error('Error en logout:', error);

@@ -435,7 +435,7 @@ def test_resumen_configuracion():
 
 def main():
     print("\n" + "🎾" * 40)
-    print("  TEST COMPLETO DEL ALGORITMO ELO AVANZADO - PLAYR")
+    print("  TEST COMPLETO DEL ALGORITMO ELO AVANZADO - DRIVE+")
     print("🎾" * 40)
     
     try:

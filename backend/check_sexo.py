@@ -1,5 +1,5 @@
 from src.database.config import get_db
-from src.models.playt_models import Usuario
+from src.models.driveplus_models import Usuario
 
 db = next(get_db())
 usuarios = db.query(Usuario.sexo).limit(10).all()
