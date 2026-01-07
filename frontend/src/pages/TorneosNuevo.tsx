@@ -118,7 +118,7 @@ export default function TorneosNuevo() {
               <span className="text-xs md:text-sm font-bold text-textSecondary">Categoría:</span>
             </div>
             <div className="flex flex-wrap gap-1 md:gap-2">
-              {['todos', '8va', '7ma', '6ta', '5ta', '4ta', 'Libre'].map((cat) => (
+              {['todos', 'Principiante', '8va', '7ma', '6ta', '5ta', '4ta', 'Libre'].map((cat) => (
                 <Button
                   key={cat}
                   variant={filtroCategoria === cat ? 'primary' : 'secondary'}
