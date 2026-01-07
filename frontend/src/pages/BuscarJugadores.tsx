@@ -54,8 +54,7 @@ export default function BuscarJugadores() {
     if (rating >= 1400) return { nombre: '5ta', color: 'from-yellow-500 to-yellow-600' };
     if (rating >= 1200) return { nombre: '6ta', color: 'from-green-500 to-green-600' };
     if (rating >= 1000) return { nombre: '7ma', color: 'from-blue-500 to-blue-600' };
-    if (rating >= 500) return { nombre: '8va', color: 'from-gray-500 to-gray-600' };
-    return { nombre: 'Principiantes', color: 'from-slate-500 to-slate-600' };
+    return { nombre: '8va', color: 'from-gray-500 to-gray-600' };
   };
 
   return (

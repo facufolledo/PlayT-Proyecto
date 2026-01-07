@@ -14,8 +14,7 @@ import { logger } from '../utils/logger';
 
 // Categorías según la base de datos (masculino)
 const CATEGORIAS = [
-  { id: 7, nombre: 'Principiantes', descripcion: 'Categoría para principiantes', ratingMin: 0, ratingMax: 499, color: 'from-slate-500 to-slate-600' },
-  { id: 1, nombre: '8va', descripcion: 'Principiante / Princ. avanzado', ratingMin: 500, ratingMax: 999, color: 'from-gray-500 to-gray-600' },
+  { id: 1, nombre: '8va', descripcion: 'Principiante / Princ. avanzado', ratingMin: 0, ratingMax: 999, color: 'from-gray-500 to-gray-600' },
   { id: 2, nombre: '7ma', descripcion: 'Golpes más sólidos', ratingMin: 1000, ratingMax: 1199, color: 'from-blue-500 to-blue-600' },
   { id: 3, nombre: '6ta', descripcion: 'Mejor dominio y estrategia', ratingMin: 1200, ratingMax: 1399, color: 'from-green-500 to-green-600' },
   { id: 4, nombre: '5ta', descripción: 'Buenos jugadores, constancia', ratingMin: 1400, ratingMax: 1599, color: 'from-yellow-500 to-yellow-600' },
