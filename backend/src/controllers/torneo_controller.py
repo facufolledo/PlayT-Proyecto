@@ -793,8 +793,6 @@ def debug_mis_invitaciones(
 
 @router.get("/mis-invitaciones")
 @router.get("/mis-invitaciones/")
-@router.get("/mis-invitaciones")
-@router.get("/mis-invitaciones/")
 def obtener_mis_invitaciones(
     db: Session = Depends(get_db),
     current_user: Usuario = Depends(get_current_user)
