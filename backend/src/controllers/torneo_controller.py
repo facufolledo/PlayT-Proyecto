@@ -719,39 +719,46 @@ def obtener_mis_invitaciones(
     Obtiene las invitaciones pendientes del usuario actual
     """
     try:
-        # Simplificar temporalmente para debug
         from ..models.torneo_models import TorneoPareja, Torneo
         from ..models.driveplus_models import PerfilUsuario
         
-        # Buscar parejas donde el usuario es jugador2 y está pendiente
+        # Buscar parejas donde el usuario es jugador2 y está pendiente de confirmación
         parejas = db.query(TorneoPareja).filter(
             TorneoPareja.jugador2_id == current_user.id_usuario,
-            TorneoPareja.estado == 'pendiente'
+            TorneoPareja.estado == 'pendiente',
+            TorneoPareja.confirmado_jugador2 == False
         ).all()
         
         resultado = []
         for pareja in parejas:
-            # Obtener info del torneo
-            torneo = db.query(Torneo).filter(Torneo.id == pareja.torneo_id).first()
-            
-            # Obtener info del compañero (jugador1)
-            perfil_companero = db.query(PerfilUsuario).filter(
-                PerfilUsuario.id_usuario == pareja.jugador1_id
-            ).first()
-            
-            resultado.append({
-                'pareja_id': pareja.id,
-                'torneo_id': pareja.torneo_id,
-                'torneo_nombre': torneo.nombre if torneo else 'Torneo',
-                'companero_id': pareja.jugador1_id,
-                'companero_nombre': f"{perfil_companero.nombre} {perfil_companero.apellido}" if perfil_companero else 'Jugador',
-                'fecha_expiracion': getattr(pareja, 'fecha_expiracion', None),
-                'codigo_confirmacion': getattr(pareja, 'codigo_confirmacion', None)
-            })
+            try:
+                # Obtener info del torneo
+                torneo = db.query(Torneo).filter(Torneo.id == pareja.torneo_id).first()
+                
+                # Obtener info del compañero (jugador1)
+                perfil_companero = db.query(PerfilUsuario).filter(
+                    PerfilUsuario.id_usuario == pareja.jugador1_id
+                ).first()
+                
+                resultado.append({
+                    'pareja_id': pareja.id,
+                    'torneo_id': pareja.torneo_id,
+                    'torneo_nombre': torneo.nombre if torneo else 'Torneo',
+                    'companero_id': pareja.jugador1_id,
+                    'companero_nombre': f"{perfil_companero.nombre} {perfil_companero.apellido}" if perfil_companero else 'Jugador',
+                    'fecha_expiracion': pareja.fecha_expiracion.isoformat() if pareja.fecha_expiracion else None,
+                    'codigo_confirmacion': pareja.codigo_confirmacion
+                })
+            except Exception as inner_e:
+                # Si hay error con una pareja específica, continuar con las demás
+                print(f"Error procesando pareja {pareja.id}: {inner_e}")
+                continue
         
         return {"invitaciones": resultado}
         
     except Exception as e:
+        import traceback
+        traceback.print_exc()
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Error al obtener invitaciones: {str(e)}"
