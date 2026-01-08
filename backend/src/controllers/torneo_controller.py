@@ -20,6 +20,177 @@ from ..models.driveplus_models import Usuario
 router = APIRouter(prefix="/torneos", tags=["Torneos"])
 
 
+# ============================================
+# ENDPOINTS ESPECÍFICOS (DEBEN IR ANTES QUE LOS DINÁMICOS)
+# ============================================
+
+@router.get("/mis-invitaciones-simple")
+def mis_invitaciones_simple():
+    """Endpoint ultra simple sin dependencias para test"""
+    return {"mensaje": "Endpoint funcionando", "invitaciones": []}
+
+
+@router.get("/test-auth")
+async def test_auth(current_user: Usuario = Depends(get_current_user)):
+    """Test simple de autenticación"""
+    return {
+        "authenticated": True,
+        "user_id": current_user.id_usuario,
+        "user_name": getattr(current_user, 'nombre_usuario', 'N/A')
+    }
+
+
+@router.get("/debug/mis-invitaciones")
+async def debug_mis_invitaciones(
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(get_current_user)
+):
+    """
+    Endpoint de debug para mis-invitaciones
+    """
+    try:
+        from ..models.torneo_models import TorneoPareja
+        
+        # Info del usuario actual
+        user_info = {
+            "user_id": current_user.id_usuario,
+            "user_name": getattr(current_user, 'nombre_usuario', 'N/A')
+        }
+        
+        # Contar todas las parejas del usuario
+        total_parejas = db.query(TorneoPareja).filter(
+            (TorneoPareja.jugador1_id == current_user.id_usuario) |
+            (TorneoPareja.jugador2_id == current_user.id_usuario)
+        ).count()
+        
+        # Parejas como jugador2
+        parejas_jugador2 = db.query(TorneoPareja).filter(
+            TorneoPareja.jugador2_id == current_user.id_usuario
+        ).all()
+        
+        # Estados únicos
+        from sqlalchemy import distinct
+        estados_unicos = db.query(distinct(TorneoPareja.estado)).all()
+        
+        # Parejas pendientes
+        parejas_pendientes = db.query(TorneoPareja).filter(
+            TorneoPareja.jugador2_id == current_user.id_usuario,
+            TorneoPareja.estado == 'pendiente'
+        ).all()
+        
+        # Parejas no confirmadas
+        parejas_no_confirmadas = db.query(TorneoPareja).filter(
+            TorneoPareja.jugador2_id == current_user.id_usuario,
+            TorneoPareja.estado == 'pendiente',
+            TorneoPareja.confirmado_jugador2 == False
+        ).all()
+        
+        return {
+            "user_info": user_info,
+            "total_parejas": total_parejas,
+            "parejas_como_jugador2": len(parejas_jugador2),
+            "estados_en_db": [e[0] for e in estados_unicos],
+            "parejas_pendientes": len(parejas_pendientes),
+            "parejas_no_confirmadas": len(parejas_no_confirmadas),
+            "detalle_parejas_jugador2": [
+                {
+                    "id": p.id,
+                    "torneo_id": p.torneo_id,
+                    "estado": p.estado,
+                    "confirmado_j1": p.confirmado_jugador1,
+                    "confirmado_j2": p.confirmado_jugador2
+                }
+                for p in parejas_jugador2
+            ]
+        }
+        
+    except Exception as e:
+        import traceback
+        return {
+            "error": str(e),
+            "traceback": traceback.format_exc()
+        }
+
+
+@router.get("/mis-invitaciones")
+@router.get("/mis-invitaciones/")
+async def obtener_mis_invitaciones(
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(get_current_user)
+):
+    """
+    Obtiene las invitaciones pendientes del usuario actual
+    """
+    try:
+        from ..models.torneo_models import TorneoPareja, Torneo
+        from ..models.driveplus_models import PerfilUsuario
+        
+        # Buscar parejas donde el usuario es jugador2 y está pendiente de confirmación
+        parejas = db.query(TorneoPareja).filter(
+            TorneoPareja.jugador2_id == current_user.id_usuario,
+            TorneoPareja.estado == 'pendiente',
+            TorneoPareja.confirmado_jugador2 == False
+        ).all()
+        
+        # Simplificar la respuesta para evitar problemas de serialización
+        resultado = []
+        for pareja in parejas:
+            try:
+                # Obtener info básica sin joins complejos
+                item = {
+                    'pareja_id': pareja.id,
+                    'torneo_id': pareja.torneo_id,
+                    'companero_id': pareja.jugador1_id,
+                    'codigo_confirmacion': pareja.codigo_confirmacion or "",
+                    'fecha_expiracion': None
+                }
+                
+                # Intentar obtener nombres solo si es posible
+                try:
+                    torneo = db.query(Torneo).filter(Torneo.id == pareja.torneo_id).first()
+                    if torneo:
+                        item['torneo_nombre'] = torneo.nombre
+                    else:
+                        item['torneo_nombre'] = 'Torneo'
+                        
+                    perfil = db.query(PerfilUsuario).filter(
+                        PerfilUsuario.id_usuario == pareja.jugador1_id
+                    ).first()
+                    if perfil:
+                        item['companero_nombre'] = f"{perfil.nombre} {perfil.apellido}"
+                    else:
+                        item['companero_nombre'] = f'Jugador {pareja.jugador1_id}'
+                        
+                    if pareja.fecha_expiracion:
+                        item['fecha_expiracion'] = pareja.fecha_expiracion.isoformat()
+                        
+                except Exception:
+                    # Si falla obtener nombres, usar valores por defecto
+                    item['torneo_nombre'] = 'Torneo'
+                    item['companero_nombre'] = f'Jugador {pareja.jugador1_id}'
+                
+                resultado.append(item)
+                
+            except Exception as inner_e:
+                # Si hay error con una pareja específica, continuar
+                continue
+        
+        return {"invitaciones": resultado}
+        
+    except Exception as e:
+        # Devolver error 500 en lugar de 422
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error interno: {str(e)}"
+        )
+
+
+# ============================================
+# ENDPOINTS DINÁMICOS (DEBEN IR DESPUÉS DE LOS ESPECÍFICOS)
+# ============================================
+
 @router.post("/", response_model=TorneoResponse, status_code=status.HTTP_201_CREATED)
 def crear_torneo(
     torneo_data: TorneoCreate,
@@ -707,169 +878,6 @@ def rechazar_invitacion(
         return {"mensaje": "Invitación rechazada"}
     except ValueError as e:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
-
-
-@router.get("/test-auth")
-async def test_auth(current_user: Usuario = Depends(get_current_user)):
-    """Test simple de autenticación"""
-    return {
-        "authenticated": True,
-        "user_id": current_user.id_usuario,
-        "user_name": getattr(current_user, 'nombre_usuario', 'N/A')
-    }
-
-
-@router.get("/debug/mis-invitaciones")
-async def debug_mis_invitaciones(
-    db: Session = Depends(get_db),
-    current_user: Usuario = Depends(get_current_user)
-):
-    """
-    Endpoint de debug para mis-invitaciones
-    """
-    try:
-        from ..models.torneo_models import TorneoPareja
-        
-        # Info del usuario actual
-        user_info = {
-            "user_id": current_user.id_usuario,
-            "user_name": getattr(current_user, 'nombre_usuario', 'N/A')
-        }
-        
-        # Contar todas las parejas del usuario
-        total_parejas = db.query(TorneoPareja).filter(
-            (TorneoPareja.jugador1_id == current_user.id_usuario) |
-            (TorneoPareja.jugador2_id == current_user.id_usuario)
-        ).count()
-        
-        # Parejas como jugador2
-        parejas_jugador2 = db.query(TorneoPareja).filter(
-            TorneoPareja.jugador2_id == current_user.id_usuario
-        ).all()
-        
-        # Estados únicos
-        from sqlalchemy import distinct
-        estados_unicos = db.query(distinct(TorneoPareja.estado)).all()
-        
-        # Parejas pendientes
-        parejas_pendientes = db.query(TorneoPareja).filter(
-            TorneoPareja.jugador2_id == current_user.id_usuario,
-            TorneoPareja.estado == 'pendiente'
-        ).all()
-        
-        # Parejas no confirmadas
-        parejas_no_confirmadas = db.query(TorneoPareja).filter(
-            TorneoPareja.jugador2_id == current_user.id_usuario,
-            TorneoPareja.estado == 'pendiente',
-            TorneoPareja.confirmado_jugador2 == False
-        ).all()
-        
-        return {
-            "user_info": user_info,
-            "total_parejas": total_parejas,
-            "parejas_como_jugador2": len(parejas_jugador2),
-            "estados_en_db": [e[0] for e in estados_unicos],
-            "parejas_pendientes": len(parejas_pendientes),
-            "parejas_no_confirmadas": len(parejas_no_confirmadas),
-            "detalle_parejas_jugador2": [
-                {
-                    "id": p.id,
-                    "torneo_id": p.torneo_id,
-                    "estado": p.estado,
-                    "confirmado_j1": p.confirmado_jugador1,
-                    "confirmado_j2": p.confirmado_jugador2
-                }
-                for p in parejas_jugador2
-            ]
-        }
-        
-    except Exception as e:
-        import traceback
-        return {
-            "error": str(e),
-            "traceback": traceback.format_exc()
-        }
-
-
-@router.get("/mis-invitaciones-simple")
-def mis_invitaciones_simple():
-    """Endpoint ultra simple sin dependencias para test"""
-    return {"mensaje": "Endpoint funcionando", "invitaciones": []}
-
-
-@router.get("/mis-invitaciones")
-@router.get("/mis-invitaciones/")
-async def obtener_mis_invitaciones(
-    db: Session = Depends(get_db),
-    current_user: Usuario = Depends(get_current_user)
-):
-    """
-    Obtiene las invitaciones pendientes del usuario actual
-    """
-    try:
-        from ..models.torneo_models import TorneoPareja, Torneo
-        from ..models.driveplus_models import PerfilUsuario
-        
-        # Buscar parejas donde el usuario es jugador2 y está pendiente de confirmación
-        parejas = db.query(TorneoPareja).filter(
-            TorneoPareja.jugador2_id == current_user.id_usuario,
-            TorneoPareja.estado == 'pendiente',
-            TorneoPareja.confirmado_jugador2 == False
-        ).all()
-        
-        # Simplificar la respuesta para evitar problemas de serialización
-        resultado = []
-        for pareja in parejas:
-            try:
-                # Obtener info básica sin joins complejos
-                item = {
-                    'pareja_id': pareja.id,
-                    'torneo_id': pareja.torneo_id,
-                    'companero_id': pareja.jugador1_id,
-                    'codigo_confirmacion': pareja.codigo_confirmacion or "",
-                    'fecha_expiracion': None
-                }
-                
-                # Intentar obtener nombres solo si es posible
-                try:
-                    torneo = db.query(Torneo).filter(Torneo.id == pareja.torneo_id).first()
-                    if torneo:
-                        item['torneo_nombre'] = torneo.nombre
-                    else:
-                        item['torneo_nombre'] = 'Torneo'
-                        
-                    perfil = db.query(PerfilUsuario).filter(
-                        PerfilUsuario.id_usuario == pareja.jugador1_id
-                    ).first()
-                    if perfil:
-                        item['companero_nombre'] = f"{perfil.nombre} {perfil.apellido}"
-                    else:
-                        item['companero_nombre'] = f'Jugador {pareja.jugador1_id}'
-                        
-                    if pareja.fecha_expiracion:
-                        item['fecha_expiracion'] = pareja.fecha_expiracion.isoformat()
-                        
-                except Exception:
-                    # Si falla obtener nombres, usar valores por defecto
-                    item['torneo_nombre'] = 'Torneo'
-                    item['companero_nombre'] = f'Jugador {pareja.jugador1_id}'
-                
-                resultado.append(item)
-                
-            except Exception as inner_e:
-                # Si hay error con una pareja específica, continuar
-                continue
-        
-        return {"invitaciones": resultado}
-        
-    except Exception as e:
-        # Devolver error 500 en lugar de 422
-        import traceback
-        traceback.print_exc()
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Error interno: {str(e)}"
-        )
 
 
 @router.get("/{torneo_id}/parejas")
