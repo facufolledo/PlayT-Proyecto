@@ -709,6 +709,16 @@ def rechazar_invitacion(
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
 
 
+@router.get("/test-auth")
+def test_auth(current_user: Usuario = Depends(get_current_user)):
+    """Test simple de autenticación"""
+    return {
+        "authenticated": True,
+        "user_id": current_user.id_usuario,
+        "user_name": getattr(current_user, 'nombre_usuario', 'N/A')
+    }
+
+
 @router.get("/debug/mis-invitaciones")
 def debug_mis_invitaciones(
     db: Session = Depends(get_db),
@@ -783,6 +793,8 @@ def debug_mis_invitaciones(
 
 @router.get("/mis-invitaciones")
 @router.get("/mis-invitaciones/")
+@router.get("/mis-invitaciones")
+@router.get("/mis-invitaciones/")
 def obtener_mis_invitaciones(
     db: Session = Depends(get_db),
     current_user: Usuario = Depends(get_current_user)
@@ -801,39 +813,58 @@ def obtener_mis_invitaciones(
             TorneoPareja.confirmado_jugador2 == False
         ).all()
         
+        # Simplificar la respuesta para evitar problemas de serialización
         resultado = []
         for pareja in parejas:
             try:
-                # Obtener info del torneo
-                torneo = db.query(Torneo).filter(Torneo.id == pareja.torneo_id).first()
-                
-                # Obtener info del compañero (jugador1)
-                perfil_companero = db.query(PerfilUsuario).filter(
-                    PerfilUsuario.id_usuario == pareja.jugador1_id
-                ).first()
-                
-                resultado.append({
+                # Obtener info básica sin joins complejos
+                item = {
                     'pareja_id': pareja.id,
                     'torneo_id': pareja.torneo_id,
-                    'torneo_nombre': torneo.nombre if torneo else 'Torneo',
                     'companero_id': pareja.jugador1_id,
-                    'companero_nombre': f"{perfil_companero.nombre} {perfil_companero.apellido}" if perfil_companero else 'Jugador',
-                    'fecha_expiracion': pareja.fecha_expiracion.isoformat() if pareja.fecha_expiracion else None,
-                    'codigo_confirmacion': pareja.codigo_confirmacion
-                })
+                    'codigo_confirmacion': pareja.codigo_confirmacion or "",
+                    'fecha_expiracion': None
+                }
+                
+                # Intentar obtener nombres solo si es posible
+                try:
+                    torneo = db.query(Torneo).filter(Torneo.id == pareja.torneo_id).first()
+                    if torneo:
+                        item['torneo_nombre'] = torneo.nombre
+                    else:
+                        item['torneo_nombre'] = 'Torneo'
+                        
+                    perfil = db.query(PerfilUsuario).filter(
+                        PerfilUsuario.id_usuario == pareja.jugador1_id
+                    ).first()
+                    if perfil:
+                        item['companero_nombre'] = f"{perfil.nombre} {perfil.apellido}"
+                    else:
+                        item['companero_nombre'] = f'Jugador {pareja.jugador1_id}'
+                        
+                    if pareja.fecha_expiracion:
+                        item['fecha_expiracion'] = pareja.fecha_expiracion.isoformat()
+                        
+                except Exception:
+                    # Si falla obtener nombres, usar valores por defecto
+                    item['torneo_nombre'] = 'Torneo'
+                    item['companero_nombre'] = f'Jugador {pareja.jugador1_id}'
+                
+                resultado.append(item)
+                
             except Exception as inner_e:
-                # Si hay error con una pareja específica, continuar con las demás
-                print(f"Error procesando pareja {pareja.id}: {inner_e}")
+                # Si hay error con una pareja específica, continuar
                 continue
         
         return {"invitaciones": resultado}
         
     except Exception as e:
+        # Devolver error 500 en lugar de 422
         import traceback
         traceback.print_exc()
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Error al obtener invitaciones: {str(e)}"
+            detail=f"Error interno: {str(e)}"
         )
 
 
