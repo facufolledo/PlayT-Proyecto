@@ -710,7 +710,7 @@ def rechazar_invitacion(
 
 
 @router.get("/test-auth")
-def test_auth(current_user: Usuario = Depends(get_current_user)):
+async def test_auth(current_user: Usuario = Depends(get_current_user)):
     """Test simple de autenticación"""
     return {
         "authenticated": True,
@@ -720,7 +720,7 @@ def test_auth(current_user: Usuario = Depends(get_current_user)):
 
 
 @router.get("/debug/mis-invitaciones")
-def debug_mis_invitaciones(
+async def debug_mis_invitaciones(
     db: Session = Depends(get_db),
     current_user: Usuario = Depends(get_current_user)
 ):
@@ -791,9 +791,15 @@ def debug_mis_invitaciones(
         }
 
 
+@router.get("/mis-invitaciones-simple")
+def mis_invitaciones_simple():
+    """Endpoint ultra simple sin dependencias para test"""
+    return {"mensaje": "Endpoint funcionando", "invitaciones": []}
+
+
 @router.get("/mis-invitaciones")
 @router.get("/mis-invitaciones/")
-def obtener_mis_invitaciones(
+async def obtener_mis_invitaciones(
     db: Session = Depends(get_db),
     current_user: Usuario = Depends(get_current_user)
 ):
