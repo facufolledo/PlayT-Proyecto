@@ -709,6 +709,78 @@ def rechazar_invitacion(
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
 
 
+@router.get("/debug/mis-invitaciones")
+def debug_mis_invitaciones(
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(get_current_user)
+):
+    """
+    Endpoint de debug para mis-invitaciones
+    """
+    try:
+        from ..models.torneo_models import TorneoPareja
+        
+        # Info del usuario actual
+        user_info = {
+            "user_id": current_user.id_usuario,
+            "user_name": getattr(current_user, 'nombre_usuario', 'N/A')
+        }
+        
+        # Contar todas las parejas del usuario
+        total_parejas = db.query(TorneoPareja).filter(
+            (TorneoPareja.jugador1_id == current_user.id_usuario) |
+            (TorneoPareja.jugador2_id == current_user.id_usuario)
+        ).count()
+        
+        # Parejas como jugador2
+        parejas_jugador2 = db.query(TorneoPareja).filter(
+            TorneoPareja.jugador2_id == current_user.id_usuario
+        ).all()
+        
+        # Estados únicos
+        from sqlalchemy import distinct
+        estados_unicos = db.query(distinct(TorneoPareja.estado)).all()
+        
+        # Parejas pendientes
+        parejas_pendientes = db.query(TorneoPareja).filter(
+            TorneoPareja.jugador2_id == current_user.id_usuario,
+            TorneoPareja.estado == 'pendiente'
+        ).all()
+        
+        # Parejas no confirmadas
+        parejas_no_confirmadas = db.query(TorneoPareja).filter(
+            TorneoPareja.jugador2_id == current_user.id_usuario,
+            TorneoPareja.estado == 'pendiente',
+            TorneoPareja.confirmado_jugador2 == False
+        ).all()
+        
+        return {
+            "user_info": user_info,
+            "total_parejas": total_parejas,
+            "parejas_como_jugador2": len(parejas_jugador2),
+            "estados_en_db": [e[0] for e in estados_unicos],
+            "parejas_pendientes": len(parejas_pendientes),
+            "parejas_no_confirmadas": len(parejas_no_confirmadas),
+            "detalle_parejas_jugador2": [
+                {
+                    "id": p.id,
+                    "torneo_id": p.torneo_id,
+                    "estado": p.estado,
+                    "confirmado_j1": p.confirmado_jugador1,
+                    "confirmado_j2": p.confirmado_jugador2
+                }
+                for p in parejas_jugador2
+            ]
+        }
+        
+    except Exception as e:
+        import traceback
+        return {
+            "error": str(e),
+            "traceback": traceback.format_exc()
+        }
+
+
 @router.get("/mis-invitaciones")
 @router.get("/mis-invitaciones/")
 def obtener_mis_invitaciones(
