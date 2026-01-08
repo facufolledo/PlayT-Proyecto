@@ -9,6 +9,7 @@ from ..schemas.categoria import CategoriaResponse, JugadoresPorCategoriaResponse
 
 router = APIRouter(prefix="/categorias", tags=["Categorías"])
 
+@router.get("", response_model=List[CategoriaResponse])
 @router.get("/", response_model=List[CategoriaResponse])
 async def get_categorias(sexo: str = None, db: Session = Depends(get_db)):
     """Obtener todas las categorías, opcionalmente filtradas por sexo"""
