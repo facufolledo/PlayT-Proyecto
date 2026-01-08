@@ -150,6 +150,7 @@ def listar_torneos(
 
 
 @router.get("/mis-torneos")
+@router.get("/mis-torneos/")
 def obtener_mis_torneos(
     db: Session = Depends(get_db),
     current_user: Usuario = Depends(get_current_user)
@@ -482,6 +483,7 @@ def crear_categoria(
 
 
 @router.get("/{torneo_id}/categorias")
+@router.get("/{torneo_id}/categorias/")
 def listar_categorias(
     torneo_id: int,
     db: Session = Depends(get_db)
@@ -708,6 +710,7 @@ def rechazar_invitacion(
 
 
 @router.get("/mis-invitaciones")
+@router.get("/mis-invitaciones/")
 def obtener_mis_invitaciones(
     db: Session = Depends(get_db),
     current_user: Usuario = Depends(get_current_user)
