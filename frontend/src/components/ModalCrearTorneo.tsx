@@ -41,8 +41,8 @@ export default function ModalCrearTorneo({ isOpen, onClose }: ModalCrearTorneoPr
   const [categoriasMasc, setCategoriasMasc] = useState<string[]>([]);
   const [categoriasFem, setCategoriasFem] = useState<string[]>([]);
   
-  // Max parejas por defecto
-  const [maxParejas, setMaxParejas] = useState(16);
+  // Max parejas por defecto (se eliminó del UI pero se mantiene internamente)
+  const maxParejas = 32; // Valor por defecto alto para no limitar
   
   const [creandoCategorias, setCreandoCategorias] = useState(false);
 
@@ -117,6 +117,10 @@ export default function ModalCrearTorneo({ isOpen, onClose }: ModalCrearTorneoPr
     try {
       limpiarError();
       
+      // 1. Probar autenticación primero
+      console.log('🔍 Probando autenticación...');
+      await torneoService.testAuth();
+      
       const torneoData = {
         nombre: formData.nombre.trim(),
         descripcion: formData.descripcion?.trim() || undefined,
@@ -133,6 +137,12 @@ export default function ModalCrearTorneo({ isOpen, onClose }: ModalCrearTorneoPr
         }
       };
       
+      // 2. Probar envío de datos
+      console.log('🔍 Probando envío de datos...');
+      await torneoService.testCreate(torneoData);
+      
+      // 3. Crear torneo real
+      console.log('🔍 Creando torneo...');
       const nuevoTorneo = await crearTorneo(torneoData);
       
       if (nuevoTorneo && categoriasFinales.length > 0) {
@@ -400,32 +410,18 @@ export default function ModalCrearTorneo({ isOpen, onClose }: ModalCrearTorneoPr
                   </div>
                 )}
 
-                {/* Max parejas y Canchas en una fila */}
-                <div className="grid grid-cols-2 gap-2">
-                  <div>
-                    <label className="block text-textSecondary text-xs font-bold mb-1">
-                      Parejas por categoría
-                    </label>
-                    <Input
-                      type="number"
-                      min="4"
-                      max="64"
-                      value={maxParejas}
-                      onChange={(e) => setMaxParejas(parseInt(e.target.value) || 16)}
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-textSecondary text-xs font-bold mb-1">
-                      Canchas disponibles
-                    </label>
-                    <Input
-                      type="number"
-                      min="1"
-                      max="10"
-                      value={formData.canchasDisponibles}
-                      onChange={(e) => setFormData({ ...formData, canchasDisponibles: parseInt(e.target.value) || 1 })}
-                    />
-                  </div>
+                {/* Canchas disponibles */}
+                <div>
+                  <label className="block text-textSecondary text-xs font-bold mb-1">
+                    <MapPin size={12} className="inline mr-1" />Canchas disponibles
+                  </label>
+                  <Input
+                    type="number"
+                    min="1"
+                    max="10"
+                    value={formData.canchasDisponibles}
+                    onChange={(e) => setFormData({ ...formData, canchasDisponibles: parseInt(e.target.value) || 1 })}
+                  />
                 </div>
 
                 {/* Lugar */}

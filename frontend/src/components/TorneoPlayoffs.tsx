@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback } from 'react';
-import { Trophy, Zap, Users, Info, RefreshCw, Filter } from 'lucide-react';
+import { Trophy, Zap, Users, Info, RefreshCw, Filter, Smartphone } from 'lucide-react';
 import Card from './Card';
 import Button from './Button';
 import SkeletonLoader from './SkeletonLoader';
@@ -28,6 +28,23 @@ interface Partido {
 const playoffsCache: Record<number, { partidos: Partido[]; timestamp: number }> = {};
 const CACHE_TTL = 30000; // 30 segundos - más corto para ver cambios en tiempo real
 
+// Hook para detectar si es móvil
+const useIsMobile = () => {
+  const [isMobile, setIsMobile] = useState(false);
+  
+  useEffect(() => {
+    const checkMobile = () => {
+      setIsMobile(window.innerWidth < 768);
+    };
+    
+    checkMobile();
+    window.addEventListener('resize', checkMobile);
+    return () => window.removeEventListener('resize', checkMobile);
+  }, []);
+  
+  return isMobile;
+};
+
 export default function TorneoPlayoffs({ torneoId, esOrganizador }: TorneoPlayoffsProps) {
   const [partidos, setPartidos] = useState<Partido[]>([]);
   const [loading, setLoading] = useState(true);
@@ -37,6 +54,8 @@ export default function TorneoPlayoffs({ torneoId, esOrganizador }: TorneoPlayof
   const { parejas } = useTorneos();
   const [categorias, setCategorias] = useState<Categoria[]>([]);
   const [categoriaFiltro, setCategoriaFiltro] = useState<number | null>(null);
+  const [vistaMobile, setVistaMobile] = useState(false);
+  const isMobile = useIsMobile();
 
   useEffect(() => {
     torneoService.listarCategorias(torneoId)
@@ -287,18 +306,36 @@ export default function TorneoPlayoffs({ torneoId, esOrganizador }: TorneoPlayof
               <RefreshCw size={14} className={loading ? 'animate-spin' : ''} />
             </button>
           </div>
-          {esOrganizador && (
-            <Button
-              onClick={regenerarPlayoffs}
-              disabled={generando}
-              variant="ghost"
-              size="sm"
-              className="text-xs"
-            >
-              <Zap size={14} className="mr-1" />
-              {generando ? 'Regenerando...' : 'Regenerar Playoffs'}
-            </Button>
-          )}
+          
+          <div className="flex items-center gap-2">
+            {/* Toggle vista móvil */}
+            {isMobile && (
+              <button
+                onClick={() => setVistaMobile(!vistaMobile)}
+                className={`p-2 rounded-lg transition-colors ${
+                  vistaMobile 
+                    ? 'bg-accent text-white' 
+                    : 'bg-cardBorder text-textSecondary hover:bg-accent/20'
+                }`}
+                title={vistaMobile ? 'Vista normal' : 'Vista móvil optimizada'}
+              >
+                <Smartphone size={14} />
+              </button>
+            )}
+            
+            {esOrganizador && (
+              <Button
+                onClick={regenerarPlayoffs}
+                disabled={generando}
+                variant="ghost"
+                size="sm"
+                className="text-xs"
+              >
+                <Zap size={14} className="mr-1" />
+                {generando ? 'Regenerando...' : 'Regenerar Playoffs'}
+              </Button>
+            )}
+          </div>
         </div>
         
         {/* Mensaje de error */}
@@ -313,6 +350,7 @@ export default function TorneoPlayoffs({ torneoId, esOrganizador }: TorneoPlayof
           torneoId={torneoId}
           esOrganizador={esOrganizador}
           onResultadoCargado={handleResultadoCargado}
+          vistaMobile={isMobile && vistaMobile}
         />
       </div>
     </Card>

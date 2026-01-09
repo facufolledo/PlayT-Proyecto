@@ -15,7 +15,7 @@ logger = get_logger("torneo.playoff")
 router = APIRouter()
 
 
-@router.post("/{torneo_id}/playoffs/generar")
+@router.post("/{torneo_id}/generar-playoffs")
 def generar_playoffs(
     torneo_id: int,
     clasificados_por_zona: int = 2,
@@ -27,7 +27,7 @@ def generar_playoffs(
     try:
         logger.info(f"Generando playoffs para torneo {torneo_id}")
         resultado = TorneoPlayoffService.generar_playoffs(
-            db, torneo_id, clasificados_por_zona, current_user.id_usuario, categoria_id
+            db, torneo_id, current_user.id_usuario, clasificados_por_zona
         )
         logger.info(f"Playoffs generados: {resultado}")
         return resultado

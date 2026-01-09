@@ -109,12 +109,16 @@ async def completar_perfil(
             db.add(current_user)
             db.flush()  # Para obtener el ID
         
-        # Buscar categoría por nombre
-        categoria = db.query(Categoria).filter(Categoria.nombre == datos.categoria_inicial).first()
+        # Buscar categoría por nombre y sexo
+        categoria = db.query(Categoria).filter(
+            Categoria.nombre == datos.categoria_inicial,
+            Categoria.sexo == datos.genero
+        ).first()
+        
         if not categoria:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"Categoría '{datos.categoria_inicial}' no encontrada"
+                detail=f"Categoría '{datos.categoria_inicial}' para género '{datos.genero}' no encontrada"
             )
         
         # Calcular rating inicial basado en la categoría

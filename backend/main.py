@@ -27,7 +27,7 @@ from src.controllers.ranking_controller import router as ranking_router
 from src.controllers.estadisticas_controller import router as estadisticas_router
 from src.controllers.sala_controller import router as sala_router
 from src.controllers.resultado_controller import router as resultado_router
-from src.controllers.torneo import router as torneo_router
+from src.controllers.torneo_controller import router as torneo_router
 from src.controllers.health_controller import router as health_router
 from src.controllers.logs_controller import router as logs_router
 from src.controllers.admin_controller import router as admin_router
@@ -112,6 +112,7 @@ app.add_middleware(
 register_exception_handlers(app)
 
 # ---- Routers ----
+logger.info("📋 Registrando routers...")
 app.include_router(auth_router)
 app.include_router(usuario_router)
 app.include_router(categoria_router)
@@ -121,10 +122,12 @@ app.include_router(partido_router)
 app.include_router(ranking_router)
 app.include_router(estadisticas_router)
 app.include_router(torneo_router)
+logger.info("✅ Router de torneos registrado - POST /torneos disponible")
 app.include_router(health_router)
 app.include_router(logs_router)
 app.include_router(admin_router)
 app.include_router(categoria_maintenance_router)
+logger.info("✅ Todos los routers registrados")
 
 # ---- Endpoints básicos ----
 @app.get("/")

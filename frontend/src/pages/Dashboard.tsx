@@ -17,16 +17,16 @@ const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
 
 interface EstadisticasUsuario {
   partidos_jugados: number;
-  partidos_ganados: number;
-  partidos_perdidos: number;
-  rating_actual: number;
-  rating_maximo: number;
-  actividad_semanal: Array<{
+  victorias: number;
+  derrotas: number;
+  winrate: number;
+  rating: number;
+  actividad_semanal?: Array<{
     dia: string;
     partidos: number;
     victorias: number;
   }>;
-  rendimiento_por_categoria: Array<{
+  rendimiento_por_categoria?: Array<{
     categoria: string;
     partidos: number;
     victorias: number;
@@ -66,10 +66,10 @@ export default function Dashboard() {
         // Si no hay estadísticas, usar datos por defecto
         setEstadisticas({
           partidos_jugados: 0,
-          partidos_ganados: 0,
-          partidos_perdidos: 0,
-          rating_actual: usuario?.rating || 1200,
-          rating_maximo: usuario?.rating || 1200,
+          victorias: 0,
+          derrotas: 0,
+          winrate: 0,
+          rating: usuario?.rating || 1200,
           actividad_semanal: [
             { dia: 'Lun', partidos: 0, victorias: 0 },
             { dia: 'Mar', partidos: 0, victorias: 0 },
@@ -89,13 +89,10 @@ export default function Dashboard() {
     cargarEstadisticas();
   }, [usuario]);
 
-  // Datos calculados
-  const partidosJugados = estadisticas?.partidos_jugados || salas.filter(s => s.estado === 'finalizada').length;
+  // Datos calculados - solo usar estadísticas del backend
+  const partidosJugados = estadisticas?.partidos_jugados || 0;
 
-  const ultimosPartidos = salas
-    .filter(s => s.estado === 'finalizada')
-    .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
-    .slice(0, 5);
+  const ultimosPartidos: any[] = []; // Por ahora vacío, se implementará con endpoint específico
 
   // Datos para gráficos (usar datos reales si están disponibles)
   const actividadSemanal = estadisticas?.actividad_semanal || [
@@ -113,12 +110,12 @@ export default function Dashboard() {
   const distribucionResultados = [
     { 
       name: 'Victorias', 
-      value: estadisticas?.partidos_ganados || 0, 
+      value: estadisticas?.victorias || 0, 
       color: '#FF006E' 
     },
     { 
       name: 'Derrotas', 
-      value: estadisticas?.partidos_perdidos || 0, 
+      value: estadisticas?.derrotas || 0, 
       color: '#94A3B8' 
     },
   ];
@@ -127,7 +124,7 @@ export default function Dashboard() {
     { 
       icon: Trophy, 
       label: 'Rating Actual', 
-      value: estadisticas?.rating_actual?.toString() || usuario?.rating?.toString() || '1200', 
+      value: estadisticas?.rating?.toString() || usuario?.rating?.toString() || '1200', 
       color: 'from-primary to-blue-500',
       iconBg: 'bg-primary/10',
       iconColor: 'text-primary',
@@ -145,7 +142,7 @@ export default function Dashboard() {
     { 
       icon: Zap, 
       label: 'Victorias', 
-      value: (estadisticas?.partidos_ganados || 0).toString(), 
+      value: (estadisticas?.victorias || 0).toString(), 
       color: 'from-accent to-yellow-400',
       iconBg: 'bg-accent/10',
       iconColor: 'text-accent',
@@ -154,7 +151,7 @@ export default function Dashboard() {
     { 
       icon: Target, 
       label: 'Win Rate', 
-      value: partidosJugados > 0 ? `${Math.round(((estadisticas?.partidos_ganados || 0) / partidosJugados) * 100)}%` : '0%', 
+      value: estadisticas?.winrate ? `${estadisticas.winrate}%` : '0%', 
       color: 'from-cyan-400 to-blue-500',
       iconBg: 'bg-cyan-400/10',
       iconColor: 'text-cyan-400',

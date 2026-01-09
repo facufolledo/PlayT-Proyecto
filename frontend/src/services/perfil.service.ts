@@ -67,7 +67,7 @@ class PerfilService {
   async getPerfilPublico(username: string): Promise<PerfilPublico> {
     try {
       // Usar axios directamente sin headers de autenticación para perfiles públicos
-      const API_URL = import.meta.env.VITE_API_URL || 'https://Drive+-backend.onrender.com';
+      const API_URL = import.meta.env.VITE_API_URL || 'https://drive-plus-production.up.railway.app';
       const response = await fetch(`${API_URL}/usuarios/perfil-publico/${username}`, {
         method: 'GET',
         headers: {
@@ -122,7 +122,7 @@ class PerfilService {
   async buscarJugadores(query: string, limit = 20): Promise<PerfilPublico[]> {
     try {
       // Usar el endpoint público de búsqueda sin autenticación
-      const API_URL = import.meta.env.VITE_API_URL || 'https://Drive+-backend.onrender.com';
+      const API_URL = import.meta.env.VITE_API_URL || 'https://drive-plus-production.up.railway.app';
       const response = await fetch(`${API_URL}/usuarios/buscar-publico?q=${encodeURIComponent(query)}&limit=${limit}`, {
         method: 'GET',
         headers: {

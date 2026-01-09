@@ -38,6 +38,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       console.log('🔄 Firebase auth state changed:', user?.email || 'No user');
       setFirebaseUser(user);
 
+      // En la carga inicial, verificar si hay resultado de redirect
+      if (isInitialLoad && !user) {
+        try {
+          const redirectUser = await authService.checkRedirectResult();
+          if (redirectUser) {
+            console.log('🔄 Usuario obtenido de redirect:', redirectUser.email);
+            setFirebaseUser(redirectUser);
+            user = redirectUser; // Continuar con el flujo normal
+          }
+        } catch (error) {
+          console.error('Error al verificar redirect result:', error);
+        }
+      }
+
       if (user) {
         try {
           // Usuario autenticado en Firebase, intentar obtener del backend
@@ -250,6 +264,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         });
     } catch (error: any) {
       console.log('💥 Error general:', error);
+      
+      // Si es redirect en progreso, no es un error real
+      if (error.message === 'REDIRECT_IN_PROGRESS') {
+        console.log('🔄 Redirect en progreso, esperando resultado...');
+        // No cambiar loading state, el redirect manejará el estado
+        return;
+      }
+      
       logger.error('Error en login con Google:', error);
       setIsLoading(false);
       throw new Error(error.message || 'Error al iniciar sesión con Google');
