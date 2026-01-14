@@ -193,7 +193,7 @@ async def obtener_mis_invitaciones(
 
 @router.post("", response_model=TorneoResponse, status_code=status.HTTP_201_CREATED)
 @router.post("/", response_model=TorneoResponse, status_code=status.HTTP_201_CREATED)
-def crear_torneo(
+async def crear_torneo(
     torneo_data: TorneoCreate,
     db: Session = Depends(get_db),
     current_user: Usuario = Depends(get_current_user)
@@ -323,7 +323,7 @@ def listar_torneos(
 
 @router.get("/mis-torneos")
 @router.get("/mis-torneos/")
-def obtener_mis_torneos(
+async def obtener_mis_torneos(
     db: Session = Depends(get_db),
     current_user: Usuario = Depends(get_current_user)
 ):
@@ -987,7 +987,7 @@ def _pareja_to_dict(db: Session, pareja) -> dict:
 
 
 @router.patch("/{torneo_id}/parejas/{pareja_id}/confirmar")
-def confirmar_pareja(
+async def confirmar_pareja(
     torneo_id: int,
     pareja_id: int,
     db: Session = Depends(get_db),
