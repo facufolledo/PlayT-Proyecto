@@ -90,7 +90,15 @@ class TorneoService:
             lugar=torneo_data.lugar,
             reglas_json=torneo_data.reglas_json,
             creado_por=user_id,
-            estado=EstadoTorneo.INSCRIPCION
+            estado=EstadoTorneo.INSCRIPCION,
+            # Campos de pago
+            requiere_pago=torneo_data.requiere_pago,
+            monto_inscripcion=torneo_data.monto_inscripcion,
+            alias_cbu_cvu=torneo_data.alias_cbu_cvu,
+            titular_cuenta=torneo_data.titular_cuenta,
+            banco=torneo_data.banco,
+            # Horarios disponibles
+            horarios_disponibles=torneo_data.horarios_disponibles
         )
         
         db.add(torneo)

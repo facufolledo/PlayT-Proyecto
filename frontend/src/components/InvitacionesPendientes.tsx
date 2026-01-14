@@ -54,6 +54,7 @@ export default function InvitacionesPendientes() {
       await cargarInvitaciones();
     } catch (err: any) {
       console.error('Error confirmando:', err);
+      console.error('Error detail:', err.response?.data);
       setErrorCodigo(err.response?.data?.detail || 'Error al confirmar');
     } finally {
       setProcesando(null);

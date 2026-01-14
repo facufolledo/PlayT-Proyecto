@@ -307,11 +307,8 @@ class TorneoService {
   async darBajaPareja(torneoId: number, parejaId: number, motivo?: string): Promise<Pareja> {
     const response = await axios.patch(
       `${API_URL}/torneos/${torneoId}/parejas/${parejaId}/baja`,
-      {},
-      {
-        ...this.getAuthHeaders(),
-        params: { motivo },
-      }
+      { motivo },
+      this.getAuthHeaders()
     );
     return response.data;
   }

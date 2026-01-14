@@ -14,10 +14,18 @@ from ..schemas.torneo_schemas import (
     EstadisticasTorneoResponse,
     ParejaInscripcion, ParejaUpdate, ParejaResponse
 )
-from ..auth.auth_utils import get_current_user
+from ..auth.auth_utils import get_current_user, get_current_user_optional
 from ..models.driveplus_models import Usuario
 
 router = APIRouter(prefix="/torneos", tags=["Torneos"])
+
+
+# ============================================
+# MODELOS AUXILIARES
+# ============================================
+
+class BajaParejaRequest(BaseModel):
+    motivo: Optional[str] = None
 
 
 # ============================================
@@ -141,7 +149,7 @@ async def obtener_mis_invitaciones(
                     'pareja_id': pareja.id,
                     'torneo_id': pareja.torneo_id,
                     'companero_id': pareja.jugador1_id,
-                    'codigo_confirmacion': pareja.codigo_confirmacion or "",
+                    'codigo': pareja.codigo_confirmacion or "",  # Cambiado de codigo_confirmacion a codigo
                     'fecha_expiracion': None
                 }
                 
@@ -386,12 +394,14 @@ async def obtener_mis_torneos(
 
 
 @router.get("/{torneo_id}")
-def obtener_torneo(
+async def obtener_torneo(
     torneo_id: int,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: Optional[Usuario] = Depends(get_current_user_optional)
 ):
     """Obtiene un torneo por ID"""
     from ..models.torneo_models import TorneoPareja
+    from ..services.torneo_zona_service import TorneoZonaService
     
     torneo = TorneoService.obtener_torneo(db, torneo_id)
     if not torneo:
@@ -402,6 +412,11 @@ def obtener_torneo(
         TorneoPareja.torneo_id == torneo.id,
         TorneoPareja.estado.in_(['inscripta', 'confirmada'])
     ).count()
+    
+    # Verificar si el usuario actual es organizador
+    es_organizador = False
+    if current_user:
+        es_organizador = TorneoZonaService._es_organizador(db, torneo_id, current_user.id_usuario)
     
     return {
         "id": torneo.id,
@@ -419,7 +434,8 @@ def obtener_torneo(
         "created_at": torneo.created_at.isoformat() if torneo.created_at else None,
         "updated_at": torneo.updated_at.isoformat() if torneo.updated_at else None,
         "parejas_inscritas": parejas_count,
-        "total_partidos": 0
+        "total_partidos": 0,
+        "es_organizador": es_organizador
     }
 
 
@@ -819,8 +835,23 @@ async def inscribir_pareja(
                 jugador2_id=pareja_data.jugador2_id,
                 categoria_id=getattr(pareja_data, 'categoria_id', None),
                 creador_id=user_id,
-                observaciones=pareja_data.observaciones
+                observaciones=pareja_data.observaciones,
+                disponibilidad_horaria=getattr(pareja_data, 'disponibilidad_horaria', None)
             )
+            
+            # Obtener info del torneo para datos de pago
+            from ..models.torneo_models import Torneo
+            torneo = db.query(Torneo).filter(Torneo.id == torneo_id).first()
+            
+            if torneo and torneo.requiere_pago:
+                resultado['requiere_pago'] = True
+                resultado['monto_inscripcion'] = float(torneo.monto_inscripcion) if torneo.monto_inscripcion else 0
+                resultado['alias_cbu_cvu'] = torneo.alias_cbu_cvu
+                resultado['titular_cuenta'] = torneo.titular_cuenta
+                resultado['banco'] = torneo.banco
+            else:
+                resultado['requiere_pago'] = False
+            
             return resultado
             
     except ValueError as e:
@@ -1036,24 +1067,25 @@ def rechazar_pareja(
 
 
 @router.patch("/{torneo_id}/parejas/{pareja_id}/baja")
-def dar_baja_pareja(
+async def dar_baja_pareja(
     torneo_id: int,
     pareja_id: int,
-    motivo: Optional[str] = None,
+    data: BajaParejaRequest,
     db: Session = Depends(get_db),
     current_user: Usuario = Depends(get_current_user)
 ):
     """
-    Da de baja una pareja
+    Da de baja (elimina) una pareja
     
-    Puede ser realizado por uno de los jugadores o por un organizador
+    Puede ser realizado por uno de los jugadores o por un organizador.
+    La pareja se elimina completamente, permitiendo que se vuelvan a inscribir.
     """
     from ..services.torneo_inscripcion_service import TorneoInscripcionService
     
     try:
         user_id = current_user.id_usuario
-        pareja = TorneoInscripcionService.dar_baja_pareja(db, pareja_id, user_id, motivo)
-        return _pareja_to_dict(db, pareja)
+        resultado = TorneoInscripcionService.dar_baja_pareja(db, pareja_id, user_id, data.motivo)
+        return resultado
     except ValueError as e:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(e))
     except Exception as e:

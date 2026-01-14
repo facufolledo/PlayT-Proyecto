@@ -313,9 +313,9 @@ class TorneoInscripcionService:
         pareja_id: int,
         user_id: int,
         motivo: Optional[str] = None
-    ) -> TorneoPareja:
+    ) -> dict:
         """
-        Da de baja una pareja (puede ser el jugador o el organizador)
+        Elimina una pareja del torneo (puede ser el jugador o el organizador)
         
         Args:
             db: Sesión de base de datos
@@ -324,7 +324,7 @@ class TorneoInscripcionService:
             motivo: Motivo de la baja
             
         Returns:
-            Pareja dada de baja
+            Diccionario con mensaje de confirmación
             
         Raises:
             ValueError: Si no tiene permisos o la pareja no existe
@@ -346,26 +346,17 @@ class TorneoInscripcionService:
         if torneo.estado not in [EstadoTorneo.INSCRIPCION, EstadoTorneo.ARMANDO_ZONAS]:
             raise ValueError("No se puede dar de baja una pareja después de que el torneo comenzó")
         
-        pareja.estado = EstadoPareja.BAJA
-        pareja.observaciones = f"{pareja.observaciones or ''}\nBaja: {motivo or 'No especificado'}"
+        # Guardar info para retornar
+        pareja_id_eliminada = pareja_id
         
-        # Registrar en historial
-        historial = TorneoHistorialCambios(
-            torneo_id=pareja.torneo_id,
-            tipo_cambio='pareja_baja',
-            descripcion=f"Pareja {pareja_id} dada de baja. Motivo: {motivo or 'No especificado'}",
-            realizado_por=user_id,
-            datos_json={
-                'pareja_id': pareja_id,
-                'motivo': motivo
-            }
-        )
-        db.add(historial)
-        
+        # Eliminar la pareja directamente
+        db.delete(pareja)
         db.commit()
-        db.refresh(pareja)
         
-        return pareja
+        return {
+            "mensaje": "Pareja eliminada exitosamente. Pueden volver a inscribirse.",
+            "pareja_id": pareja_id_eliminada
+        }
     
     @staticmethod
     def reemplazar_jugador(
