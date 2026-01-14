@@ -191,6 +191,7 @@ async def obtener_mis_invitaciones(
 # ENDPOINTS DINÁMICOS (DEBEN IR DESPUÉS DE LOS ESPECÍFICOS)
 # ============================================
 
+@router.post("", response_model=TorneoResponse, status_code=status.HTTP_201_CREATED)
 @router.post("/", response_model=TorneoResponse, status_code=status.HTTP_201_CREATED)
 def crear_torneo(
     torneo_data: TorneoCreate,
