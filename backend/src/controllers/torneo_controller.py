@@ -765,7 +765,7 @@ def eliminar_categoria(
 # ============================================
 
 @router.post("/{torneo_id}/inscribir", status_code=status.HTTP_201_CREATED)
-def inscribir_pareja(
+async def inscribir_pareja(
     torneo_id: int,
     pareja_data: ParejaInscripcion,
     db: Session = Depends(get_db),
@@ -832,7 +832,7 @@ def inscribir_pareja(
 
 
 @router.post("/confirmar-pareja/{codigo}")
-def confirmar_pareja_por_codigo(
+async def confirmar_pareja_por_codigo(
     codigo: str,
     db: Session = Depends(get_db),
     current_user: Usuario = Depends(get_current_user)
@@ -858,7 +858,7 @@ def confirmar_pareja_por_codigo(
 
 
 @router.post("/rechazar-invitacion/{pareja_id}")
-def rechazar_invitacion(
+async def rechazar_invitacion(
     pareja_id: int,
     motivo: Optional[str] = None,
     db: Session = Depends(get_db),
