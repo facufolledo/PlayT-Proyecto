@@ -138,7 +138,14 @@ async def root():
 
 @app.get("/health")
 async def health_check():
-    return {"status": "healthy", "service": "Drive+ API", "database": "connected", "cors": "enabled"}
+    return {
+        "status": "healthy", 
+        "service": "Drive+ API", 
+        "database": "connected", 
+        "cors": "enabled",
+        "version": "2.0.0",  # Incrementar para verificar deployment
+        "last_update": "2026-01-08T02:47:00Z"
+    }
 
 @app.get("/api/test-cors")
 async def test_cors():
