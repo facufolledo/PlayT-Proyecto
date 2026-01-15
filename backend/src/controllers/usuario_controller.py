@@ -689,12 +689,13 @@ async def buscar_usuarios_publico(
                 "categoria": categoria.nombre if categoria else None,
                 "ciudad": perfil.ciudad,
                 "foto_perfil": getattr(perfil, 'url_avatar', None),
-                "fecha_registro": usuario.fecha_registro.isoformat() if hasattr(usuario, 'fecha_registro') and usuario.fecha_registro else None,
-                "activo": getattr(usuario, 'activo', True)
+                "fecha_registro": usuario.creado_en.isoformat() if hasattr(usuario, 'creado_en') and usuario.creado_en else None
             })
         
         return resultado
         
     except Exception as e:
         print(f"Error en búsqueda pública: {str(e)}")
+        import traceback
+        traceback.print_exc()
         return []

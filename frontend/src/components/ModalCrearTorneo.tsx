@@ -137,14 +137,11 @@ export default function ModalCrearTorneo({ isOpen, onClose }: ModalCrearTorneoPr
         fecha_fin: formData.fechaFin,
         lugar: formData.lugar?.trim() || undefined,
         requiere_pago: formData.requierePago,
-        monto_inscripcion: formData.requierePago ? formData.monto : undefined,
-        alias_cbu_cvu: formData.requierePago ? formData.alias.trim() : undefined,
-        titular_cuenta: formData.requierePago ? formData.titular.trim() : undefined,
-        banco: formData.requierePago ? formData.banco.trim() : undefined,
-        horarios_disponibles: {
-          semana: horariosDisponibles.semana.filter(h => h.desde && h.hasta),
-          finDeSemana: horariosDisponibles.finDeSemana.filter(h => h.desde && h.hasta)
-        },
+        monto_inscripcion: formData.requierePago ? formData.monto : 0,
+        alias_cbu_cvu: formData.requierePago && formData.alias ? formData.alias.trim() : undefined,
+        titular_cuenta: formData.requierePago && formData.titular ? formData.titular.trim() : undefined,
+        banco: formData.requierePago && formData.banco ? formData.banco.trim() : undefined,
+        horarios_disponibles: horariosDisponibles,
         reglas_json: {
           puntos_victoria: 3,
           puntos_derrota: 0,
@@ -182,7 +179,7 @@ export default function ModalCrearTorneo({ isOpen, onClose }: ModalCrearTorneoPr
         descripcion: '', 
         lugar: '', 
         canchasDisponibles: 2,
-        requierePago: false,
+        requierePago: true,
         monto: 0,
         alias: '',
         titular: '',
