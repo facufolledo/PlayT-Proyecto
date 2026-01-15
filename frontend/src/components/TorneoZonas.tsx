@@ -163,19 +163,31 @@ export default function TorneoZonas({ torneoId, esOrganizador }: TorneoZonasProp
           {esOrganizador && (
             <div className="space-y-3">
               {categorias.length > 0 ? (
-                // Botones por categoría
+                // Botones por categoría con iconos de género
                 <div className="flex flex-wrap gap-2 justify-center">
-                  {categorias.map((cat) => (
-                    <Button
-                      key={cat.id}
-                      onClick={() => generarZonas(cat.id)}
-                      disabled={generando}
-                      variant="accent"
-                      className="text-sm"
-                    >
-                      {generando ? 'Generando...' : `Generar ${cat.nombre}`}
-                    </Button>
-                  ))}
+                  {categorias.map((cat) => {
+                    const esF = cat.genero === 'femenino';
+                    const esMixto = cat.genero === 'mixto';
+                    const colorClasses = esMixto 
+                      ? 'bg-gradient-to-r from-blue-500 to-pink-500 hover:from-blue-600 hover:to-pink-600'
+                      : esF
+                      ? 'bg-gradient-to-r from-pink-500 to-pink-600 hover:from-pink-600 hover:to-pink-700'
+                      : 'bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700';
+                    
+                    return (
+                      <button
+                        key={cat.id}
+                        onClick={() => generarZonas(cat.id)}
+                        disabled={generando}
+                        className={`${colorClasses} text-white px-4 py-2 rounded-lg text-sm font-bold transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 shadow-lg hover:shadow-xl`}
+                      >
+                        <span className="text-base">
+                          {esMixto ? '⚥' : esF ? '♀' : '♂'}
+                        </span>
+                        {generando ? 'Generando...' : `Generar ${cat.nombre}`}
+                      </button>
+                    );
+                  })}
                 </div>
               ) : (
                 // Botón general si no hay categorías
@@ -246,19 +258,29 @@ export default function TorneoZonas({ torneoId, esOrganizador }: TorneoZonasProp
           >
             Todas
           </button>
-          {categorias.map((cat) => (
-            <button
-              key={cat.id}
-              onClick={() => setCategoriaFiltro(cat.id)}
-              className={`px-3 py-1.5 rounded-lg text-xs font-bold whitespace-nowrap transition-all ${
-                categoriaFiltro === cat.id
-                  ? 'bg-primary text-white'
-                  : 'bg-cardBorder text-textSecondary hover:bg-primary/20'
-              }`}
-            >
-              {cat.nombre}
-            </button>
-          ))}
+          {categorias.map((cat) => {
+            const esF = cat.genero === 'femenino';
+            const esMixto = cat.genero === 'mixto';
+            const icon = esMixto ? '⚥' : esF ? '♀' : '♂';
+            const colorClasses = categoriaFiltro === cat.id
+              ? esMixto
+                ? 'bg-gradient-to-r from-purple-500 to-purple-600 text-white'
+                : esF
+                ? 'bg-gradient-to-r from-pink-500 to-pink-600 text-white'
+                : 'bg-gradient-to-r from-blue-500 to-blue-600 text-white'
+              : 'bg-cardBorder text-textSecondary hover:bg-primary/20';
+            
+            return (
+              <button
+                key={cat.id}
+                onClick={() => setCategoriaFiltro(cat.id)}
+                className={`px-3 py-1.5 rounded-lg text-xs font-bold whitespace-nowrap transition-all flex items-center gap-1.5 ${colorClasses}`}
+              >
+                <span>{icon}</span>
+                {cat.nombre}
+              </button>
+            );
+          })}
         </div>
       )}
 
@@ -267,18 +289,27 @@ export default function TorneoZonas({ torneoId, esOrganizador }: TorneoZonasProp
         <div className="bg-accent/5 border border-accent/20 rounded-lg p-3">
           <p className="text-xs text-textSecondary mb-2">Categorías sin zonas:</p>
           <div className="flex flex-wrap gap-2">
-            {categoriasSinZonas.map((cat) => (
-              <Button
-                key={cat.id}
-                onClick={() => generarZonas(cat.id)}
-                disabled={generando}
-                variant="accent"
-                size="sm"
-                className="text-xs"
-              >
-                {generando ? '...' : `Generar ${cat.nombre}`}
-              </Button>
-            ))}
+            {categoriasSinZonas.map((cat) => {
+              const esF = cat.genero === 'femenino';
+              const esMixto = cat.genero === 'mixto';
+              const colorClasses = esMixto 
+                ? 'bg-gradient-to-r from-purple-500 to-purple-600 hover:from-purple-600 hover:to-purple-700'
+                : esF
+                ? 'bg-gradient-to-r from-pink-500 to-pink-600 hover:from-pink-600 hover:to-pink-700'
+                : 'bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700';
+              
+              return (
+                <button
+                  key={cat.id}
+                  onClick={() => generarZonas(cat.id)}
+                  disabled={generando}
+                  className={`${colorClasses} text-white px-3 py-1.5 rounded-lg text-xs font-bold transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1.5`}
+                >
+                  <span>{esMixto ? '⚥' : esF ? '♀' : '♂'}</span>
+                  {generando ? '...' : `Generar ${cat.nombre}`}
+                </button>
+              );
+            })}
           </div>
         </div>
       )}
@@ -299,9 +330,30 @@ export default function TorneoZonas({ torneoId, esOrganizador }: TorneoZonasProp
                   <Target size={20} className="text-white" />
                 </div>
                 <div className="flex-1">
-                  <h3 className="text-lg md:text-xl font-bold text-textPrimary">
-                    {tabla.zona_nombre}
-                  </h3>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <h3 className="text-lg md:text-xl font-bold text-textPrimary">
+                      {tabla.zona_nombre}
+                    </h3>
+                    {/* Badge de categoría con género */}
+                    {tabla.categoria_id && (() => {
+                      const cat = categorias.find(c => c.id === tabla.categoria_id);
+                      if (!cat) return null;
+                      const esF = cat.genero === 'femenino';
+                      const esMixto = cat.genero === 'mixto';
+                      const colorClasses = esMixto
+                        ? 'bg-gradient-to-r from-purple-500 to-purple-600'
+                        : esF
+                        ? 'bg-gradient-to-r from-pink-500 to-pink-600'
+                        : 'bg-gradient-to-r from-blue-500 to-blue-600';
+                      
+                      return (
+                        <span className={`${colorClasses} text-white px-2 py-1 rounded-full text-xs font-bold flex items-center gap-1`}>
+                          <span>{esMixto ? '⚥' : esF ? '♀' : '♂'}</span>
+                          {cat.nombre}
+                        </span>
+                      );
+                    })()}
+                  </div>
                   <p className="text-xs text-textSecondary">Tabla de Posiciones</p>
                 </div>
                 <div className="bg-primary/10 px-3 py-1 rounded-full">
