@@ -697,4 +697,4 @@ async def buscar_usuarios_publico(
         
     except Exception as e:
         print(f"Error en búsqueda pública: {str(e)}")
-        return []  # En caso de error, devolver lista vacía en lugar de error 500
+        return []

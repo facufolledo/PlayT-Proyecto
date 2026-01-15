@@ -25,16 +25,23 @@ export default function BuscarJugadores() {
   // Debounce optimizado (200ms en lugar de 300ms)
   const debouncedSearchQuery = useDebounce(searchQuery, 200);
 
-  // Filtrar jugadores en tiempo real mientras escribe
+  // Filtrar jugadores en tiempo real mientras escribe (solo si ya hay resultados cargados)
   const jugadoresFiltrados = useMemo(() => {
+    // Si no hay jugadores cargados, retornar vacío
+    if (!allJugadores || allJugadores.length === 0) {
+      return [];
+    }
+    
+    // Si la búsqueda es muy corta, mostrar todos los cargados
     if (!searchQuery.trim() || searchQuery.length < 2) {
       return allJugadores;
     }
     
+    // Filtrar localmente para búsqueda instantánea
     const query = searchQuery.toLowerCase().trim();
     return allJugadores.filter(jugador => {
-      const nombreCompleto = `${jugador.nombre} ${jugador.apellido}`.toLowerCase();
-      const username = jugador.nombre_usuario.toLowerCase();
+      const nombreCompleto = `${jugador.nombre || ''} ${jugador.apellido || ''}`.toLowerCase();
+      const username = (jugador.nombre_usuario || '').toLowerCase();
       return nombreCompleto.includes(query) || username.includes(query);
     });
   }, [searchQuery, allJugadores]);
@@ -67,21 +74,26 @@ export default function BuscarJugadores() {
       const cacheKey = cacheKeys.busqueda(query);
       const cached = cacheManager.get<PerfilPublico[]>(cacheKey);
       
-      if (cached) {
+      if (cached && cached.length > 0) {
         setAllJugadores(cached);
         setLoading(false);
         return;
       }
       
       // Si no está en cache, buscar en el servidor
+      console.log('🔍 Buscando jugadores:', query);
       const resultados = await perfilService.buscarJugadores(query, MAX_RESULTS);
+      console.log('📋 Resultados:', resultados);
       
-      // Guardar en cache
-      cacheManager.set(cacheKey, resultados, CACHE_TTL.busquedas);
+      // Solo guardar en cache si hay resultados
+      if (resultados && resultados.length > 0) {
+        cacheManager.set(cacheKey, resultados, CACHE_TTL.busquedas);
+      }
       
-      setAllJugadores(resultados);
+      setAllJugadores(resultados || []);
       
     } catch (err: any) {
+      console.error('❌ Error en búsqueda:', err);
       setError(err.message || 'Error en la búsqueda');
       setAllJugadores([]);
     } finally {
@@ -177,7 +189,7 @@ export default function BuscarJugadores() {
             </motion.div>
           )}
 
-          {hasSearched && !loading && !error && jugadores.length === 0 && (
+          {hasSearched && !loading && !error && jugadoresFiltrados.length === 0 && (
             <motion.div
               key="no-results"
               initial={{ opacity: 0, scale: 0.9 }}
