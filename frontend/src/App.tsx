@@ -6,6 +6,7 @@ import ErrorBoundary from './components/ErrorBoundary';
 import { AuthProvider } from './context/AuthContext';
 import { SalasProvider } from './context/SalasContext';
 import { TorneosProvider } from './context/TorneosContext';
+import { PWAInstallBanner } from './components/PWAInstallBanner';
 
 // Páginas críticas (carga inmediata)
 import Landing from './pages/Landing';
@@ -270,6 +271,9 @@ function App() {
               <Route path="*" element={<Navigate to="/" replace />} />
                 </Routes>
               </Suspense>
+              
+              {/* PWA Install Banner */}
+              <PWAInstallBanner />
           </TorneosProvider>
         </SalasProvider>
       </AuthProvider>

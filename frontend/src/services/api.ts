@@ -2,8 +2,13 @@
 import axios, { AxiosInstance } from 'axios';
 import { logger } from '../utils/logger';
 import { parseError } from '../utils/errorHandler';
+import { requestManager, requestKeys } from '../utils/requestManager';
+import { cacheManager, CACHE_TTL, cacheKeys } from '../utils/cacheManager';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+
+// Configuración de cache por endpoint
+const ENABLE_CACHE = import.meta.env.PROD; // Solo en producción
 
 export interface UsuarioResponse {
   id_usuario: number;
@@ -148,45 +153,75 @@ class ApiService {
     }
   }
 
-  // Obtener categorías disponibles
+  // Obtener categorías disponibles (con cache)
   async getCategorias(): Promise<any[]> {
-    try {
-      const response = await this.api.get('/auth/categorias');
-      return response.data;
-    } catch (error: any) {
-      logger.error('Error al obtener categorías:', error);
-      throw error;
+    const cacheKey = cacheKeys.categorias();
+    
+    if (ENABLE_CACHE) {
+      return cacheManager.getOrFetch(
+        cacheKey,
+        async () => {
+          const response = await this.api.get('/auth/categorias');
+          return response.data;
+        },
+        CACHE_TTL.categorias
+      );
     }
+    
+    const response = await this.api.get('/auth/categorias');
+    return response.data;
   }
 
-  // Obtener ranking general
+  // Obtener ranking general (con cache y deduplicación)
   async getRankingGeneral(limit: number = 100, offset: number = 0, sexo?: 'masculino' | 'femenino'): Promise<any[]> {
-    try {
-      const params: any = { limit, offset };
-      if (sexo) {
-        params.sexo = sexo;
+    const cacheKey = cacheKeys.rankingGeneral(sexo);
+    const requestKey = requestKeys.ranking(`general-${sexo || 'all'}`);
+    
+    return requestManager.dedupe(requestKey, async (signal) => {
+      if (ENABLE_CACHE) {
+        return cacheManager.getOrFetch(
+          cacheKey,
+          async () => {
+            const params: any = { limit, offset };
+            if (sexo) params.sexo = sexo;
+            const response = await this.api.get('/ranking/', { params, signal });
+            return response.data;
+          },
+          CACHE_TTL.rankings
+        );
       }
-      const response = await this.api.get('/ranking/', { params });
+      
+      const params: any = { limit, offset };
+      if (sexo) params.sexo = sexo;
+      const response = await this.api.get('/ranking/', { params, signal });
       return response.data;
-    } catch (error: any) {
-      logger.error('Error al obtener ranking general:', error);
-      throw error;
-    }
+    });
   }
 
-  // Obtener ranking por categoría
+  // Obtener ranking por categoría (con cache y deduplicación)
   async getRankingPorCategoria(idCategoria: number, sexo?: 'masculino' | 'femenino'): Promise<any> {
-    try {
-      const params: any = {};
-      if (sexo) {
-        params.sexo = sexo;
+    const cacheKey = cacheKeys.rankingCategoria(idCategoria, sexo);
+    const requestKey = requestKeys.ranking(`categoria-${idCategoria}-${sexo || 'all'}`);
+    
+    return requestManager.dedupe(requestKey, async (signal) => {
+      if (ENABLE_CACHE) {
+        return cacheManager.getOrFetch(
+          cacheKey,
+          async () => {
+            const params: any = {};
+            if (sexo) params.sexo = sexo;
+            const response = await this.api.get(`/categorias/${idCategoria}/jugadores`, { params, signal });
+            return response.data;
+          },
+          CACHE_TTL.rankings
+        );
       }
-      const response = await this.api.get(`/categorias/${idCategoria}/jugadores`, { params });
+      
+      const params: any = {};
+      if (sexo) params.sexo = sexo;
+      const response = await this.api.get(`/categorias/${idCategoria}/jugadores`, { params, signal });
       return response.data;
-    } catch (error: any) {
-      logger.error('Error al obtener ranking por categoría:', error);
-      throw error;
-    }
+    });
   }
 
   // Obtener ranking global (endpoint alternativo)

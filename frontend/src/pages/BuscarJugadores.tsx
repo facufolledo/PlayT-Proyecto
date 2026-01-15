@@ -1,31 +1,63 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Search, User, Trophy, MapPin, ArrowRight, Users } from 'lucide-react';
+import { Search, User, Trophy, MapPin, ArrowRight, Users, ChevronDown } from 'lucide-react';
 import Input from '../components/Input';
 import Button from '../components/Button';
 import LoadingSkeleton from '../components/LoadingSkeleton';
 import { useDebounce } from '../hooks/useDebounce';
 import { perfilService, PerfilPublico } from '../services/perfil.service';
 import { clientLogger } from '../utils/clientLogger';
+import { cacheManager, CACHE_TTL, cacheKeys } from '../utils/cacheManager';
+
+const INITIAL_RESULTS = 5; // Mostrar solo 5 inicialmente
+const MAX_RESULTS = 20;
 
 export default function BuscarJugadores() {
   const navigate = useNavigate();
   const [searchQuery, setSearchQuery] = useState('');
-  const [jugadores, setJugadores] = useState<PerfilPublico[]>([]);
+  const [allJugadores, setAllJugadores] = useState<PerfilPublico[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [hasSearched, setHasSearched] = useState(false);
+  const [showAll, setShowAll] = useState(false);
 
-  // Debounce para la búsqueda
-  const debouncedSearchQuery = useDebounce(searchQuery, 300);
+  // Debounce optimizado (200ms en lugar de 300ms)
+  const debouncedSearchQuery = useDebounce(searchQuery, 200);
+
+  // Filtrar jugadores en tiempo real mientras escribe (solo si ya hay resultados cargados)
+  const jugadoresFiltrados = useMemo(() => {
+    // Si no hay jugadores cargados, retornar vacío
+    if (!allJugadores || allJugadores.length === 0) {
+      return [];
+    }
+    
+    // Si la búsqueda es muy corta, mostrar todos los cargados
+    if (!searchQuery.trim() || searchQuery.length < 2) {
+      return allJugadores;
+    }
+    
+    // Filtrar localmente para búsqueda instantánea
+    const query = searchQuery.toLowerCase().trim();
+    return allJugadores.filter(jugador => {
+      const nombreCompleto = `${jugador.nombre || ''} ${jugador.apellido || ''}`.toLowerCase();
+      const username = (jugador.nombre_usuario || '').toLowerCase();
+      return nombreCompleto.includes(query) || username.includes(query);
+    });
+  }, [searchQuery, allJugadores]);
+
+  // Mostrar solo 5 o todos según el estado
+  const jugadoresMostrados = showAll 
+    ? jugadoresFiltrados 
+    : jugadoresFiltrados.slice(0, INITIAL_RESULTS);
 
   useEffect(() => {
     if (debouncedSearchQuery.length >= 2) {
       buscarJugadores(debouncedSearchQuery);
     } else {
-      setJugadores([]);
+      setAllJugadores([]);
       setHasSearched(false);
+      setShowAll(false);
     }
   }, [debouncedSearchQuery]);
 
@@ -34,15 +66,36 @@ export default function BuscarJugadores() {
       setLoading(true);
       setError('');
       setHasSearched(true);
+      setShowAll(false);
       
       clientLogger.userAction('Search players', { query });
       
-      const resultados = await perfilService.buscarJugadores(query, 20);
-      setJugadores(resultados);
+      // Intentar obtener del cache primero
+      const cacheKey = cacheKeys.busqueda(query);
+      const cached = cacheManager.get<PerfilPublico[]>(cacheKey);
+      
+      if (cached && cached.length > 0) {
+        setAllJugadores(cached);
+        setLoading(false);
+        return;
+      }
+      
+      // Si no está en cache, buscar en el servidor
+      console.log('🔍 Buscando jugadores:', query);
+      const resultados = await perfilService.buscarJugadores(query, MAX_RESULTS);
+      console.log('📋 Resultados:', resultados);
+      
+      // Solo guardar en cache si hay resultados
+      if (resultados && resultados.length > 0) {
+        cacheManager.set(cacheKey, resultados, CACHE_TTL.busquedas);
+      }
+      
+      setAllJugadores(resultados || []);
       
     } catch (err: any) {
+      console.error('❌ Error en búsqueda:', err);
       setError(err.message || 'Error en la búsqueda');
-      setJugadores([]);
+      setAllJugadores([]);
     } finally {
       setLoading(false);
     }
@@ -136,7 +189,7 @@ export default function BuscarJugadores() {
             </motion.div>
           )}
 
-          {hasSearched && !loading && !error && jugadores.length === 0 && (
+          {hasSearched && !loading && !error && jugadoresFiltrados.length === 0 && (
             <motion.div
               key="no-results"
               initial={{ opacity: 0, scale: 0.9 }}
@@ -154,21 +207,40 @@ export default function BuscarJugadores() {
             </motion.div>
           )}
 
-          {jugadores.length > 0 && (
+          {jugadoresFiltrados.length > 0 && (
             <motion.div
               key="results"
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
             >
-              <div className="mb-4">
+              <div className="mb-4 flex items-center justify-between">
                 <p className="text-textSecondary text-sm">
-                  {jugadores.length} jugador{jugadores.length !== 1 ? 'es' : ''} encontrado{jugadores.length !== 1 ? 's' : ''}
+                  {jugadoresFiltrados.length} jugador{jugadoresFiltrados.length !== 1 ? 'es' : ''} encontrado{jugadoresFiltrados.length !== 1 ? 's' : ''}
+                  {!showAll && jugadoresFiltrados.length > INITIAL_RESULTS && (
+                    <span className="text-primary ml-2">
+                      (mostrando {INITIAL_RESULTS})
+                    </span>
+                  )}
                 </p>
+                
+                {/* Botón para mostrar más/menos */}
+                {jugadoresFiltrados.length > INITIAL_RESULTS && (
+                  <button
+                    onClick={() => setShowAll(!showAll)}
+                    className="flex items-center gap-1 text-primary hover:text-primary/80 text-sm font-medium transition-colors"
+                  >
+                    {showAll ? 'Mostrar menos' : `Ver todos (${jugadoresFiltrados.length})`}
+                    <ChevronDown 
+                      size={16} 
+                      className={`transform transition-transform ${showAll ? 'rotate-180' : ''}`}
+                    />
+                  </button>
+                )}
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {jugadores.map((jugador, index) => {
+                {jugadoresMostrados.map((jugador, index) => {
                   const categoria = getCategoriaByRating(jugador.rating);
                   
                   return (
@@ -239,11 +311,16 @@ export default function BuscarJugadores() {
               </div>
 
               {/* Mensaje si hay muchos resultados */}
-              {jugadores.length >= 20 && (
+              {allJugadores.length >= MAX_RESULTS && (
                 <div className="mt-6 text-center">
-                  <p className="text-textSecondary text-sm">
-                    Mostrando los primeros 20 resultados. Refina tu búsqueda para encontrar jugadores específicos.
-                  </p>
+                  <div className="bg-primary/10 border border-primary/30 rounded-lg p-4">
+                    <p className="text-primary text-sm font-medium">
+                      💡 Mostrando los primeros {MAX_RESULTS} resultados
+                    </p>
+                    <p className="text-textSecondary text-xs mt-1">
+                      Refina tu búsqueda para encontrar jugadores específicos
+                    </p>
+                  </div>
                 </div>
               )}
             </motion.div>

@@ -1,266 +1,261 @@
-import { clientLogger } from './clientLogger';
+/**
+ * Sistema de Cache Inteligente
+ * Maneja cache en memoria con TTL y invalidación automática
+ */
 
-interface CacheItem<T> {
+interface CacheEntry<T> {
   data: T;
   timestamp: number;
-  expiresAt: number;
-  key: string;
+  ttl: number;
 }
 
-interface CacheOptions {
-  ttl?: number; // Time to live in milliseconds
-  maxSize?: number;
-  persistent?: boolean; // Use localStorage instead of memory
+interface CacheConfig {
+  defaultTTL: number;
+  maxSize: number;
+  enableLogging: boolean;
 }
 
 class CacheManager {
-  private memoryCache = new Map<string, CacheItem<any>>();
-  private maxSize: number;
-  private defaultTTL: number;
+  private cache: Map<string, CacheEntry<any>>;
+  private config: CacheConfig;
+  private accessCount: Map<string, number>;
 
-  constructor(options: CacheOptions = {}) {
-    this.maxSize = options.maxSize || 100;
-    this.defaultTTL = options.ttl || 5 * 60 * 1000; // 5 minutes default
+  constructor(config: Partial<CacheConfig> = {}) {
+    this.cache = new Map();
+    this.accessCount = new Map();
+    this.config = {
+      defaultTTL: 5 * 60 * 1000, // 5 minutos por defecto
+      maxSize: 100, // Máximo 100 entradas
+      enableLogging: import.meta.env.DEV,
+      ...config
+    };
   }
 
-  // Generar clave de caché
-  private generateKey(prefix: string, params?: Record<string, any>): string {
-    if (!params) return prefix;
-    
-    const sortedParams = Object.keys(params)
-      .sort()
-      .reduce((result, key) => {
-        result[key] = params[key];
-        return result;
-      }, {} as Record<string, any>);
-
-    return `${prefix}:${JSON.stringify(sortedParams)}`;
-  }
-
-  // Obtener del caché
+  /**
+   * Obtener dato del cache
+   */
   get<T>(key: string): T | null {
-    // Intentar memoria primero
-    const memoryItem = this.memoryCache.get(key);
-    if (memoryItem && memoryItem.expiresAt > Date.now()) {
-      clientLogger.debug('Cache hit (memory)', { key });
-      return memoryItem.data;
+    const entry = this.cache.get(key);
+    
+    if (!entry) {
+      this.log('MISS', key);
+      return null;
     }
 
-    // Intentar localStorage
-    try {
-      const stored = localStorage.getItem(`cache:${key}`);
-      if (stored) {
-        const item: CacheItem<T> = JSON.parse(stored);
-        if (item.expiresAt > Date.now()) {
-          clientLogger.debug('Cache hit (localStorage)', { key });
-          // Mover a memoria para acceso más rápido
-          this.memoryCache.set(key, item);
-          return item.data;
-        } else {
-          // Expirado, limpiar
-          localStorage.removeItem(`cache:${key}`);
-        }
-      }
-    } catch (error) {
-      clientLogger.warn('Cache read error', { key, error });
+    // Verificar si expiró
+    const now = Date.now();
+    if (now - entry.timestamp > entry.ttl) {
+      this.log('EXPIRED', key);
+      this.cache.delete(key);
+      return null;
     }
 
-    clientLogger.debug('Cache miss', { key });
-    return null;
+    // Incrementar contador de acceso
+    this.accessCount.set(key, (this.accessCount.get(key) || 0) + 1);
+    this.log('HIT', key);
+    
+    return entry.data as T;
   }
 
-  // Guardar en caché
-  set<T>(key: string, data: T, options: CacheOptions = {}): void {
-    const ttl = options.ttl || this.defaultTTL;
-    const item: CacheItem<T> = {
+  /**
+   * Guardar dato en cache
+   */
+  set<T>(key: string, data: T, ttl?: number): void {
+    // Si el cache está lleno, eliminar el menos usado
+    if (this.cache.size >= this.config.maxSize) {
+      this.evictLeastUsed();
+    }
+
+    const entry: CacheEntry<T> = {
       data,
       timestamp: Date.now(),
-      expiresAt: Date.now() + ttl,
-      key
+      ttl: ttl || this.config.defaultTTL
     };
 
-    // Guardar en memoria
-    this.memoryCache.set(key, item);
-
-    // Limpiar caché si excede el tamaño máximo
-    if (this.memoryCache.size > this.maxSize) {
-      const oldestKey = this.memoryCache.keys().next().value;
-      this.memoryCache.delete(oldestKey);
-    }
-
-    // Guardar en localStorage si es persistente
-    if (options.persistent !== false) {
-      try {
-        localStorage.setItem(`cache:${key}`, JSON.stringify(item));
-      } catch (error) {
-        clientLogger.warn('Cache write error', { key, error });
-      }
-    }
-
-    clientLogger.debug('Cache set', { key, ttl, persistent: options.persistent !== false });
+    this.cache.set(key, entry);
+    this.log('SET', key, `TTL: ${entry.ttl}ms`);
   }
 
-  // Invalidar caché
-  invalidate(key: string): void {
-    this.memoryCache.delete(key);
-    localStorage.removeItem(`cache:${key}`);
-    clientLogger.debug('Cache invalidated', { key });
+  /**
+   * Verificar si existe en cache y no expiró
+   */
+  has(key: string): boolean {
+    return this.get(key) !== null;
   }
 
-  // Invalidar por patrón
-  invalidatePattern(pattern: string): void {
-    const regex = new RegExp(pattern);
+  /**
+   * Invalidar una o varias claves
+   */
+  invalidate(keys: string | string[]): void {
+    const keyArray = Array.isArray(keys) ? keys : [keys];
     
-    // Limpiar memoria
-    for (const key of this.memoryCache.keys()) {
-      if (regex.test(key)) {
-        this.memoryCache.delete(key);
+    keyArray.forEach(key => {
+      // Soporta wildcards (ej: "torneo-*")
+      if (key.includes('*')) {
+        const regexPattern = '^' + key.replace(/\*/g, '.*') + '$';
+        const pattern = new RegExp(regexPattern);
+        const matchingKeys = Array.from(this.cache.keys()).filter(k => pattern.test(k));
+        matchingKeys.forEach(k => {
+          this.cache.delete(k);
+          this.accessCount.delete(k);
+        });
+        this.log('INVALIDATE', `${matchingKeys.length} keys matching "${key}"`);
+      } else {
+        this.cache.delete(key);
+        this.accessCount.delete(key);
+        this.log('INVALIDATE', key);
       }
-    }
-
-    // Limpiar localStorage
-    for (let i = localStorage.length - 1; i >= 0; i--) {
-      const key = localStorage.key(i);
-      if (key && key.startsWith('cache:') && regex.test(key.substring(6))) {
-        localStorage.removeItem(key);
-      }
-    }
-
-    clientLogger.debug('Cache pattern invalidated', { pattern });
+    });
   }
 
-  // Limpiar caché expirado
-  cleanup(): void {
-    const now = Date.now();
-    let cleaned = 0;
+  /**
+   * Limpiar todo el cache
+   */
+  clear(): void {
+    const size = this.cache.size;
+    this.cache.clear();
+    this.accessCount.clear();
+    this.log('CLEAR', `${size} entries removed`);
+  }
 
-    // Limpiar memoria
-    for (const [key, item] of this.memoryCache.entries()) {
-      if (item.expiresAt <= now) {
-        this.memoryCache.delete(key);
-        cleaned++;
-      }
+  /**
+   * Obtener o cargar dato (con cache automático)
+   */
+  async getOrFetch<T>(
+    key: string,
+    fetcher: () => Promise<T>,
+    ttl?: number
+  ): Promise<T> {
+    // Intentar obtener del cache
+    const cached = this.get<T>(key);
+    if (cached !== null) {
+      return cached;
     }
 
-    // Limpiar localStorage
-    for (let i = localStorage.length - 1; i >= 0; i--) {
-      const key = localStorage.key(i);
-      if (key && key.startsWith('cache:')) {
-        try {
-          const stored = localStorage.getItem(key);
-          if (stored) {
-            const item = JSON.parse(stored);
-            if (item.expiresAt <= now) {
-              localStorage.removeItem(key);
-              cleaned++;
-            }
-          }
-        } catch (error) {
-          // Item corrupto, eliminar
-          localStorage.removeItem(key);
-          cleaned++;
-        }
-      }
-    }
-
-    if (cleaned > 0) {
-      clientLogger.info('Cache cleanup completed', { itemsCleaned: cleaned });
+    // Si no está en cache, cargar
+    try {
+      const data = await fetcher();
+      this.set(key, data, ttl);
+      return data;
+    } catch (error) {
+      this.log('ERROR', key, error);
+      throw error;
     }
   }
 
-  // Obtener estadísticas del caché
+  /**
+   * Eliminar entrada menos usada (LRU)
+   */
+  private evictLeastUsed(): void {
+    let minAccess = Infinity;
+    let lruKey: string | null = null;
+
+    this.accessCount.forEach((count, key) => {
+      if (count < minAccess) {
+        minAccess = count;
+        lruKey = key;
+      }
+    });
+
+    if (lruKey) {
+      this.cache.delete(lruKey);
+      this.accessCount.delete(lruKey);
+      this.log('EVICT', lruKey);
+    }
+  }
+
+  /**
+   * Logging condicional
+   */
+  private log(action: string, key: string, extra?: any): void {
+    if (this.config.enableLogging) {
+      const emoji: Record<string, string> = {
+        HIT: '✅',
+        MISS: '❌',
+        SET: '💾',
+        INVALIDATE: '🗑️',
+        CLEAR: '🧹',
+        EXPIRED: '⏰',
+        EVICT: '🚮',
+        ERROR: '⚠️'
+      };
+      
+      console.log(`${emoji[action] || '📝'} Cache ${action}: ${key}`, extra || '');
+    }
+  }
+
+  /**
+   * Obtener estadísticas del cache
+   */
   getStats() {
-    const memorySize = this.memoryCache.size;
-    let localStorageSize = 0;
-
-    for (let i = 0; i < localStorage.length; i++) {
-      const key = localStorage.key(i);
-      if (key && key.startsWith('cache:')) {
-        localStorageSize++;
-      }
-    }
-
     return {
-      memorySize,
-      localStorageSize,
-      maxSize: this.maxSize,
-      defaultTTL: this.defaultTTL
+      size: this.cache.size,
+      maxSize: this.config.maxSize,
+      keys: Array.from(this.cache.keys()),
+      accessCounts: Object.fromEntries(this.accessCount)
     };
   }
 }
 
-// Instancia singleton
+// Instancia global del cache
 export const cacheManager = new CacheManager({
-  maxSize: 50,
-  ttl: 5 * 60 * 1000 // 5 minutos
+  defaultTTL: 5 * 60 * 1000, // 5 minutos
+  maxSize: 100,
+  enableLogging: import.meta.env.DEV
 });
 
-// Hook para usar caché con React
-export const useCache = <T>(
-  key: string,
-  fetcher: () => Promise<T>,
-  options: CacheOptions = {}
-) => {
-  const [data, setData] = useState<T | null>(null);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<Error | null>(null);
-  const [fromCache, setFromCache] = useState(false);
-
-  const fetchData = async (forceRefresh = false) => {
-    setLoading(true);
-    setError(null);
-
-    try {
-      // Intentar caché primero si no es refresh forzado
-      if (!forceRefresh) {
-        const cached = cacheManager.get<T>(key);
-        if (cached) {
-          setData(cached);
-          setFromCache(true);
-          setLoading(false);
-          return cached;
-        }
-      }
-
-      // Fetch fresh data
-      setFromCache(false);
-      const freshData = await fetcher();
-      
-      // Guardar en caché
-      cacheManager.set(key, freshData, options);
-      setData(freshData);
-      
-      return freshData;
-    } catch (err) {
-      setError(err as Error);
-      clientLogger.error('Cache fetch error', { key, error: err });
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const invalidate = () => {
-    cacheManager.invalidate(key);
-    setData(null);
-    setFromCache(false);
-  };
-
-  const refresh = () => fetchData(true);
-
-  return {
-    data,
-    loading,
-    error,
-    fromCache,
-    fetchData,
-    invalidate,
-    refresh
-  };
+// TTLs específicos por tipo de dato
+export const CACHE_TTL = {
+  // Datos que cambian poco
+  categorias: 30 * 60 * 1000,      // 30 minutos
+  rankings: 5 * 60 * 1000,         // 5 minutos
+  perfilPublico: 10 * 60 * 1000,   // 10 minutos
+  
+  // Datos que cambian frecuentemente
+  torneos: 2 * 60 * 1000,          // 2 minutos
+  salas: 1 * 60 * 1000,            // 1 minuto
+  partidos: 30 * 1000,             // 30 segundos
+  
+  // Búsquedas y temporales
+  busquedas: 10 * 60 * 1000,       // 10 minutos
+  estadisticas: 5 * 60 * 1000,     // 5 minutos
+  
+  // Datos del usuario
+  miPerfil: 15 * 60 * 1000,        // 15 minutos
+  misTorneos: 2 * 60 * 1000,       // 2 minutos
+  misSalas: 1 * 60 * 1000,         // 1 minuto
 };
 
-// Limpiar caché automáticamente cada 10 minutos
-setInterval(() => {
-  cacheManager.cleanup();
-}, 10 * 60 * 1000);
+// Helper para generar claves de cache consistentes
+export const cacheKeys = {
+  // Rankings
+  rankingGeneral: (sexo?: string) => `ranking-general-${sexo || 'all'}`,
+  rankingCategoria: (categoriaId: number, sexo?: string) => 
+    `ranking-cat-${categoriaId}-${sexo || 'all'}`,
+  
+  // Torneos
+  torneos: () => 'torneos-list',
+  torneo: (id: number) => `torneo-${id}`,
+  torneosParejas: (torneoId: number) => `torneo-${torneoId}-parejas`,
+  torneosZonas: (torneoId: number) => `torneo-${torneoId}-zonas`,
+  torneosPartidos: (torneoId: number) => `torneo-${torneoId}-partidos`,
+  misTorneos: () => 'mis-torneos',
+  
+  // Salas
+  salas: () => 'salas-list',
+  sala: (id: number) => `sala-${id}`,
+  misSalas: () => 'mis-salas',
+  
+  // Perfiles
+  perfil: (username: string) => `perfil-${username}`,
+  perfilId: (id: number) => `perfil-id-${id}`,
+  estadisticas: (userId: number) => `stats-${userId}`,
+  
+  // Búsquedas
+  busqueda: (query: string) => `search-${query.toLowerCase().trim()}`,
+  
+  // Categorías
+  categorias: () => 'categorias-sistema',
+};
 
-import { useState } from 'react';
+export default cacheManager;
