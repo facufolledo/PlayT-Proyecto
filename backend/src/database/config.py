@@ -33,11 +33,7 @@ engine = create_engine(
     pool_recycle=280,  # Reciclar cada 4.6 min (antes de que Railway cierre a los 5 min)
     pool_timeout=30,  # Timeout para obtener conexión del pool
     connect_args={
-        "timeout": 10,  # Timeout de conexión inicial
-        "tcp_keepalive": True,  # Mantener conexión viva
-        "tcp_keepalive_idle": 120,  # Enviar keepalive cada 2 min
-        "tcp_keepalive_interval": 30,  # Intervalo entre keepalives
-        "tcp_keepalive_count": 5  # Reintentos antes de considerar muerta
+        "timeout": 10  # Timeout de conexión inicial (pg8000 solo soporta timeout)
     },
     echo=False
 )
