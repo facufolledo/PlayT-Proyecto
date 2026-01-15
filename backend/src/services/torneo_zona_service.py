@@ -466,7 +466,7 @@ class TorneoZonaService:
         # Verificar si es organizador
         organizador = db.query(TorneoOrganizador).filter(
             TorneoOrganizador.torneo_id == torneo_id,
-            TorneoOrganizador.usuario_id == user_id
+            TorneoOrganizador.user_id == user_id
         ).first()
         
         return organizador is not None

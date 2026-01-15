@@ -29,6 +29,7 @@ class ErrorLogRequest(BaseModel):
 
 
 @router.post("/client")
+@router.post("/client/")
 async def log_client(log: ClientLogRequest, request: Request):
     """
     Recibe logs del cliente para monitoreo
@@ -49,6 +50,7 @@ async def log_client(log: ClientLogRequest, request: Request):
 
 
 @router.post("/error")
+@router.post("/error/")
 async def log_error(error_log: ErrorLogRequest, request: Request):
     """
     Recibe errores del cliente para monitoreo

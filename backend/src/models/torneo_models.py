@@ -1,7 +1,7 @@
 """
 Modelos SQLAlchemy para el sistema de torneos
 """
-from sqlalchemy import Column, BigInteger, String, Text, Enum, Date, DateTime, Boolean, Integer, JSON, ForeignKey, Index
+from sqlalchemy import Column, BigInteger, String, Text, Enum, Date, DateTime, Boolean, Integer, JSON, ForeignKey, Index, Numeric
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 from src.models.driveplus_models import Base
@@ -87,6 +87,17 @@ class Torneo(Base):
     lugar = Column(String(255))
     reglas_json = Column(JSON, comment="Configuración: puntos por victoria, sets, etc.")
     creado_por = Column(BigInteger, ForeignKey("usuarios.id_usuario"), nullable=False)
+    
+    # Campos de pago
+    monto_inscripcion = Column(Numeric(10, 2), default=0)
+    requiere_pago = Column(Boolean, default=False)
+    alias_cbu_cvu = Column(String(100), nullable=True, comment="Alias, CBU o CVU para transferencias")
+    titular_cuenta = Column(String(200), nullable=True, comment="Nombre del titular de la cuenta")
+    banco = Column(String(100), nullable=True, comment="Banco de la cuenta")
+    
+    # Horarios disponibles del torneo
+    horarios_disponibles = Column(JSON, nullable=True, comment="Horarios en los que se pueden programar partidos")
+    
     created_at = Column(DateTime, server_default=func.current_timestamp())
     updated_at = Column(DateTime, server_default=func.current_timestamp(), onupdate=func.current_timestamp())
     
@@ -101,6 +112,7 @@ class Torneo(Base):
         Index('idx_torneos_estado', 'estado'),
         Index('idx_torneos_fecha_inicio', 'fecha_inicio'),
         Index('idx_torneos_categoria', 'categoria'),
+        Index('idx_torneos_requiere_pago', 'requiere_pago'),
     )
 
 
@@ -154,11 +166,27 @@ class TorneoPareja(Base):
     observaciones = Column(Text)
     
     # Campos para confirmación de pareja
-    codigo_confirmacion = Column(String(8), nullable=True)  # Código único para confirmar
-    confirmado_jugador1 = Column(Boolean, default=True)  # El que inscribe siempre confirma
-    confirmado_jugador2 = Column(Boolean, default=False)  # El compañero debe confirmar
-    fecha_expiracion = Column(DateTime, nullable=True)  # Expira en 48hs
-    creado_por_id = Column(BigInteger, nullable=True)  # Quién creó la inscripción
+    codigo_confirmacion = Column(String(8), nullable=True)
+    confirmado_jugador1 = Column(Boolean, default=True)
+    confirmado_jugador2 = Column(Boolean, default=False)
+    fecha_expiracion = Column(DateTime, nullable=True)
+    creado_por_id = Column(BigInteger, nullable=True)
+    
+    # Campos de pago
+    pago_estado = Column(String(20), default='pendiente')  # pendiente, pagado, verificado, rechazado, reembolsado
+    pago_monto = Column(Numeric(10, 2), nullable=True)
+    pago_comprobante_url = Column(Text, nullable=True)
+    pago_fecha_acreditacion = Column(DateTime, nullable=True)
+    pago_verificado_por = Column(BigInteger, ForeignKey("usuarios.id_usuario"), nullable=True)
+    motivo_rechazo_pago = Column(Text, nullable=True)
+    
+    # Disponibilidad horaria (JSON flexible)
+    disponibilidad_horaria = Column(JSON, nullable=True)
+    
+    # Tracking de cambios de compañero
+    jugador2_anterior_id = Column(BigInteger, ForeignKey("usuarios.id_usuario"), nullable=True)
+    fecha_cambio_jugador2 = Column(DateTime, nullable=True)
+    motivo_cambio = Column(Text, nullable=True)
     
     created_at = Column(DateTime, server_default=func.current_timestamp())
     updated_at = Column(DateTime, server_default=func.current_timestamp(), onupdate=func.current_timestamp())
@@ -169,6 +197,7 @@ class TorneoPareja(Base):
         Index('idx_torneos_parejas_estado', 'estado'),
         Index('idx_torneos_parejas_jugadores', 'jugador1_id', 'jugador2_id'),
         Index('idx_torneos_parejas_codigo', 'codigo_confirmacion'),
+        Index('idx_torneos_parejas_pago_estado', 'pago_estado'),
     )
 
 
@@ -305,3 +334,22 @@ class TorneoHistorialCambios(Base):
     # Relationships - Comentados temporalmente
     # torneo = relationship("Torneo")
     # usuario = relationship("Usuario")
+
+
+class TorneoPagoHistorial(Base):
+    """Historial de cambios de estado de pagos para auditoría"""
+    __tablename__ = "torneos_pagos_historial"
+    
+    id = Column(BigInteger, primary_key=True, autoincrement=True)
+    pareja_id = Column(BigInteger, ForeignKey("torneos_parejas.id", ondelete="CASCADE"), nullable=False)
+    estado_anterior = Column(String(20))
+    estado_nuevo = Column(String(20), nullable=False)
+    monto = Column(Numeric(10, 2))
+    comprobante_url = Column(Text)
+    observaciones = Column(Text)
+    modificado_por = Column(BigInteger, ForeignKey("usuarios.id_usuario"))
+    created_at = Column(DateTime, server_default=func.current_timestamp())
+    
+    __table_args__ = (
+        Index('idx_torneos_pagos_historial_pareja', 'pareja_id'),
+    )

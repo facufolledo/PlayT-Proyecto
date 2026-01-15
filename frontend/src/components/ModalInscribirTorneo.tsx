@@ -8,8 +8,16 @@ import { torneoService, Categoria } from '../services/torneo.service';
 import { useDebounce } from '../hooks/useDebounce';
 import axios from 'axios';
 import { parseError } from '../utils/errorHandler';
+import ModalPagoInscripcion from './ModalPagoInscripcion';
+import SelectorDisponibilidad from './SelectorDisponibilidad';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+
+interface FranjaHoraria {
+  dias: string[];
+  horaInicio: string;
+  horaFin: string;
+}
 
 interface ModalInscribirTorneoProps {
   isOpen: boolean;
@@ -17,6 +25,8 @@ interface ModalInscribirTorneoProps {
   torneoId: number;
   torneoNombre: string;
   esOrganizador?: boolean;
+  fechaInicio?: string;
+  fechaFin?: string;
 }
 
 export default function ModalInscribirTorneo({
@@ -25,12 +35,25 @@ export default function ModalInscribirTorneo({
   torneoId,
   torneoNombre,
   esOrganizador = false,
+  fechaInicio,
+  fechaFin,
 }: ModalInscribirTorneoProps) {
   const { loading } = useTorneos();
   const { usuario } = useAuth();
   const [error, setError] = useState('');
   const [success, setSuccess] = useState(false);
   const [codigoConfirmacion, setCodigoConfirmacion] = useState('');
+  
+  // Estados para pago
+  const [mostrarModalPago, setMostrarModalPago] = useState(false);
+  const [pagoInfo, setPagoInfo] = useState<any>(null);
+  const [parejaId, setParejaId] = useState<number | null>(null);
+  
+  // Datos del torneo (si no se pasan como props)
+  const [torneoData, setTorneoData] = useState<any>(null);
+  
+  // Disponibilidad horaria
+  const [disponibilidadHoraria, setDisponibilidadHoraria] = useState<FranjaHoraria[]>([]);
   
   // Categorías del torneo
   const [categorias, setCategorias] = useState<Categoria[]>([]);
@@ -63,8 +86,21 @@ export default function ModalInscribirTorneo({
   useEffect(() => {
     if (isOpen && torneoId) {
       cargarCategorias();
+      // Si no tenemos las fechas, cargar datos del torneo
+      if (!fechaInicio || !fechaFin) {
+        cargarDatosTorneo();
+      }
     }
   }, [isOpen, torneoId]);
+
+  const cargarDatosTorneo = async () => {
+    try {
+      const response = await axios.get(`${API_URL}/torneos/${torneoId}`);
+      setTorneoData(response.data);
+    } catch (err) {
+      console.error('Error cargando datos del torneo:', err);
+    }
+  };
 
   const cargarCategorias = async () => {
     try {
@@ -204,11 +240,24 @@ export default function ModalInscribirTorneo({
         jugador2_id: jugador2.id_usuario,
         nombre_pareja: nombrePareja,
         categoria_id: categoriaSeleccionada || undefined,
+        disponibilidad_horaria: Object.keys(disponibilidadHoraria).length > 0 ? disponibilidadHoraria : undefined,
       });
 
       setCodigoConfirmacion(resultado.codigo_confirmacion);
-      setSuccess(true);
-      // No cerrar automáticamente para que el usuario vea el código
+      setParejaId(resultado.pareja_id);
+      
+      // Si requiere pago, mostrar modal de pago
+      if (resultado.requiere_pago) {
+        setPagoInfo({
+          monto: resultado.monto_inscripcion,
+          alias_cbu_cvu: resultado.alias_cbu_cvu,
+          titular: resultado.titular_cuenta,
+          banco: resultado.banco
+        });
+        setMostrarModalPago(true);
+      } else {
+        setSuccess(true);
+      }
     } catch (err: any) {
       console.error('Error al inscribir:', err);
       const errorInfo = parseError(err);
@@ -230,24 +279,34 @@ export default function ModalInscribirTorneo({
     }
   };
 
-  return (
-    <AnimatePresence>
-      {isOpen && (
-        <>
-          {/* Backdrop */}
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            onClick={handleClose}
-            className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50"
-          />
+  const handleSubirComprobante = async (file: File) => {
+    if (!parejaId) return;
+    
+    // Por ahora solo cerramos el modal, la subida real se implementará después
+    console.log('Subiendo comprobante para pareja:', parejaId, file);
+    setSuccess(true);
+    setMostrarModalPago(false);
+  };
 
-          {/* Modal */}
-          <div className="fixed inset-0 flex items-center justify-center z-50 p-2 sm:p-4">
+  return (
+    <>
+      <AnimatePresence>
+        {isOpen && (
+          <>
+            {/* Backdrop */}
             <motion.div
-              initial={{ opacity: 0, scale: 0.95, y: 20 }}
-              animate={{ opacity: 1, scale: 1, y: 0 }}
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={handleClose}
+              className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50"
+            />
+
+            {/* Modal */}
+            <div className="fixed inset-0 flex items-center justify-center z-50 p-2 sm:p-4">
+              <motion.div
+                initial={{ opacity: 0, scale: 0.95, y: 20 }}
+                animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.95, y: 20 }}
               className="bg-cardBg rounded-lg sm:rounded-xl border border-cardBorder w-full max-w-md max-h-[95vh] sm:max-h-[90vh] overflow-y-auto"
             >
@@ -549,6 +608,18 @@ export default function ModalInscribirTorneo({
                       </div>
                     )}
 
+                    {/* Selector de disponibilidad horaria */}
+                    {selectedCompanero && (esOrganizador ? selectedJugador1 : usuario) && (
+                      <div className="bg-cardHover rounded-lg p-3 sm:p-4">
+                        <SelectorDisponibilidad
+                          value={disponibilidadHoraria}
+                          onChange={setDisponibilidadHoraria}
+                          fechaInicio={fechaInicio || torneoData?.fecha_inicio || ''}
+                          fechaFin={fechaFin || torneoData?.fecha_fin || ''}
+                        />
+                      </div>
+                    )}
+
                     {/* Error */}
                     {error && (
                       <motion.div
@@ -589,5 +660,18 @@ export default function ModalInscribirTorneo({
         </>
       )}
     </AnimatePresence>
+    
+    {/* Modal de pago */}
+    {pagoInfo && (
+      <ModalPagoInscripcion
+        isOpen={mostrarModalPago}
+        onClose={() => {
+          setMostrarModalPago(false);
+          setSuccess(true);
+        }}
+        pagoInfo={pagoInfo}
+      />
+    )}
+  </>
   );
 }

@@ -33,7 +33,8 @@ class TorneoConfirmacionService:
         jugador2_id: int,
         categoria_id: Optional[int],
         creador_id: int,
-        observaciones: Optional[str] = None
+        observaciones: Optional[str] = None,
+        disponibilidad_horaria: Optional[dict] = None
     ) -> dict:
         """
         Crea una inscripción pendiente de confirmación
@@ -92,7 +93,8 @@ class TorneoConfirmacionService:
             confirmado_jugador2=False,
             fecha_expiracion=fecha_expiracion,
             creado_por_id=creador_id,
-            observaciones=observaciones
+            observaciones=observaciones,
+            disponibilidad_horaria=disponibilidad_horaria
         )
         
         db.add(pareja)

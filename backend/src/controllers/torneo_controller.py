@@ -1,6 +1,5 @@
 """
 Controller para endpoints de torneos
-Actualizado: Fix para Railway deployment - POST /torneos debe estar disponible
 """
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
@@ -15,14 +14,194 @@ from ..schemas.torneo_schemas import (
     EstadisticasTorneoResponse,
     ParejaInscripcion, ParejaUpdate, ParejaResponse
 )
-from ..auth.auth_utils import get_current_user
+from ..auth.auth_utils import get_current_user, get_current_user_optional
 from ..models.driveplus_models import Usuario
 
 router = APIRouter(prefix="/torneos", tags=["Torneos"])
 
 
+# ============================================
+# MODELOS AUXILIARES
+# ============================================
+
+class BajaParejaRequest(BaseModel):
+    motivo: Optional[str] = None
+
+
+# ============================================
+# ENDPOINTS ESPECÍFICOS (DEBEN IR ANTES QUE LOS DINÁMICOS)
+# ============================================
+
+@router.get("/mis-invitaciones-simple")
+def mis_invitaciones_simple():
+    """Endpoint ultra simple sin dependencias para test"""
+    return {"mensaje": "Endpoint funcionando", "invitaciones": []}
+
+
+@router.get("/test-auth")
+async def test_auth(current_user: Usuario = Depends(get_current_user)):
+    """Test simple de autenticación"""
+    return {
+        "authenticated": True,
+        "user_id": current_user.id_usuario,
+        "user_name": getattr(current_user, 'nombre_usuario', 'N/A')
+    }
+
+
+@router.get("/debug/mis-invitaciones")
+async def debug_mis_invitaciones(
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(get_current_user)
+):
+    """
+    Endpoint de debug para mis-invitaciones
+    """
+    try:
+        from ..models.torneo_models import TorneoPareja
+        
+        # Info del usuario actual
+        user_info = {
+            "user_id": current_user.id_usuario,
+            "user_name": getattr(current_user, 'nombre_usuario', 'N/A')
+        }
+        
+        # Contar todas las parejas del usuario
+        total_parejas = db.query(TorneoPareja).filter(
+            (TorneoPareja.jugador1_id == current_user.id_usuario) |
+            (TorneoPareja.jugador2_id == current_user.id_usuario)
+        ).count()
+        
+        # Parejas como jugador2
+        parejas_jugador2 = db.query(TorneoPareja).filter(
+            TorneoPareja.jugador2_id == current_user.id_usuario
+        ).all()
+        
+        # Estados únicos
+        from sqlalchemy import distinct
+        estados_unicos = db.query(distinct(TorneoPareja.estado)).all()
+        
+        # Parejas pendientes
+        parejas_pendientes = db.query(TorneoPareja).filter(
+            TorneoPareja.jugador2_id == current_user.id_usuario,
+            TorneoPareja.estado == 'pendiente'
+        ).all()
+        
+        # Parejas no confirmadas
+        parejas_no_confirmadas = db.query(TorneoPareja).filter(
+            TorneoPareja.jugador2_id == current_user.id_usuario,
+            TorneoPareja.estado == 'pendiente',
+            TorneoPareja.confirmado_jugador2 == False
+        ).all()
+        
+        return {
+            "user_info": user_info,
+            "total_parejas": total_parejas,
+            "parejas_como_jugador2": len(parejas_jugador2),
+            "estados_en_db": [e[0] for e in estados_unicos],
+            "parejas_pendientes": len(parejas_pendientes),
+            "parejas_no_confirmadas": len(parejas_no_confirmadas),
+            "detalle_parejas_jugador2": [
+                {
+                    "id": p.id,
+                    "torneo_id": p.torneo_id,
+                    "estado": p.estado,
+                    "confirmado_j1": p.confirmado_jugador1,
+                    "confirmado_j2": p.confirmado_jugador2
+                }
+                for p in parejas_jugador2
+            ]
+        }
+        
+    except Exception as e:
+        import traceback
+        return {
+            "error": str(e),
+            "traceback": traceback.format_exc()
+        }
+
+
+@router.get("/mis-invitaciones")
+@router.get("/mis-invitaciones/")
+async def obtener_mis_invitaciones(
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(get_current_user)
+):
+    """
+    Obtiene las invitaciones pendientes del usuario actual
+    """
+    try:
+        from ..models.torneo_models import TorneoPareja, Torneo
+        from ..models.driveplus_models import PerfilUsuario
+        
+        # Buscar parejas donde el usuario es jugador2 y está pendiente de confirmación
+        parejas = db.query(TorneoPareja).filter(
+            TorneoPareja.jugador2_id == current_user.id_usuario,
+            TorneoPareja.estado == 'pendiente',
+            TorneoPareja.confirmado_jugador2 == False
+        ).all()
+        
+        # Simplificar la respuesta para evitar problemas de serialización
+        resultado = []
+        for pareja in parejas:
+            try:
+                # Obtener info básica sin joins complejos
+                item = {
+                    'pareja_id': pareja.id,
+                    'torneo_id': pareja.torneo_id,
+                    'companero_id': pareja.jugador1_id,
+                    'codigo': pareja.codigo_confirmacion or "",  # Cambiado de codigo_confirmacion a codigo
+                    'fecha_expiracion': None
+                }
+                
+                # Intentar obtener nombres solo si es posible
+                try:
+                    torneo = db.query(Torneo).filter(Torneo.id == pareja.torneo_id).first()
+                    if torneo:
+                        item['torneo_nombre'] = torneo.nombre
+                    else:
+                        item['torneo_nombre'] = 'Torneo'
+                        
+                    perfil = db.query(PerfilUsuario).filter(
+                        PerfilUsuario.id_usuario == pareja.jugador1_id
+                    ).first()
+                    if perfil:
+                        item['companero_nombre'] = f"{perfil.nombre} {perfil.apellido}"
+                    else:
+                        item['companero_nombre'] = f'Jugador {pareja.jugador1_id}'
+                        
+                    if pareja.fecha_expiracion:
+                        item['fecha_expiracion'] = pareja.fecha_expiracion.isoformat()
+                        
+                except Exception:
+                    # Si falla obtener nombres, usar valores por defecto
+                    item['torneo_nombre'] = 'Torneo'
+                    item['companero_nombre'] = f'Jugador {pareja.jugador1_id}'
+                
+                resultado.append(item)
+                
+            except Exception as inner_e:
+                # Si hay error con una pareja específica, continuar
+                continue
+        
+        return {"invitaciones": resultado}
+        
+    except Exception as e:
+        # Devolver error 500 en lugar de 422
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error interno: {str(e)}"
+        )
+
+
+# ============================================
+# ENDPOINTS DINÁMICOS (DEBEN IR DESPUÉS DE LOS ESPECÍFICOS)
+# ============================================
+
+@router.post("", response_model=TorneoResponse, status_code=status.HTTP_201_CREATED)
 @router.post("/", response_model=TorneoResponse, status_code=status.HTTP_201_CREATED)
-def crear_torneo(
+async def crear_torneo(
     torneo_data: TorneoCreate,
     db: Session = Depends(get_db),
     current_user: Usuario = Depends(get_current_user)
@@ -46,32 +225,6 @@ def crear_torneo(
 def test_simple():
     """Endpoint de prueba ultra simple"""
     return {"status": "ok", "message": "Torneo controller funcionando"}
-
-
-@router.get("/test-auth")
-def test_auth(current_user: Usuario = Depends(get_current_user)):
-    """Endpoint de prueba con autenticación"""
-    return {
-        "status": "ok", 
-        "message": "Autenticación funcionando",
-        "user_id": current_user.id_usuario,
-        "email": getattr(current_user, 'email', 'No email')
-    }
-
-
-@router.post("/test-create")
-def test_create(
-    data: dict,
-    db: Session = Depends(get_db),
-    current_user: Usuario = Depends(get_current_user)
-):
-    """Endpoint de prueba para crear torneo"""
-    return {
-        "status": "ok",
-        "message": "Datos recibidos correctamente",
-        "user_id": current_user.id_usuario,
-        "data_received": data
-    }
 
 
 @router.get("/lista")
@@ -177,7 +330,8 @@ def listar_torneos(
 
 
 @router.get("/mis-torneos")
-def obtener_mis_torneos(
+@router.get("/mis-torneos/")
+async def obtener_mis_torneos(
     db: Session = Depends(get_db),
     current_user: Usuario = Depends(get_current_user)
 ):
@@ -240,12 +394,14 @@ def obtener_mis_torneos(
 
 
 @router.get("/{torneo_id}")
-def obtener_torneo(
+async def obtener_torneo(
     torneo_id: int,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: Optional[Usuario] = Depends(get_current_user_optional)
 ):
     """Obtiene un torneo por ID"""
     from ..models.torneo_models import TorneoPareja
+    from ..services.torneo_zona_service import TorneoZonaService
     
     torneo = TorneoService.obtener_torneo(db, torneo_id)
     if not torneo:
@@ -256,6 +412,11 @@ def obtener_torneo(
         TorneoPareja.torneo_id == torneo.id,
         TorneoPareja.estado.in_(['inscripta', 'confirmada'])
     ).count()
+    
+    # Verificar si el usuario actual es organizador
+    es_organizador = False
+    if current_user:
+        es_organizador = TorneoZonaService._es_organizador(db, torneo_id, current_user.id_usuario)
     
     return {
         "id": torneo.id,
@@ -273,7 +434,8 @@ def obtener_torneo(
         "created_at": torneo.created_at.isoformat() if torneo.created_at else None,
         "updated_at": torneo.updated_at.isoformat() if torneo.updated_at else None,
         "parejas_inscritas": parejas_count,
-        "total_partidos": 0
+        "total_partidos": 0,
+        "es_organizador": es_organizador
     }
 
 
@@ -509,6 +671,7 @@ def crear_categoria(
 
 
 @router.get("/{torneo_id}/categorias")
+@router.get("/{torneo_id}/categorias/")
 def listar_categorias(
     torneo_id: int,
     db: Session = Depends(get_db)
@@ -618,7 +781,7 @@ def eliminar_categoria(
 # ============================================
 
 @router.post("/{torneo_id}/inscribir", status_code=status.HTTP_201_CREATED)
-def inscribir_pareja(
+async def inscribir_pareja(
     torneo_id: int,
     pareja_data: ParejaInscripcion,
     db: Session = Depends(get_db),
@@ -672,8 +835,23 @@ def inscribir_pareja(
                 jugador2_id=pareja_data.jugador2_id,
                 categoria_id=getattr(pareja_data, 'categoria_id', None),
                 creador_id=user_id,
-                observaciones=pareja_data.observaciones
+                observaciones=pareja_data.observaciones,
+                disponibilidad_horaria=getattr(pareja_data, 'disponibilidad_horaria', None)
             )
+            
+            # Obtener info del torneo para datos de pago
+            from ..models.torneo_models import Torneo
+            torneo = db.query(Torneo).filter(Torneo.id == torneo_id).first()
+            
+            if torneo and torneo.requiere_pago:
+                resultado['requiere_pago'] = True
+                resultado['monto_inscripcion'] = float(torneo.monto_inscripcion) if torneo.monto_inscripcion else 0
+                resultado['alias_cbu_cvu'] = torneo.alias_cbu_cvu
+                resultado['titular_cuenta'] = torneo.titular_cuenta
+                resultado['banco'] = torneo.banco
+            else:
+                resultado['requiere_pago'] = False
+            
             return resultado
             
     except ValueError as e:
@@ -685,7 +863,7 @@ def inscribir_pareja(
 
 
 @router.post("/confirmar-pareja/{codigo}")
-def confirmar_pareja_por_codigo(
+async def confirmar_pareja_por_codigo(
     codigo: str,
     db: Session = Depends(get_db),
     current_user: Usuario = Depends(get_current_user)
@@ -711,7 +889,7 @@ def confirmar_pareja_por_codigo(
 
 
 @router.post("/rechazar-invitacion/{pareja_id}")
-def rechazar_invitacion(
+async def rechazar_invitacion(
     pareja_id: int,
     motivo: Optional[str] = None,
     db: Session = Depends(get_db),
@@ -732,54 +910,6 @@ def rechazar_invitacion(
         return {"mensaje": "Invitación rechazada"}
     except ValueError as e:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
-
-
-@router.get("/mis-invitaciones")
-def obtener_mis_invitaciones(
-    db: Session = Depends(get_db),
-    current_user: Usuario = Depends(get_current_user)
-):
-    """
-    Obtiene las invitaciones pendientes del usuario actual
-    """
-    try:
-        # Simplificar temporalmente para debug
-        from ..models.torneo_models import TorneoPareja, Torneo
-        from ..models.driveplus_models import PerfilUsuario
-        
-        # Buscar parejas donde el usuario es jugador2 y está pendiente
-        parejas = db.query(TorneoPareja).filter(
-            TorneoPareja.jugador2_id == current_user.id_usuario,
-            TorneoPareja.estado == 'pendiente'
-        ).all()
-        
-        resultado = []
-        for pareja in parejas:
-            # Obtener info del torneo
-            torneo = db.query(Torneo).filter(Torneo.id == pareja.torneo_id).first()
-            
-            # Obtener info del compañero (jugador1)
-            perfil_companero = db.query(PerfilUsuario).filter(
-                PerfilUsuario.id_usuario == pareja.jugador1_id
-            ).first()
-            
-            resultado.append({
-                'pareja_id': pareja.id,
-                'torneo_id': pareja.torneo_id,
-                'torneo_nombre': torneo.nombre if torneo else 'Torneo',
-                'companero_id': pareja.jugador1_id,
-                'companero_nombre': f"{perfil_companero.nombre} {perfil_companero.apellido}" if perfil_companero else 'Jugador',
-                'fecha_expiracion': getattr(pareja, 'fecha_expiracion', None),
-                'codigo_confirmacion': getattr(pareja, 'codigo_confirmacion', None)
-            })
-        
-        return {"invitaciones": resultado}
-        
-    except Exception as e:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Error al obtener invitaciones: {str(e)}"
-        )
 
 
 @router.get("/{torneo_id}/parejas")
@@ -888,7 +1018,7 @@ def _pareja_to_dict(db: Session, pareja) -> dict:
 
 
 @router.patch("/{torneo_id}/parejas/{pareja_id}/confirmar")
-def confirmar_pareja(
+async def confirmar_pareja(
     torneo_id: int,
     pareja_id: int,
     db: Session = Depends(get_db),
@@ -937,24 +1067,25 @@ def rechazar_pareja(
 
 
 @router.patch("/{torneo_id}/parejas/{pareja_id}/baja")
-def dar_baja_pareja(
+async def dar_baja_pareja(
     torneo_id: int,
     pareja_id: int,
-    motivo: Optional[str] = None,
+    data: BajaParejaRequest,
     db: Session = Depends(get_db),
     current_user: Usuario = Depends(get_current_user)
 ):
     """
-    Da de baja una pareja
+    Da de baja (elimina) una pareja
     
-    Puede ser realizado por uno de los jugadores o por un organizador
+    Puede ser realizado por uno de los jugadores o por un organizador.
+    La pareja se elimina completamente, permitiendo que se vuelvan a inscribir.
     """
     from ..services.torneo_inscripcion_service import TorneoInscripcionService
     
     try:
         user_id = current_user.id_usuario
-        pareja = TorneoInscripcionService.dar_baja_pareja(db, pareja_id, user_id, motivo)
-        return _pareja_to_dict(db, pareja)
+        resultado = TorneoInscripcionService.dar_baja_pareja(db, pareja_id, user_id, data.motivo)
+        return resultado
     except ValueError as e:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(e))
     except Exception as e:
@@ -2525,11 +2656,3 @@ def eliminar_bloqueo(
     db.commit()
     
     return {"message": "Bloqueo eliminado"}
-
-# ============================================
-# INCLUIR RUTAS DE PLAYOFFS
-# ============================================
-
-# Incluir todas las rutas de playoffs
-from .torneo.torneo_playoff_controller import router as playoff_router
-router.include_router(playoff_router, prefix="")

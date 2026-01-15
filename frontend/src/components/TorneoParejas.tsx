@@ -29,10 +29,14 @@ export default function TorneoParejas({
   const [nuevaCategoriaId, setNuevaCategoriaId] = useState<number | null>(null);
 
   useEffect(() => {
-    cargarCategorias();
+    if (torneoId) {
+      cargarCategorias();
+    }
   }, [torneoId]);
 
   const cargarCategorias = async () => {
+    if (!torneoId) return;
+    
     try {
       const cats = await torneoService.listarCategorias(torneoId);
       setCategorias(cats);

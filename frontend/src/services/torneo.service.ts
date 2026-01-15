@@ -125,57 +125,13 @@ class TorneoService {
     return response.data;
   }
 
-  // Métodos de prueba para debugging
-  async testAuth(): Promise<any> {
-    try {
-      const response = await axios.get(`${API_URL}/torneos/test-auth`, this.getAuthHeaders());
-      console.log('✅ Test auth exitoso:', response.data);
-      return response.data;
-    } catch (error: any) {
-      console.error('❌ Test auth falló:', error.response?.data);
-      throw error;
-    }
-  }
-
-  async testCreate(data: any): Promise<any> {
-    try {
-      const response = await axios.post(`${API_URL}/torneos/test-create`, data, this.getAuthHeaders());
-      console.log('✅ Test create exitoso:', response.data);
-      return response.data;
-    } catch (error: any) {
-      console.error('❌ Test create falló:', error.response?.data);
-      throw error;
-    }
-  }
-
   async crearTorneo(data: TorneoCreate): Promise<Torneo> {
-    try {
-      // Debug: Log de datos que se envían
-      console.log('🔍 Datos a enviar:', data);
-      console.log('🔍 Headers:', this.getAuthHeaders());
-      
-      // Convertir fechas de string a formato ISO date
-      const torneoData = {
-        ...data,
-        fecha_inicio: data.fecha_inicio, // Ya está en formato YYYY-MM-DD
-        fecha_fin: data.fecha_fin,       // Ya está en formato YYYY-MM-DD
-      };
-
-      const response = await axios.post(
-        `${API_URL}/torneos`,
-        torneoData,
-        this.getAuthHeaders()
-      );
-      
-      console.log('✅ Torneo creado:', response.data);
-      return response.data;
-    } catch (error: any) {
-      console.error('❌ Error al crear torneo:', error);
-      console.error('❌ Response:', error.response?.data);
-      console.error('❌ Status:', error.response?.status);
-      console.error('❌ Headers:', error.response?.headers);
-      throw error;
-    }
+    const response = await axios.post(
+      `${API_URL}/torneos`,
+      data,
+      this.getAuthHeaders()
+    );
+    return response.data;
   }
 
   async actualizarTorneo(torneoId: number, data: Partial<TorneoCreate>): Promise<Torneo> {
@@ -351,11 +307,8 @@ class TorneoService {
   async darBajaPareja(torneoId: number, parejaId: number, motivo?: string): Promise<Pareja> {
     const response = await axios.patch(
       `${API_URL}/torneos/${torneoId}/parejas/${parejaId}/baja`,
-      {},
-      {
-        ...this.getAuthHeaders(),
-        params: { motivo },
-      }
+      { motivo },
+      this.getAuthHeaders()
     );
     return response.data;
   }
@@ -433,8 +386,11 @@ class TorneoService {
   async generarPlayoffs(torneoId: number, clasificadosPorZona: number = 2): Promise<any> {
     const response = await axios.post(
       `${API_URL}/torneos/${torneoId}/generar-playoffs`,
-      { clasificados_por_zona: clasificadosPorZona },
-      this.getAuthHeaders()
+      {},
+      {
+        ...this.getAuthHeaders(),
+        params: { clasificados_por_zona: clasificadosPorZona }
+      }
     );
     return response.data;
   }

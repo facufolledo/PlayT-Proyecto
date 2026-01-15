@@ -53,7 +53,7 @@ async def verificar_categorias_sin_corregir(
     
     try:
         usuarios_incorrectos = []
-        usuarios = db.query(Usuario).filter(Usuario.activo == True).all()
+        usuarios = db.query(Usuario).all()
         
         for usuario in usuarios:
             if not usuario.sexo:
@@ -98,7 +98,7 @@ async def ejecutar_correccion_categorias(db: Session) -> Dict:
     errores = []
     
     try:
-        usuarios = db.query(Usuario).filter(Usuario.activo == True).all()
+        usuarios = db.query(Usuario).all()
         
         for usuario in usuarios:
             try:
@@ -171,8 +171,7 @@ async def estadisticas_categorias(
         for categoria in categorias:
             # Contar usuarios en esta categoría
             usuarios_count = db.query(Usuario).filter(
-                Usuario.id_categoria == categoria.id_categoria,
-                Usuario.activo == True
+                Usuario.id_categoria == categoria.id_categoria
             ).count()
             
             # Contar usuarios que DEBERÍAN estar en esta categoría por rating
@@ -180,20 +179,17 @@ async def estadisticas_categorias(
                 usuarios_por_rating = db.query(Usuario).filter(
                     Usuario.rating >= categoria.rating_min,
                     Usuario.rating <= categoria.rating_max,
-                    Usuario.sexo == categoria.sexo,
-                    Usuario.activo == True
+                    Usuario.sexo == categoria.sexo
                 ).count()
             elif categoria.rating_min is not None:
                 usuarios_por_rating = db.query(Usuario).filter(
                     Usuario.rating >= categoria.rating_min,
-                    Usuario.sexo == categoria.sexo,
-                    Usuario.activo == True
+                    Usuario.sexo == categoria.sexo
                 ).count()
             elif categoria.rating_max is not None:
                 usuarios_por_rating = db.query(Usuario).filter(
                     Usuario.rating <= categoria.rating_max,
-                    Usuario.sexo == categoria.sexo,
-                    Usuario.activo == True
+                    Usuario.sexo == categoria.sexo
                 ).count()
             else:
                 usuarios_por_rating = 0
@@ -210,7 +206,7 @@ async def estadisticas_categorias(
         
         return {
             "estadisticas": estadisticas,
-            "total_usuarios_activos": db.query(Usuario).filter(Usuario.activo == True).count()
+            "total_usuarios_activos": db.query(Usuario).count()
         }
         
     except Exception as e:

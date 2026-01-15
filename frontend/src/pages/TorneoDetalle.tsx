@@ -68,8 +68,8 @@ export default function TorneoDetalle() {
 
   // Verificar si el usuario es el creador del torneo
   const esCreadorTorneo = usuario?.id_usuario === (torneoActual as any).creado_por;
-  // El organizador es quien creó el torneo
-  const esOrganizador = esCreadorTorneo;
+  // El organizador puede ser el creador O estar en la tabla de organizadores
+  const esOrganizador = (torneoActual as any).es_organizador || esCreadorTorneo;
   
   // Permitir inscripción:
   // - Usuarios normales: solo cuando está en inscripción
@@ -342,6 +342,8 @@ export default function TorneoDetalle() {
         torneoId={parseInt(id!)}
         torneoNombre={torneoActual?.nombre || ''}
         esOrganizador={esOrganizador}
+        fechaInicio={torneoActual?.fecha_inicio}
+        fechaFin={torneoActual?.fecha_fin}
       />
     </div>
   );

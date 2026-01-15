@@ -28,6 +28,7 @@ from src.controllers.estadisticas_controller import router as estadisticas_route
 from src.controllers.sala_controller import router as sala_router
 from src.controllers.resultado_controller import router as resultado_router
 from src.controllers.torneo_controller import router as torneo_router
+from src.controllers.torneo_pago_controller import router as torneo_pago_router
 from src.controllers.health_controller import router as health_router
 from src.controllers.logs_controller import router as logs_router
 from src.controllers.admin_controller import router as admin_router
@@ -104,7 +105,7 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=origins,
     allow_credentials=True,
-    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    allow_methods=["*"],  # Permitir todos los métodos incluyendo PATCH
     allow_headers=["*"],
 )
 
@@ -112,7 +113,6 @@ app.add_middleware(
 register_exception_handlers(app)
 
 # ---- Routers ----
-logger.info("📋 Registrando routers...")
 app.include_router(auth_router)
 app.include_router(usuario_router)
 app.include_router(categoria_router)
@@ -122,12 +122,11 @@ app.include_router(partido_router)
 app.include_router(ranking_router)
 app.include_router(estadisticas_router)
 app.include_router(torneo_router)
-logger.info("✅ Router de torneos registrado - POST /torneos disponible")
+app.include_router(torneo_pago_router)
 app.include_router(health_router)
 app.include_router(logs_router)
 app.include_router(admin_router)
 app.include_router(categoria_maintenance_router)
-logger.info("✅ Todos los routers registrados")
 
 # ---- Endpoints básicos ----
 @app.get("/")
@@ -141,7 +140,14 @@ async def root():
 
 @app.get("/health")
 async def health_check():
-    return {"status": "healthy", "service": "Drive+ API", "database": "connected", "cors": "enabled"}
+    return {
+        "status": "healthy", 
+        "service": "Drive+ API", 
+        "database": "connected", 
+        "cors": "enabled",
+        "version": "2.0.0",  # Incrementar para verificar deployment
+        "last_update": "2026-01-08T02:47:00Z"
+    }
 
 @app.get("/api/test-cors")
 async def test_cors():

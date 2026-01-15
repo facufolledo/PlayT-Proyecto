@@ -23,10 +23,9 @@ interface TorneoBracketProps {
   torneoId: number;
   esOrganizador: boolean;
   onResultadoCargado?: () => void;
-  vistaMobile?: boolean;
 }
 
-export default function TorneoBracket({ partidos, torneoId, esOrganizador, onResultadoCargado, vistaMobile = false }: TorneoBracketProps) {
+export default function TorneoBracket({ partidos, torneoId, esOrganizador, onResultadoCargado }: TorneoBracketProps) {
   const [partidoSeleccionado, setPartidoSeleccionado] = useState<Partido | null>(null);
   const [modalOpen, setModalOpen] = useState(false);
   const [svgSize, setSvgSize] = useState({ width: 0, height: 0 });
@@ -203,7 +202,7 @@ export default function TorneoBracket({ partidos, torneoId, esOrganizador, onRes
   };
 
   // PartidoBox component
-  const PartidoBox = ({ partido, esFinal = false, mobile = false }: { partido: Partido; esFinal?: boolean; mobile?: boolean }) => {
+  const PartidoBox = ({ partido, esFinal = false }: { partido: Partido; esFinal?: boolean }) => {
     const esBye = partido.estado === 'bye';
     const ganadorA = partido.ganador_id === partido.pareja1_id && partido.pareja1_id;
     const ganadorB = partido.ganador_id === partido.pareja2_id && partido.pareja2_id;
@@ -212,12 +211,10 @@ export default function TorneoBracket({ partidos, torneoId, esOrganizador, onRes
       esOrganizador && partido.estado === 'pendiente' && partido.id > 0 && tieneAmbosEquipos;
     const partidoFinalizado = partido.estado === 'confirmado';
 
-    const widthClass = mobile ? 'w-full' : 'w-[200px]';
-
     if (esBye) {
       const nombreGanador = partido.pareja1_nombre || partido.pareja2_nombre || 'TBD';
       return (
-        <div className={`bg-card border-2 border-green-500/30 rounded-lg overflow-hidden ${widthClass}`}>
+        <div className="bg-card border-2 border-green-500/30 rounded-lg overflow-hidden w-[200px]">
           <div className="flex items-center gap-2 px-3 py-2.5 border-b border-cardBorder bg-green-500/10">
             <FastForward size={12} className="text-green-500 flex-shrink-0" />
             <span className="text-xs font-bold text-green-500 truncate">{nombreGanador}</span>
@@ -235,7 +232,7 @@ export default function TorneoBracket({ partidos, torneoId, esOrganizador, onRes
 
     return (
       <div
-        className={`bg-card border-2 rounded-lg overflow-hidden ${widthClass} ${
+        className={`bg-card border-2 rounded-lg overflow-hidden w-[200px] ${
           esFinal
             ? 'border-accent shadow-lg shadow-accent/20'
             : partidoFinalizado
@@ -290,128 +287,6 @@ export default function TorneoBracket({ partidos, torneoId, esOrganizador, onRes
       <div className="text-center py-8">
         <Trophy size={48} className="mx-auto text-textSecondary mb-4" />
         <p className="text-textSecondary">No hay partidos de playoffs</p>
-      </div>
-    );
-  }
-
-  // Vista móvil optimizada - Lista vertical por fases
-  if (vistaMobile) {
-    return (
-      <div className="w-full space-y-6">
-        {/* Campeón */}
-        {hayCampeon && nombreCampeon && (
-          <motion.div initial={{ opacity: 0, scale: 0.8 }} animate={{ opacity: 1, scale: 1 }} className="mb-6">
-            <div className="relative bg-gradient-to-br from-yellow-500/20 via-accent/20 to-yellow-500/20 rounded-xl p-4 border-2 border-yellow-500/50 shadow-lg overflow-hidden">
-              <div className="text-center">
-                <div className="flex justify-center mb-2">
-                  <div className="relative">
-                    <div className="absolute -inset-2 bg-yellow-500/30 rounded-full blur-lg" />
-                    <div className="relative bg-gradient-to-br from-yellow-400 to-yellow-600 p-2 rounded-full">
-                      <Trophy size={24} className="text-white" />
-                    </div>
-                  </div>
-                </div>
-                <div className="flex items-center justify-center gap-2 mb-2">
-                  <Crown size={16} className="text-yellow-500" />
-                  <h2 className="text-lg font-black text-transparent bg-clip-text bg-gradient-to-r from-yellow-400 to-yellow-600">
-                    ¡CAMPEONES!
-                  </h2>
-                  <Crown size={16} className="text-yellow-500" />
-                </div>
-                <div className="bg-yellow-500/10 rounded-lg p-2 border border-yellow-500/30 inline-block">
-                  <div className="flex items-center gap-2">
-                    <Sparkles size={14} className="text-yellow-500" />
-                    <span className="text-sm font-bold text-yellow-500">{nombreCampeon}</span>
-                    <Sparkles size={14} className="text-yellow-500" />
-                  </div>
-                </div>
-              </div>
-            </div>
-          </motion.div>
-        )}
-
-        {/* Header */}
-        <div className="text-center mb-4">
-          <div className="inline-flex items-center gap-2 bg-gradient-to-r from-accent/10 to-primary/10 px-4 py-2 rounded-full">
-            <Trophy className="text-accent" size={18} />
-            <h2 className="text-base font-bold text-textPrimary">{hayCampeon ? 'Resultados' : 'Fase de Playoffs'}</h2>
-            <Trophy className="text-primary" size={18} />
-          </div>
-          <p className="text-textSecondary mt-1 text-xs">Eliminación directa</p>
-        </div>
-
-        {/* Fases en vista móvil */}
-        {fasesActivas.map(([nombre, partidosFase], faseIdx) => {
-          const esFinal = nombre === 'final';
-          
-          return (
-            <div key={nombre} className="space-y-3">
-              {/* Título de fase */}
-              <div className="text-center">
-                <div className={`inline-block px-3 py-1 rounded-lg ${esFinal ? 'bg-gradient-to-r from-accent to-primary' : 'bg-primary/10'}`}>
-                  <span className={`text-xs font-bold uppercase ${esFinal ? 'text-white' : 'text-primary'}`}>
-                    {nombre === 'semis'
-                      ? 'Semifinales'
-                      : nombre === '4tos'
-                        ? 'Cuartos'
-                        : nombre === '8vos'
-                          ? 'Octavos'
-                          : nombre === '16avos'
-                            ? '16avos'
-                            : 'Final'}
-                  </span>
-                </div>
-              </div>
-
-              {/* Partidos de la fase */}
-              <div className="space-y-2">
-                {partidosFase.map((partido, idx) => (
-                  <motion.div
-                    key={partido.id || `${nombre}-${idx}`}
-                    initial={{ opacity: 0, x: -20 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    transition={{ delay: faseIdx * 0.08 + idx * 0.03 }}
-                    className="w-full"
-                  >
-                    <PartidoBox partido={partido} esFinal={esFinal} mobile={true} />
-                  </motion.div>
-                ))}
-              </div>
-            </div>
-          );
-        })}
-
-        {/* Leyenda */}
-        <div className="mt-4 flex flex-wrap items-center justify-center gap-3 text-xs">
-          <div className="flex items-center gap-1.5">
-            <div className="w-2 h-2 rounded-full bg-green-500" />
-            <span className="text-textSecondary">Ganador</span>
-          </div>
-          <div className="flex items-center gap-1.5">
-            <div className="w-2 h-2 rounded-full bg-yellow-500" />
-            <span className="text-textSecondary">Pendiente</span>
-          </div>
-          <div className="flex items-center gap-1.5">
-            <FastForward size={12} className="text-green-500" />
-            <span className="text-textSecondary">BYE</span>
-          </div>
-        </div>
-
-        {/* Modal */}
-        {partidoSeleccionado &&
-          createPortal(
-            <ModalCargarResultado
-              isOpen={modalOpen}
-              onClose={() => {
-                setModalOpen(false);
-                setPartidoSeleccionado(null);
-              }}
-              partido={{ ...partidoSeleccionado, id_partido: partidoSeleccionado.id_partido || partidoSeleccionado.id }}
-              torneoId={torneoId}
-              onResultadoCargado={handleResultadoCargado}
-            />,
-            document.body
-          )}
       </div>
     );
   }

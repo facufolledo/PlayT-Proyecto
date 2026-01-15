@@ -1,8 +1,6 @@
 // Servicio de autenticación con Firebase
 import { 
   signInWithPopup,
-  signInWithRedirect,
-  getRedirectResult,
   signInWithEmailAndPassword,
   createUserWithEmailAndPassword,
   signOut,
@@ -24,59 +22,16 @@ export interface PerfilCompleto {
   ciudad?: string;
 }
 
-// Detectar si es móvil
-const isMobile = () => {
-  return /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) ||
-         window.innerWidth < 768;
-};
-
 class AuthService {
-  // Login con Google - usar popup en desktop, redirect en móvil
+  // Login con Google usando popup
   async loginWithGoogle(): Promise<User> {
     try {
-      if (isMobile()) {
-        // En móviles usar redirect para evitar problemas COOP
-        logger.log('Usando signInWithRedirect para móvil');
-        await signInWithRedirect(auth, googleProvider);
-        // signInWithRedirect no retorna inmediatamente, el resultado se obtiene en getRedirectResult
-        throw new Error('REDIRECT_IN_PROGRESS');
-      } else {
-        // En desktop usar popup
-        logger.log('Usando signInWithPopup para desktop');
-        const result = await signInWithPopup(auth, googleProvider);
-        logger.log('Login con Google exitoso:', result.user.email);
-        return result.user;
-      }
+      const result = await signInWithPopup(auth, googleProvider);
+      logger.log('Login con Google exitoso:', result.user.email);
+      return result.user;
     } catch (error: any) {
-      if (error.message === 'REDIRECT_IN_PROGRESS') {
-        throw error; // Re-lanzar para que el componente sepa que está en progreso
-      }
       logger.error('Error en login con Google:', error);
-      
-      // Errores específicos de COOP
-      if (error.code === 'auth/popup-blocked' || 
-          error.message.includes('Cross-Origin-Opener-Policy')) {
-        logger.log('Popup bloqueado, intentando con redirect');
-        await signInWithRedirect(auth, googleProvider);
-        throw new Error('REDIRECT_IN_PROGRESS');
-      }
-      
       throw new Error(error.message || 'Error al iniciar sesión con Google');
-    }
-  }
-
-  // Verificar resultado de redirect (llamar al cargar la página)
-  async checkRedirectResult(): Promise<User | null> {
-    try {
-      const result = await getRedirectResult(auth);
-      if (result?.user) {
-        logger.log('Login con Google (redirect) exitoso:', result.user.email);
-        return result.user;
-      }
-      return null;
-    } catch (error: any) {
-      logger.error('Error en redirect result:', error);
-      throw new Error(error.message || 'Error al procesar login con Google');
     }
   }
 
