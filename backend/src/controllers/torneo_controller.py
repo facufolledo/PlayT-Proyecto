@@ -1313,27 +1313,36 @@ def mover_pareja(
 def generar_zonas_inteligente(
     torneo_id: int,
     num_zonas: Optional[int] = None,
+    num_canchas: int = 3,
+    categoria_id: Optional[int] = None,
     db: Session = Depends(get_db),
     current_user: Usuario = Depends(get_current_user)
 ):
     """
     Genera zonas considerando disponibilidad horaria y balanceo por rating
     
-    Prioridad 1: Compatibilidad horaria
+    Prioridad 1: Compatibilidad horaria entre parejas de la misma zona
     Prioridad 2: Balanceo por rating
+    
+    Parámetros:
+    - num_zonas: Número de zonas (opcional, se calcula automáticamente)
+    - num_canchas: Número de canchas disponibles (default: 3)
+    - categoria_id: ID de categoría (opcional)
     
     Solo organizadores pueden generar zonas
     """
-    from ..services.torneo_fixture_service import TorneoFixtureService
+    from ..services.torneo_zona_horarios_service import TorneoZonaHorariosService
     
     try:
         user_id = current_user.id_usuario
-        zonas = TorneoFixtureService.generar_zonas_con_disponibilidad(
-            db, torneo_id, user_id, num_zonas
+        resultado = TorneoZonaHorariosService.generar_zonas_con_horarios(
+            db, torneo_id, user_id, num_zonas, num_canchas, categoria_id
         )
         return {
             "message": "Zonas generadas con criterio de disponibilidad horaria",
-            "zonas": [{"id": z.id, "nombre": z.nombre, "numero": z.numero_orden} for z in zonas]
+            "zonas_creadas": resultado["zonas_creadas"],
+            "zonas": resultado["zonas"],
+            "compatibilidad_promedio": f"{resultado['compatibilidad_promedio'] * 100:.1f}%"
         }
     except ValueError as e:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
