@@ -30,10 +30,14 @@ engine = create_engine(
     pool_size=POOL_SIZE,
     max_overflow=MAX_OVERFLOW,
     pool_pre_ping=True,  # CRÍTICO: verifica conexión antes de usar
-    pool_recycle=300,  # Reciclar cada 5 min (Neon/Render cortan conexiones idle)
+    pool_recycle=280,  # Reciclar cada 4.6 min (antes de que Railway cierre a los 5 min)
     pool_timeout=30,  # Timeout para obtener conexión del pool
     connect_args={
-        "timeout": 10  # Timeout de conexión inicial
+        "timeout": 10,  # Timeout de conexión inicial
+        "tcp_keepalive": True,  # Mantener conexión viva
+        "tcp_keepalive_idle": 120,  # Enviar keepalive cada 2 min
+        "tcp_keepalive_interval": 30,  # Intervalo entre keepalives
+        "tcp_keepalive_count": 5  # Reintentos antes de considerar muerta
     },
     echo=False
 )
@@ -50,6 +54,24 @@ def receive_checkin(dbapi_connection, connection_record):
     """Log cuando se devuelve una conexión al pool"""
     if not IS_PRODUCTION:
         logger.debug("Conexión devuelta al pool")
+
+@event.listens_for(engine, "connect")
+def receive_connect(dbapi_connection, connection_record):
+    """Log cuando se crea una nueva conexión"""
+    logger.info("Nueva conexión a la base de datos establecida")
+
+@event.listens_for(engine, "close")
+def receive_close(dbapi_connection, connection_record):
+    """Manejar cierre de conexión de forma silenciosa"""
+    try:
+        # Intentar cerrar normalmente
+        pass
+    except Exception as e:
+        # Suprimir errores de BrokenPipe al cerrar
+        if "Broken pipe" in str(e) or "network error" in str(e):
+            logger.debug(f"Conexión ya cerrada por el servidor: {e}")
+        else:
+            logger.warning(f"Error al cerrar conexión: {e}")
 
 # Crear sesión local
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
