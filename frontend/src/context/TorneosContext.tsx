@@ -65,9 +65,15 @@ export function TorneosProvider({ children }: { children: ReactNode }) {
   // FUNCIONES AUXILIARES
   // ============================================
   
-  const adaptarTorneoBackendAFrontend = (torneoBackend: any): Torneo => {
+  const adaptarTorneoBackendAFrontend = (torneoBackend: any): Torneo | null => {
+    // Validar que el torneo tenga un ID válido
+    if (!torneoBackend.id || isNaN(Number(torneoBackend.id))) {
+      console.error('Torneo sin ID válido:', torneoBackend);
+      return null;
+    }
+    
     return {
-      id: torneoBackend.id?.toString() || '',
+      id: torneoBackend.id?.toString() || '0',
       nombre: torneoBackend.nombre || '',
       descripcion: torneoBackend.descripcion || '',
       categoria: torneoBackend.categoria || '',
@@ -112,7 +118,9 @@ export function TorneosProvider({ children }: { children: ReactNode }) {
       setError(null);
       
       const torneosData = await torneoService.listarTorneos();
-      const torneosAdaptados = torneosData.map(adaptarTorneoBackendAFrontend);
+      const torneosAdaptados = torneosData
+        .map(adaptarTorneoBackendAFrontend)
+        .filter((t): t is Torneo => t !== null); // Filtrar torneos inválidos
       setTorneos(torneosAdaptados);
     } catch (err: any) {
       console.error('Error al cargar torneos:', err);
