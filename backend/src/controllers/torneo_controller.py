@@ -1357,16 +1357,26 @@ def generar_fixture(
     current_user: Usuario = Depends(get_current_user)
 ):
     """
-    Genera el fixture completo del torneo (todos los partidos de todas las zonas)
+    Genera el fixture completo del torneo considerando:
+    - Todas las zonas y categorías
+    - Disponibilidad horaria de parejas
+    - Canchas disponibles (no más partidos simultáneos que canchas)
+    - Duración de partidos: 50 minutos
     
     Solo organizadores pueden generar fixture
     """
-    from ..services.torneo_fixture_service import TorneoFixtureService
+    from ..services.torneo_fixture_global_service import TorneoFixtureGlobalService
     
     try:
         user_id = current_user.id_usuario
-        resultado = TorneoFixtureService.generar_fixture_completo(db, torneo_id, user_id)
-        return resultado
+        resultado = TorneoFixtureGlobalService.generar_fixture_completo(db, torneo_id, user_id)
+        return {
+            "message": "Fixture generado exitosamente",
+            "partidos_generados": resultado["partidos_generados"],
+            "zonas_procesadas": resultado["zonas_procesadas"],
+            "canchas_utilizadas": resultado["canchas_utilizadas"],
+            "slots_utilizados": resultado["slots_utilizados"]
+        }
     except ValueError as e:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
     except Exception as e:
