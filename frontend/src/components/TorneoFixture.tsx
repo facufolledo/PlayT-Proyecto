@@ -19,7 +19,7 @@ export default function TorneoFixture({ torneoId, esOrganizador }: TorneoFixture
   const [generando, setGenerando] = useState(false);
   const [partidoSeleccionado, setPartidoSeleccionado] = useState<any>(null);
   const [modalResultadoOpen, setModalResultadoOpen] = useState(false);
-  const [filtroZona, setFiltroZona] = useState<string>('todas');
+  const [filtroZona, setFiltroZona] = useState<string | null>(null);
   const [zonas, setZonas] = useState<any[]>([]);
   const [canchas, setCanchas] = useState<any[]>([]);
   const [error, setError] = useState<string | null>(null);
@@ -31,6 +31,13 @@ export default function TorneoFixture({ torneoId, esOrganizador }: TorneoFixture
   useEffect(() => {
     cargarDatos();
   }, [torneoId]);
+
+  // Seleccionar automáticamente la primera categoría cuando se cargan
+  useEffect(() => {
+    if (categorias.length > 0 && categoriaFiltro === null) {
+      setCategoriaFiltro(categorias[0].id);
+    }
+  }, [categorias]);
 
   // Escuchar evento de cambio de tab con filtros
   useEffect(() => {
@@ -210,6 +217,11 @@ export default function TorneoFixture({ torneoId, esOrganizador }: TorneoFixture
     );
   }
 
+  // Filtrar zonas por categoría seleccionada
+  const zonasFiltradasPorCategoria = categoriaFiltro
+    ? zonas.filter((z: any) => z.categoria_id === categoriaFiltro)
+    : zonas;
+
   // Filtrar partidos por categoría
   const partidosFiltrados = categoriaFiltro
     ? partidos.filter((p: any) => p.categoria_id === categoriaFiltro)
@@ -257,47 +269,42 @@ export default function TorneoFixture({ torneoId, esOrganizador }: TorneoFixture
       {categorias.length > 0 && (
         <div className="flex items-center gap-2 overflow-x-auto pb-2">
           <Filter size={14} className="text-textSecondary flex-shrink-0" />
-          <button
-            onClick={() => setCategoriaFiltro(null)}
-            className={`px-3 py-1.5 rounded-lg text-xs font-bold whitespace-nowrap transition-all ${
-              categoriaFiltro === null
-                ? 'bg-accent text-white'
-                : 'bg-cardBorder text-textSecondary hover:bg-accent/20'
-            }`}
-          >
-            Todas
-          </button>
-          {categorias.map((cat) => (
-            <button
-              key={cat.id}
-              onClick={() => setCategoriaFiltro(cat.id)}
-              className={`px-3 py-1.5 rounded-lg text-xs font-bold whitespace-nowrap transition-all ${
-                categoriaFiltro === cat.id
-                  ? 'bg-accent text-white'
-                  : 'bg-cardBorder text-textSecondary hover:bg-accent/20'
-              }`}
-            >
-              {cat.nombre}
-            </button>
-          ))}
+          {categorias.map((cat) => {
+            const esF = cat.genero === 'femenino';
+            const esMixto = cat.genero === 'mixto';
+            const icon = esMixto ? '⚥' : esF ? '♀' : '♂';
+            const colorClasses = categoriaFiltro === cat.id
+              ? esMixto
+                ? 'bg-gradient-to-r from-purple-500 to-purple-600 text-white'
+                : esF
+                ? 'bg-gradient-to-r from-pink-500 to-pink-600 text-white'
+                : 'bg-gradient-to-r from-blue-500 to-blue-600 text-white'
+              : 'bg-cardBorder text-textSecondary hover:bg-primary/20';
+            
+            return (
+              <button
+                key={cat.id}
+                onClick={() => {
+                  setCategoriaFiltro(cat.id);
+                  setFiltroZona(null); // Reset zona filter when changing category
+                }}
+                className={`px-3 py-1.5 rounded-lg text-xs font-bold whitespace-nowrap transition-all flex items-center gap-1.5 ${colorClasses}`}
+              >
+                <span>{icon}</span>
+                {cat.nombre}
+              </button>
+            );
+          })}
         </div>
       )}
 
       {/* Header con filtros de zona y botón de captura */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div className="flex items-center gap-2 overflow-x-auto">
-          {/* Filtros por zona */}
-          {zonas.length > 1 && (
+          {/* Filtros por zona (de la categoría seleccionada) */}
+          {zonasFiltradasPorCategoria.length > 1 && (
             <div className="flex gap-2 pb-2 sm:pb-0">
-              <Button
-                variant={filtroZona === 'todas' ? 'primary' : 'ghost'}
-                onClick={() => setFiltroZona('todas')}
-                size="sm"
-                className="whitespace-nowrap text-xs"
-              >
-                Todas
-              </Button>
-              {zonas.map(zona => (
+              {zonasFiltradasPorCategoria.map(zona => (
                 <Button
                   key={zona.id}
                   variant={filtroZona === zona.id.toString() ? 'primary' : 'ghost'}
@@ -344,7 +351,7 @@ export default function TorneoFixture({ torneoId, esOrganizador }: TorneoFixture
       {/* Partidos por zona */}
       <div ref={fixtureRef} className="space-y-6">
       {zonasConPartidos
-        .filter(zona => filtroZona === 'todas' || filtroZona === zona.id)
+        .filter(zona => !filtroZona || filtroZona === zona.id)
         .map((zona, index) => (
           <motion.div
             key={zona.id}
