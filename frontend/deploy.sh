@@ -48,7 +48,7 @@ echo "2. Asegurar que el servidor sirva index.html para rutas SPA"
 echo "3. Verificar que los archivos .htaccess estén en su lugar"
 echo ""
 echo "🔧 Para probar CORS:"
-echo "   Visita: https://kioskito.click/Drive/cors-debug"
+echo "   Visita: https://drive-plus.com.ar/cors-debug"
 echo ""
 echo "📊 Archivos generados:"
 find dist/ -type f -name "*.js" -o -name "*.css" -o -name "*.html" | head -10

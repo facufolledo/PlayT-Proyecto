@@ -2,7 +2,7 @@
 
 ## Entorno de Producción
 
-- **Frontend**: Hosteado en `kioskito.click` (Hostinger)
+- **Frontend**: Hosteado en `drive-plus.com.ar` (Hostinger)
 - **Backend**: Hosteado en Railway (`drive-plus-production.up.railway.app`)
 - **Base de datos**: PostgreSQL en Railway
 
@@ -13,8 +13,8 @@ Cuando se modifique `backend/main.py`, asegurar que CORS incluya:
 origins = [
     "http://localhost:3000",
     "http://localhost:5173",
-    "https://kioskito.click",
-    "https://www.kioskito.click"
+    "https://drive-plus.com.ar",
+    "https://www.drive-plus.com.ar"
 ]
 ```
 

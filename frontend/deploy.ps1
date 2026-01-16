@@ -48,7 +48,7 @@ Write-Host "2. Asegurar que el servidor sirva index.html para rutas SPA"
 Write-Host "3. Verificar que los archivos .htaccess estén en su lugar"
 Write-Host ""
 Write-Host "🔧 Para probar CORS:" -ForegroundColor Cyan
-Write-Host "   Visita: https://kioskito.click/Drive/cors-debug"
+Write-Host "   Visita: https://drive-plus.com.ar/cors-debug"
 Write-Host ""
 Write-Host "📊 Archivos generados:" -ForegroundColor Magenta
 Get-ChildItem "dist" -Recurse -Include "*.js", "*.css", "*.html" | Select-Object -First 10 | Format-Table Name, Length

@@ -90,7 +90,7 @@ app = FastAPI(
 )
 
 # ---- CORS (DEBE IR ANTES DE OTROS MIDDLEWARES) ----
-_default_origins = '["http://localhost:3000", "http://127.0.0.1:3000", "http://localhost:8080", "http://localhost:5173", "http://127.0.0.1:5173", "http://localhost:5174", "http://127.0.0.1:5174", "https://kioskito.click", "https://www.kioskito.click"]'
+_default_origins = '["http://localhost:3000", "http://127.0.0.1:3000", "http://localhost:8080", "http://localhost:5173", "http://127.0.0.1:5173", "http://localhost:5174", "http://127.0.0.1:5174", "https://drive-plus.com.ar", "https://www.drive-plus.com.ar"]'
 try:
     origins = json.loads(os.getenv("CORS_ORIGINS", _default_origins))
     if not isinstance(origins, list):

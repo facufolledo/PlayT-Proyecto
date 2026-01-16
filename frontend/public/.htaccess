@@ -1,4 +1,4 @@
-# .htaccess para PlayT en kioskito.click (raíz)
+# .htaccess para Drive+ en drive-plus.com.ar (raíz)
 
 # Habilitar RewriteEngine
 <IfModule mod_rewrite.c>
