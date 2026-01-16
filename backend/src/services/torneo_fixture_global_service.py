@@ -374,9 +374,18 @@ class TorneoFixtureGlobalService:
         db.commit()
         
         # Crear nuevos partidos
+        from datetime import timezone
+        import pytz
+        
+        # Zona horaria de Argentina
+        tz_argentina = pytz.timezone('America/Argentina/Buenos_Aires')
+        
         for i, partido_data in enumerate(partidos_programados):
             fecha_hora_str = f"{partido_data['fecha']} {partido_data['hora']}:00"
-            fecha_hora = datetime.strptime(fecha_hora_str, '%Y-%m-%d %H:%M:%S')
+            # Crear datetime naive primero
+            fecha_hora_naive = datetime.strptime(fecha_hora_str, '%Y-%m-%d %H:%M:%S')
+            # Localizar a zona horaria de Argentina
+            fecha_hora = tz_argentina.localize(fecha_hora_naive)
             
             # Get tournament creator for id_creador
             torneo = db.query(Torneo).filter(Torneo.id == torneo_id).first()
