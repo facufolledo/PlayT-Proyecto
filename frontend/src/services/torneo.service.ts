@@ -335,6 +335,25 @@ class TorneoService {
     return response.data;
   }
 
+  async eliminarZonas(torneoId: number, categoriaId?: number): Promise<any> {
+    const response = await axios.delete(
+      `${API_URL}/torneos/${torneoId}/zonas`,
+      {
+        ...this.getAuthHeaders(),
+        params: categoriaId ? { categoria_id: categoriaId } : {}
+      }
+    );
+    return response.data;
+  }
+
+  async eliminarFixture(torneoId: number): Promise<any> {
+    const response = await axios.delete(
+      `${API_URL}/torneos/${torneoId}/fixture`,
+      this.getAuthHeaders()
+    );
+    return response.data;
+  }
+
   async listarZonas(torneoId: number): Promise<any[]> {
     const response = await axios.get(`${API_URL}/torneos/${torneoId}/zonas`);
     return response.data;

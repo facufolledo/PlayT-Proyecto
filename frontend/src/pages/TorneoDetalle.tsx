@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { ArrowLeft, Calendar, MapPin, Trophy, Users, Settings } from 'lucide-react';
+import { ArrowLeft, Calendar, MapPin, Trophy, Users, Settings, Clock } from 'lucide-react';
 import { useTorneos } from '../context/TorneosContext';
 import { useAuth } from '../context/AuthContext';
 import Card from '../components/Card';
@@ -167,6 +167,48 @@ export default function TorneoDetalle() {
               </div>
             </div>
           </div>
+
+          {/* Horarios del torneo */}
+          {(() => {
+            console.log('torneoActual:', torneoActual);
+            console.log('horarios_disponibles:', (torneoActual as any).horarios_disponibles);
+            return (torneoActual as any).horarios_disponibles;
+          })() && (
+            <div className="mb-6 p-4 bg-background rounded-lg border-2 border-accent">
+              <h3 className="font-bold text-textPrimary mb-3 flex items-center gap-2">
+                <Clock className="text-primary" size={20} />
+                Horarios del Torneo
+              </h3>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                {(torneoActual as any).horarios_disponibles.semana && (torneoActual as any).horarios_disponibles.semana.length > 0 && (
+                  <div className="flex items-start gap-2">
+                    <span className="text-xs font-bold text-textSecondary">Lun-Vie:</span>
+                    <div className="flex-1">
+                      {(torneoActual as any).horarios_disponibles.semana.map((franja: any, idx: number) => (
+                        <span key={idx} className="text-sm text-textPrimary">
+                          {franja.desde} - {franja.hasta}
+                          {idx < (torneoActual as any).horarios_disponibles.semana.length - 1 && ', '}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                {(torneoActual as any).horarios_disponibles.finDeSemana && (torneoActual as any).horarios_disponibles.finDeSemana.length > 0 && (
+                  <div className="flex items-start gap-2">
+                    <span className="text-xs font-bold text-textSecondary">Sáb-Dom:</span>
+                    <div className="flex-1">
+                      {(torneoActual as any).horarios_disponibles.finDeSemana.map((franja: any, idx: number) => (
+                        <span key={idx} className="text-sm text-textPrimary">
+                          {franja.desde} - {franja.hasta}
+                          {idx < (torneoActual as any).horarios_disponibles.finDeSemana.length - 1 && ', '}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
 
           {/* Descripción */}
           <div className="mb-6">

@@ -89,6 +89,7 @@ export function TorneosProvider({ children }: { children: ReactNode }) {
       // Guardar estado original y creador para verificaciones
       estado_original: torneoBackend.estado,
       creado_por: torneoBackend.creado_por,
+      horarios_disponibles: torneoBackend.horarios_disponibles,
     } as Torneo;
   };
   

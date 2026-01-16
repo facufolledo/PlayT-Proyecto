@@ -8,8 +8,9 @@ from collections import defaultdict
 
 from ..models.torneo_models import (
     Torneo, TorneoZona, TorneoPareja, TorneoCancha, 
-    TorneoPartido, TorneoCategoria
+    TorneoCategoria
 )
+from ..models.driveplus_models import Partido
 
 
 class TorneoFixtureGlobalService:
@@ -178,32 +179,29 @@ class TorneoFixtureGlobalService:
             disp = pareja.disponibilidad_horaria or {}
             slots = set()
             
-            # Si no tiene disponibilidad, asumimos disponible siempre
+            # Si no tiene disponibilidad, asumimos disponible siempre (set vacío = sin restricciones)
             if not disp or not disp.get('franjas'):
-                # Disponible todo el día todos los días
-                for dia in ['lunes', 'martes', 'miercoles', 'jueves', 'viernes', 'sabado', 'domingo']:
-                    for hora in range(8, 23):
-                        for minuto in [0, 50]:
-                            if hora == 22 and minuto == 50:
-                                continue
-                            slots.add((dia, f"{hora:02d}:{minuto:02d}"))
-            else:
-                # Procesar franjas específicas
-                franjas = disp.get('franjas', [])
-                for franja in franjas:
-                    dias = franja.get('dias', [])
-                    hora_inicio = franja.get('horaInicio', '08:00')
-                    hora_fin = franja.get('horaFin', '23:00')
-                    
-                    # Generar slots
-                    hora_actual = datetime.strptime(hora_inicio, '%H:%M')
-                    hora_limite = datetime.strptime(hora_fin, '%H:%M')
-                    
-                    for dia in dias:
-                        h = hora_actual
-                        while h < hora_limite:
-                            slots.add((dia, h.strftime('%H:%M')))
-                            h += timedelta(minutes=50)
+                # Set vacío significa "disponible en cualquier horario del torneo"
+                # Esto se manejará en _asignar_horarios_y_canchas
+                disponibilidad[pareja_id] = set()
+                continue
+            
+            # Procesar franjas específicas
+            franjas = disp.get('franjas', [])
+            for franja in franjas:
+                dias = franja.get('dias', [])
+                hora_inicio = franja.get('horaInicio', '08:00')
+                hora_fin = franja.get('horaFin', '23:00')
+                
+                # Generar slots
+                hora_actual = datetime.strptime(hora_inicio, '%H:%M')
+                hora_limite = datetime.strptime(hora_fin, '%H:%M')
+                
+                for dia in dias:
+                    h = hora_actual
+                    while h < hora_limite:
+                        slots.add((dia, h.strftime('%H:%M')))
+                        h += timedelta(minutes=50)
             
             disponibilidad[pareja_id] = slots
         
@@ -303,14 +301,21 @@ class TorneoFixtureGlobalService:
             # Slots compatibles para ambas parejas
             slots_compatibles = []
             for fecha, dia, hora in slots_disponibles:
-                if (dia, hora) in disp1 and (dia, hora) in disp2:
+                # Si alguna pareja no tiene restricciones (set vacío), está disponible siempre
+                pareja1_disponible = len(disp1) == 0 or (dia, hora) in disp1
+                pareja2_disponible = len(disp2) == 0 or (dia, hora) in disp2
+                
+                if pareja1_disponible and pareja2_disponible:
                     # Verificar si hay cancha disponible en este slot
                     canchas_ocupadas = ocupacion.get((fecha, hora), [])
                     if len(canchas_ocupadas) < num_canchas:
                         slots_compatibles.append((fecha, dia, hora))
             
             if not slots_compatibles:
-                # No hay slots compatibles, asignar el primer slot disponible
+                # Si no hay slots compatibles con disponibilidad específica,
+                # usar cualquier slot del torneo (las zonas ya consideran compatibilidad)
+                print(f"⚠️ Partido sin horarios compatibles específicos: Pareja {pareja1_id} vs {pareja2_id}")
+                print(f"   Asignando primer slot disponible del torneo...")
                 for fecha, dia, hora in slots_disponibles:
                     canchas_ocupadas = ocupacion.get((fecha, hora), [])
                     if len(canchas_ocupadas) < num_canchas:
@@ -318,7 +323,8 @@ class TorneoFixtureGlobalService:
                         break
             
             if not slots_compatibles:
-                # No hay slots disponibles en absoluto
+                # No hay slots disponibles en absoluto (todas las canchas ocupadas)
+                print(f"❌ No se pudo programar partido: Pareja {pareja1_id} vs {pareja2_id} - Todas las canchas ocupadas")
                 continue
             
             # Tomar el primer slot compatible
@@ -360,9 +366,9 @@ class TorneoFixtureGlobalService:
     ):
         """Guarda los partidos programados en la base de datos"""
         # Eliminar partidos existentes de fase de grupos
-        db.query(TorneoPartido).filter(
-            TorneoPartido.torneo_id == torneo_id,
-            TorneoPartido.fase == 'zona'
+        db.query(Partido).filter(
+            Partido.id_torneo == torneo_id,
+            Partido.fase == 'zona'
         ).delete()
         
         db.commit()
@@ -372,8 +378,11 @@ class TorneoFixtureGlobalService:
             fecha_hora_str = f"{partido_data['fecha']} {partido_data['hora']}:00"
             fecha_hora = datetime.strptime(fecha_hora_str, '%Y-%m-%d %H:%M:%S')
             
-            partido = TorneoPartido(
-                torneo_id=torneo_id,
+            # Get tournament creator for id_creador
+            torneo = db.query(Torneo).filter(Torneo.id == torneo_id).first()
+            
+            partido = Partido(
+                id_torneo=torneo_id,
                 zona_id=partido_data['zona_id'],
                 fase='zona',
                 numero_partido=i + 1,
@@ -381,7 +390,11 @@ class TorneoFixtureGlobalService:
                 pareja2_id=partido_data['pareja2_id'],
                 cancha_id=partido_data['cancha_id'],
                 fecha_hora=fecha_hora,
-                estado='pendiente'
+                fecha=fecha_hora,  # Also set fecha field
+                estado='pendiente',
+                tipo='torneo',
+                id_creador=torneo.creado_por if torneo else 1,
+                categoria_id=partido_data.get('categoria_id')
             )
             db.add(partido)
         

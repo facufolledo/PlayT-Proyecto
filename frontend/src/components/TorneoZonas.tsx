@@ -37,6 +37,13 @@ export default function TorneoZonas({ torneoId, esOrganizador }: TorneoZonasProp
     cargarCategorias();
   }, [torneoId]);
 
+  // Seleccionar automáticamente la primera categoría cuando se cargan
+  useEffect(() => {
+    if (categorias.length > 0 && categoriaFiltro === null) {
+      setCategoriaFiltro(categorias[0].id);
+    }
+  }, [categorias]);
+
   const cargarCategorias = async () => {
     try {
       const cats = await torneoService.listarCategorias(torneoId);
@@ -113,6 +120,26 @@ export default function TorneoZonas({ torneoId, esOrganizador }: TorneoZonasProp
     }
   };
 
+  const eliminarZonas = async (categoriaId?: number) => {
+    if (!confirm(`¿Estás seguro de eliminar las zonas${categoriaId ? ' de esta categoría' : ''}? Se perderán todos los partidos y resultados.`)) {
+      return;
+    }
+    
+    try {
+      setGenerando(true);
+      setError(null);
+      await torneoService.eliminarZonas(torneoId, categoriaId);
+      // Invalidar cache y recargar
+      refrescarDatos();
+      await cargarCategorias();
+    } catch (error: any) {
+      console.error('Error al eliminar zonas:', error);
+      setError(error.response?.data?.detail || 'Error al eliminar zonas');
+    } finally {
+      setGenerando(false);
+    }
+  };
+
   if (loading) {
     return (
       <div className="space-y-4">
@@ -136,7 +163,7 @@ export default function TorneoZonas({ torneoId, esOrganizador }: TorneoZonasProp
           </h3>
           <p className="text-textSecondary mb-6">
             {categorias.length > 0 
-              ? 'Generá las zonas para cada categoría del torneo'
+              ? 'Generá las zonas para cada categoría del torneo. Cada categoría tendrá sus propias zonas.'
               : 'Las zonas se generan automáticamente cuando hay suficientes parejas inscritas'
             }
           </p>
@@ -208,36 +235,55 @@ export default function TorneoZonas({ torneoId, esOrganizador }: TorneoZonasProp
     window.dispatchEvent(new CustomEvent('cambiarTab', { detail: 'partidos' }));
   };
 
-  // Filtrar tablas por categoría
+  // Filtrar tablas por categoría (SIEMPRE filtrar, nunca mostrar todas)
   const tablasFiltradas = categoriaFiltro
     ? tablas.filter((t: any) => {
         const zona = zonas.find(z => z.id === t.zona_id);
         return zona?.categoria_id === categoriaFiltro;
       })
-    : tablas;
+    : [];
 
   return (
     <div className="space-y-6">
       {/* Header con botones */}
       <div className="flex flex-wrap items-center justify-between gap-3">
-        {/* Botón ir al fixture (solo organizador) */}
-        {esOrganizador && (
-          <Button
-            onClick={irAlFixture}
-            variant="accent"
-            size="sm"
-            className="flex items-center gap-2 text-xs"
-          >
-            <Calendar size={14} />
-            Cargar Resultados
-          </Button>
-        )}
+        <div className="flex items-center gap-2">
+          {/* Botón ir al fixture (solo organizador) */}
+          {esOrganizador && (
+            <Button
+              onClick={irAlFixture}
+              variant="accent"
+              size="sm"
+              className="flex items-center gap-2 text-xs"
+            >
+              <Calendar size={14} />
+              Cargar Resultados
+            </Button>
+          )}
+          
+          {/* Botón eliminar zonas de categoría actual (solo organizador) */}
+          {esOrganizador && categoriaFiltro && tablasFiltradas.length > 0 && (
+            <button
+              onClick={() => {
+                const cat = categorias.find(c => c.id === categoriaFiltro);
+                if (confirm(`⚠️ ¿Estás seguro de eliminar las zonas de ${cat?.nombre}?\n\nSe eliminarán:\n- Todas las zonas\n- Todos los partidos\n- Todas las tablas de posiciones\n\nEsta acción NO se puede deshacer.`)) {
+                  eliminarZonas(categoriaFiltro);
+                }
+              }}
+              disabled={generando}
+              className="flex items-center gap-1.5 text-xs text-red-500 hover:text-red-600 hover:bg-red-500/10 transition-colors px-2 py-1 rounded border border-red-500/20 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              <X size={14} />
+              Eliminar Zonas
+            </button>
+          )}
+        </div>
         
         {/* Botón refrescar */}
         <button
           onClick={refrescarDatos}
           disabled={loading}
-          className="flex items-center gap-1.5 text-xs text-textSecondary hover:text-primary transition-colors px-2 py-1 rounded hover:bg-background ml-auto"
+          className="flex items-center gap-1.5 text-xs text-textSecondary hover:text-primary transition-colors px-2 py-1 rounded hover:bg-background"
         >
           <RefreshCw size={14} className={loading ? 'animate-spin' : ''} />
           Actualizar
@@ -248,16 +294,6 @@ export default function TorneoZonas({ torneoId, esOrganizador }: TorneoZonasProp
       {categorias.length > 0 && (
         <div className="flex items-center gap-2 overflow-x-auto pb-2">
           <Filter size={14} className="text-textSecondary flex-shrink-0" />
-          <button
-            onClick={() => setCategoriaFiltro(null)}
-            className={`px-3 py-1.5 rounded-lg text-xs font-bold whitespace-nowrap transition-all ${
-              categoriaFiltro === null
-                ? 'bg-primary text-white'
-                : 'bg-cardBorder text-textSecondary hover:bg-primary/20'
-            }`}
-          >
-            Todas
-          </button>
           {categorias.map((cat) => {
             const esF = cat.genero === 'femenino';
             const esMixto = cat.genero === 'mixto';
@@ -315,7 +351,48 @@ export default function TorneoZonas({ torneoId, esOrganizador }: TorneoZonasProp
       )}
 
       {/* Tablas de posiciones de cada zona */}
-      {tablasFiltradas.map((tabla, index) => (
+      {tablasFiltradas.length === 0 && categoriaFiltro && zonas.length > 0 ? (
+        // Mensaje cuando la categoría seleccionada no tiene zonas
+        <Card>
+          <div className="p-6 text-center">
+            <Users size={48} className="mx-auto text-textSecondary mb-4" />
+            <h3 className="text-xl font-bold text-textPrimary mb-2">
+              Esta categoría aún no tiene zonas generadas
+            </h3>
+            <p className="text-textSecondary mb-6">
+              {esOrganizador 
+                ? 'Generá las zonas para esta categoría usando el botón de abajo'
+                : 'El organizador aún no generó las zonas para esta categoría'
+              }
+            </p>
+            {esOrganizador && (() => {
+              const cat = categorias.find(c => c.id === categoriaFiltro);
+              if (!cat) return null;
+              const esF = cat.genero === 'femenino';
+              const esMixto = cat.genero === 'mixto';
+              const colorClasses = esMixto 
+                ? 'bg-gradient-to-r from-purple-500 to-purple-600 hover:from-purple-600 hover:to-purple-700'
+                : esF
+                ? 'bg-gradient-to-r from-pink-500 to-pink-600 hover:from-pink-600 hover:to-pink-700'
+                : 'bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700';
+              
+              return (
+                <button
+                  onClick={() => generarZonas(cat.id)}
+                  disabled={generando}
+                  className={`${colorClasses} text-white px-4 py-2 rounded-lg text-sm font-bold transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 shadow-lg hover:shadow-xl mx-auto`}
+                >
+                  <span className="text-base">
+                    {esMixto ? '⚥' : esF ? '♀' : '♂'}
+                  </span>
+                  {generando ? 'Generando...' : `Generar ${cat.nombre}`}
+                </button>
+              );
+            })()}
+          </div>
+        </Card>
+      ) : (
+        tablasFiltradas.map((tabla, index) => (
         <motion.div
           key={tabla.zona_id}
           initial={{ opacity: 0, y: 20 }}
@@ -500,7 +577,7 @@ export default function TorneoZonas({ torneoId, esOrganizador }: TorneoZonasProp
             </div>
           </Card>
         </motion.div>
-      ))}
+      )))}
 
       {/* Info de clasificación */}
       <div className="flex flex-wrap gap-3 justify-center">

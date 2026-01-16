@@ -44,7 +44,7 @@ export default defineConfig(({ mode }) => ({
     cssCodeSplit: true
   },
   server: {
-    port: 5174,
+    port: 5173,
     strictPort: true,
     host: true,
     cors: true
