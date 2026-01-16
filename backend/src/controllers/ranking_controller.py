@@ -15,74 +15,27 @@ router = APIRouter(prefix="/ranking", tags=["Ranking"])
 
 def _get_ranking_from_db(db: Session, limit: int, offset: int, sexo: Optional[str]) -> List[dict]:
     """Lógica de ranking extraída para poder cachear"""
-    from ..models.driveplus_models import PartidoJugador, ResultadoPartido, Partido
+    from ..models.driveplus_models import PartidoJugador, ResultadoPartido, Partido, HistorialRating
     from ..models.torneo_models import TorneoPareja
+    from sqlalchemy import text
     
-    # Subquery para calcular partidos ganados desde resultado_partidos (partidos amistosos)
-    partidos_ganados_amistosos = (
+    # Subquery para calcular partidos ganados desde historial_rating
+    # Esta es la fuente de verdad para victorias (incluye amistosos y torneos)
+    partidos_ganados_subq = (
         db.query(
-            PartidoJugador.id_usuario,
-            func.count(PartidoJugador.id_partido).label("partidos_ganados")
+            HistorialRating.id_usuario,
+            func.count(HistorialRating.id_partido).label("partidos_ganados")
         )
-        .join(ResultadoPartido, PartidoJugador.id_partido == ResultadoPartido.id_partido)
-        .join(Partido, PartidoJugador.id_partido == Partido.id_partido)
+        .join(Partido, HistorialRating.id_partido == Partido.id_partido)
         .filter(
             Partido.estado.in_(["finalizado", "confirmado"]),
-            ResultadoPartido.confirmado == True,
-            (
-                ((PartidoJugador.equipo == 1) & (ResultadoPartido.sets_eq1 > ResultadoPartido.sets_eq2)) |
-                ((PartidoJugador.equipo == 2) & (ResultadoPartido.sets_eq2 > ResultadoPartido.sets_eq1))
-            )
+            HistorialRating.delta > 0  # Delta positivo = victoria
         )
-        .group_by(PartidoJugador.id_usuario)
+        .group_by(HistorialRating.id_usuario)
         .subquery()
     )
     
-    # Subquery para calcular partidos ganados desde resultado_padel (partidos de torneo)
-    # Necesitamos contar cuántos partidos ganó cada jugador en torneos
-    # Esto es más complejo porque necesitamos:
-    # 1. Obtener partidos con resultado_padel
-    # 2. Determinar el ganador desde el JSON
-    # 3. Obtener los jugadores de cada pareja
-    # 4. Contar victorias por jugador
-    
-    # Por ahora, vamos a usar una query más simple que cuenta desde el campo ganador_pareja_id
-    partidos_ganados_torneos_subq = (
-        db.query(
-            TorneoPareja.jugador1_id.label("id_usuario"),
-            func.count(Partido.id_partido).label("partidos_ganados_torneo")
-        )
-        .join(Partido, Partido.ganador_pareja_id == TorneoPareja.id)
-        .filter(
-            Partido.estado == "confirmado",
-            Partido.tipo == "torneo"
-        )
-        .group_by(TorneoPareja.jugador1_id)
-        .union_all(
-            db.query(
-                TorneoPareja.jugador2_id.label("id_usuario"),
-                func.count(Partido.id_partido).label("partidos_ganados_torneo")
-            )
-            .join(Partido, Partido.ganador_pareja_id == TorneoPareja.id)
-            .filter(
-                Partido.estado == "confirmado",
-                Partido.tipo == "torneo"
-            )
-            .group_by(TorneoPareja.jugador2_id)
-        )
-    ).subquery()
-    
-    # Agrupar victorias de torneos por usuario
-    partidos_ganados_torneos_agrupados = (
-        db.query(
-            partidos_ganados_torneos_subq.c.id_usuario,
-            func.sum(partidos_ganados_torneos_subq.c.partidos_ganados_torneo).label("partidos_ganados_torneo")
-        )
-        .group_by(partidos_ganados_torneos_subq.c.id_usuario)
-        .subquery()
-    )
-    
-    # Query principal con JOIN a ambas subqueries
+    # Query principal con JOIN a la subquery
     query = (
         db.query(
             Usuario.id_usuario,
@@ -96,15 +49,11 @@ def _get_ranking_from_db(db: Session, limit: int, offset: int, sexo: Optional[st
             PerfilUsuario.pais,
             PerfilUsuario.url_avatar,
             Categoria.nombre.label("categoria_nombre"),
-            (
-                func.coalesce(partidos_ganados_amistosos.c.partidos_ganados, 0) +
-                func.coalesce(partidos_ganados_torneos_agrupados.c.partidos_ganados_torneo, 0)
-            ).label("partidos_ganados")
+            func.coalesce(partidos_ganados_subq.c.partidos_ganados, 0).label("partidos_ganados")
         )
         .join(PerfilUsuario, Usuario.id_usuario == PerfilUsuario.id_usuario, isouter=True)
         .join(Categoria, Usuario.id_categoria == Categoria.id_categoria, isouter=True)
-        .join(partidos_ganados_amistosos, Usuario.id_usuario == partidos_ganados_amistosos.c.id_usuario, isouter=True)
-        .join(partidos_ganados_torneos_agrupados, Usuario.id_usuario == partidos_ganados_torneos_agrupados.c.id_usuario, isouter=True)
+        .join(partidos_ganados_subq, Usuario.id_usuario == partidos_ganados_subq.c.id_usuario, isouter=True)
     )
     
     # Filtrar por sexo si se especifica
