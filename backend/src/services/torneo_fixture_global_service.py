@@ -28,15 +28,18 @@ class TorneoFixtureGlobalService:
     def generar_fixture_completo(
         db: Session,
         torneo_id: int,
-        user_id: int
+        user_id: int,
+        categoria_id: Optional[int] = None
     ) -> Dict:
         """
         Genera fixture completo para todas las zonas y categorías del torneo
+        o solo para una categoría específica
         
         Args:
             db: Sesión de base de datos
             torneo_id: ID del torneo
             user_id: ID del usuario organizador
+            categoria_id: (Opcional) ID de categoría específica
             
         Returns:
             Dict con partidos generados y estadísticas
@@ -49,13 +52,18 @@ class TorneoFixtureGlobalService:
         if torneo.creado_por != user_id:
             raise ValueError("No tienes permisos")
         
-        # Obtener todas las zonas del torneo (todas las categorías)
-        zonas = db.query(TorneoZona).filter(
-            TorneoZona.torneo_id == torneo_id
-        ).all()
+        # Obtener zonas del torneo (filtrar por categoría si se especifica)
+        query = db.query(TorneoZona).filter(TorneoZona.torneo_id == torneo_id)
+        if categoria_id:
+            query = query.filter(TorneoZona.categoria_id == categoria_id)
+        
+        zonas = query.all()
         
         if not zonas:
-            raise ValueError("No hay zonas creadas. Genera las zonas primero.")
+            mensaje = "No hay zonas creadas"
+            if categoria_id:
+                mensaje += f" para la categoría {categoria_id}"
+            raise ValueError(mensaje + ". Genera las zonas primero.")
         
         # Obtener canchas disponibles
         canchas = db.query(TorneoCancha).filter(
@@ -81,7 +89,7 @@ class TorneoFixtureGlobalService:
         
         # Obtener disponibilidad de todas las parejas involucradas
         parejas_disponibilidad = TorneoFixtureGlobalService._obtener_disponibilidad_parejas(
-            db, todos_partidos
+            db, todos_partidos, torneo
         )
         
         # Generar slots de tiempo disponibles
@@ -90,7 +98,7 @@ class TorneoFixtureGlobalService:
         )
         
         # Asignar horarios y canchas a los partidos
-        partidos_programados = TorneoFixtureGlobalService._asignar_horarios_y_canchas(
+        resultado_asignacion = TorneoFixtureGlobalService._asignar_horarios_y_canchas(
             db,
             todos_partidos,
             parejas_disponibilidad,
@@ -99,17 +107,22 @@ class TorneoFixtureGlobalService:
             num_canchas
         )
         
+        partidos_programados = resultado_asignacion['partidos_programados']
+        partidos_no_programados = resultado_asignacion['partidos_no_programados']
+        
         # Guardar partidos en la base de datos
         TorneoFixtureGlobalService._guardar_partidos(
-            db, torneo_id, partidos_programados
+            db, torneo_id, partidos_programados, categoria_id
         )
         
         return {
             "partidos_generados": len(partidos_programados),
+            "partidos_no_programados": len(partidos_no_programados),
             "zonas_procesadas": len(zonas),
             "canchas_utilizadas": num_canchas,
             "slots_utilizados": len(set(p['slot'] for p in partidos_programados)),
-            "partidos": partidos_programados
+            "partidos": partidos_programados,
+            "partidos_sin_programar": partidos_no_programados
         }
     
     @staticmethod
@@ -155,13 +168,19 @@ class TorneoFixtureGlobalService:
     @staticmethod
     def _obtener_disponibilidad_parejas(
         db: Session,
-        partidos: List[Dict]
-    ) -> Dict[int, Set[Tuple[str, str]]]:
+        partidos: List[Dict],
+        torneo: Torneo
+    ) -> Dict[int, Dict]:
         """
         Obtiene disponibilidad horaria de todas las parejas
         
+        LÓGICA:
+        - Si una pareja especifica días y horarios: solo esos días en esos horarios
+        - Días NO especificados: disponibles TODO el día
+        - No importa el minuto exacto, solo que esté dentro del rango
+        
         Returns:
-            Dict {pareja_id: set((dia, hora))}
+            Dict {pareja_id: {'dias_restringidos': set(), 'rangos': {dia: [(inicio, fin)]}}}
         """
         parejas_ids = set()
         for partido in partidos:
@@ -175,35 +194,40 @@ class TorneoFixtureGlobalService:
             if not pareja:
                 continue
             
-            # Extraer slots de disponibilidad
             disp = pareja.disponibilidad_horaria or {}
-            slots = set()
             
-            # Si no tiene disponibilidad, asumimos disponible siempre (set vacío = sin restricciones)
+            # Si no tiene disponibilidad, está disponible siempre
             if not disp or not disp.get('franjas'):
-                # Set vacío significa "disponible en cualquier horario del torneo"
-                # Esto se manejará en _asignar_horarios_y_canchas
-                disponibilidad[pareja_id] = set()
+                disponibilidad[pareja_id] = {
+                    'dias_restringidos': set(),  # Vacío = sin restricciones
+                    'rangos': {}
+                }
                 continue
             
-            # Procesar franjas específicas
+            # Procesar franjas: días con restricciones horarias
+            dias_restringidos = set()
+            rangos = {}
+            
             franjas = disp.get('franjas', [])
             for franja in franjas:
                 dias = franja.get('dias', [])
-                hora_inicio = franja.get('horaInicio', '08:00')
-                hora_fin = franja.get('horaFin', '23:00')
+                hora_inicio = franja.get('horaInicio', '00:00')
+                hora_fin = franja.get('horaFin', '23:59')
                 
-                # Generar slots
-                hora_actual = datetime.strptime(hora_inicio, '%H:%M')
-                hora_limite = datetime.strptime(hora_fin, '%H:%M')
+                # Convertir a minutos para facilitar comparación
+                inicio_mins = int(hora_inicio.split(':')[0]) * 60 + int(hora_inicio.split(':')[1])
+                fin_mins = int(hora_fin.split(':')[0]) * 60 + int(hora_fin.split(':')[1])
                 
                 for dia in dias:
-                    h = hora_actual
-                    while h < hora_limite:
-                        slots.add((dia, h.strftime('%H:%M')))
-                        h += timedelta(minutes=50)
+                    dias_restringidos.add(dia)
+                    if dia not in rangos:
+                        rangos[dia] = []
+                    rangos[dia].append((inicio_mins, fin_mins))
             
-            disponibilidad[pareja_id] = slots
+            disponibilidad[pareja_id] = {
+                'dias_restringidos': dias_restringidos,
+                'rangos': rangos
+            }
         
         return disponibilidad
     
@@ -272,7 +296,7 @@ class TorneoFixtureGlobalService:
         slots_disponibles: List[Tuple[str, str, str]],
         canchas: List[TorneoCancha],
         num_canchas: int
-    ) -> List[Dict]:
+    ) -> Dict:
         """
         Asigna horarios y canchas a los partidos considerando:
         - Disponibilidad de parejas
@@ -280,9 +304,10 @@ class TorneoFixtureGlobalService:
         - No repetir cancha/horario
         
         Returns:
-            Lista de partidos con slot y cancha asignados
+            Dict con partidos_programados y partidos_no_programados
         """
         partidos_programados = []
+        partidos_no_programados = []
         
         # Mapa de ocupación: {(fecha, hora): [cancha_id, ...]}
         ocupacion = defaultdict(list)
@@ -295,15 +320,42 @@ class TorneoFixtureGlobalService:
             pareja2_id = partido['pareja2_id']
             
             # Obtener disponibilidad de ambas parejas
-            disp1 = parejas_disponibilidad.get(pareja1_id, set())
-            disp2 = parejas_disponibilidad.get(pareja2_id, set())
+            disp1 = parejas_disponibilidad.get(pareja1_id, {'dias_restringidos': set(), 'rangos': {}})
+            disp2 = parejas_disponibilidad.get(pareja2_id, {'dias_restringidos': set(), 'rangos': {}})
             
             # Slots compatibles para ambas parejas
             slots_compatibles = []
             for fecha, dia, hora in slots_disponibles:
-                # Si alguna pareja no tiene restricciones (set vacío), está disponible siempre
-                pareja1_disponible = len(disp1) == 0 or (dia, hora) in disp1
-                pareja2_disponible = len(disp2) == 0 or (dia, hora) in disp2
+                # Convertir hora a minutos
+                hora_mins = int(hora.split(':')[0]) * 60 + int(hora.split(':')[1])
+                
+                # Verificar disponibilidad de pareja 1
+                if len(disp1['dias_restringidos']) == 0:
+                    # Sin restricciones, disponible siempre
+                    pareja1_disponible = True
+                elif dia in disp1['dias_restringidos']:
+                    # Día con restricción, verificar si la hora está en algún rango
+                    pareja1_disponible = any(
+                        inicio <= hora_mins < fin 
+                        for inicio, fin in disp1['rangos'].get(dia, [])
+                    )
+                else:
+                    # Día sin restricción, disponible todo el día
+                    pareja1_disponible = True
+                
+                # Verificar disponibilidad de pareja 2
+                if len(disp2['dias_restringidos']) == 0:
+                    # Sin restricciones, disponible siempre
+                    pareja2_disponible = True
+                elif dia in disp2['dias_restringidos']:
+                    # Día con restricción, verificar si la hora está en algún rango
+                    pareja2_disponible = any(
+                        inicio <= hora_mins < fin 
+                        for inicio, fin in disp2['rangos'].get(dia, [])
+                    )
+                else:
+                    # Día sin restricción, disponible todo el día
+                    pareja2_disponible = True
                 
                 if pareja1_disponible and pareja2_disponible:
                     # Verificar si hay cancha disponible en este slot
@@ -315,9 +367,36 @@ class TorneoFixtureGlobalService:
                 # Si no hay slots compatibles, NO asignar el partido
                 # La disponibilidad horaria debe respetarse siempre
                 print(f"❌ No se pudo programar partido: Pareja {pareja1_id} vs {pareja2_id}")
-                print(f"   Disponibilidad P1: {disp1 if disp1 else 'Sin restricciones'}")
-                print(f"   Disponibilidad P2: {disp2 if disp2 else 'Sin restricciones'}")
+                print(f"   Disponibilidad P1: {disp1}")
+                print(f"   Disponibilidad P2: {disp2}")
                 print(f"   No hay horarios compatibles disponibles")
+                
+                # Formatear disponibilidad para mostrar
+                def formatear_disp(disp):
+                    if len(disp['dias_restringidos']) == 0:
+                        return "Sin restricciones"
+                    result = []
+                    for dia in disp['dias_restringidos']:
+                        rangos = disp['rangos'].get(dia, [])
+                        for inicio_mins, fin_mins in rangos:
+                            inicio_str = f"{inicio_mins // 60:02d}:{inicio_mins % 60:02d}"
+                            fin_str = f"{fin_mins // 60:02d}:{fin_mins % 60:02d}"
+                            result.append(f"{dia} {inicio_str}-{fin_str}")
+                    return ", ".join(result)
+                
+                # Agregar a lista de no programados con detalles
+                partidos_no_programados.append({
+                    "zona_id": partido['zona_id'],
+                    "zona_nombre": partido['zona_nombre'],
+                    "categoria_id": partido['categoria_id'],
+                    "pareja1_id": pareja1_id,
+                    "pareja2_id": pareja2_id,
+                    "pareja1_nombre": f"Pareja {pareja1_id}",
+                    "pareja2_nombre": f"Pareja {pareja2_id}",
+                    "motivo": "Sin horarios compatibles",
+                    "disponibilidad_pareja1": formatear_disp(disp1),
+                    "disponibilidad_pareja2": formatear_disp(disp2)
+                })
                 continue
             
             # Tomar el primer slot compatible
@@ -349,21 +428,38 @@ class TorneoFixtureGlobalService:
                 "cancha_nombre": cancha_asignada.nombre
             })
         
-        return partidos_programados
+        return {
+            "partidos_programados": partidos_programados,
+            "partidos_no_programados": partidos_no_programados
+        }
     
     @staticmethod
     def _guardar_partidos(
         db: Session,
         torneo_id: int,
-        partidos_programados: List[Dict]
+        partidos_programados: List[Dict],
+        categoria_id: Optional[int] = None
     ):
-        """Guarda los partidos programados en la base de datos"""
+        """
+        Guarda los partidos programados en la base de datos
+        
+        Args:
+            db: Sesión de base de datos
+            torneo_id: ID del torneo
+            partidos_programados: Lista de partidos a guardar
+            categoria_id: (Opcional) Si se especifica, solo elimina partidos de esa categoría antes de guardar
+        """
         # Eliminar partidos existentes de fase de grupos
-        db.query(Partido).filter(
+        query = db.query(Partido).filter(
             Partido.id_torneo == torneo_id,
             Partido.fase == 'zona'
-        ).delete()
+        )
         
+        # Filtrar por categoría si se especifica
+        if categoria_id:
+            query = query.filter(Partido.categoria_id == categoria_id)
+        
+        query.delete()
         db.commit()
         
         # Crear nuevos partidos

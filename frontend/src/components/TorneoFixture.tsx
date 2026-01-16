@@ -27,6 +27,7 @@ export default function TorneoFixture({ torneoId, esOrganizador }: TorneoFixture
   const fixtureRef = useRef<HTMLDivElement>(null);
   const [categorias, setCategorias] = useState<Categoria[]>([]);
   const [categoriaFiltro, setCategoriaFiltro] = useState<number | null>(null);
+  const [partidosNoProgramados, setPartidosNoProgramados] = useState<any[]>([]);
 
   useEffect(() => {
     cargarDatos();
@@ -108,33 +109,72 @@ export default function TorneoFixture({ torneoId, esOrganizador }: TorneoFixture
     return cancha?.nombre || `Cancha ${canchaId}`;
   };
 
-  const generarFixture = async () => {
+  const generarFixture = async (categoriaId?: number) => {
     try {
       setGenerando(true);
       setError(null);
-      await torneoService.generarFixture(torneoId);
+      setPartidosNoProgramados([]);
+      const resultado = await torneoService.generarFixture(torneoId, categoriaId);
+      
+      // Si hay partidos no programados, guardarlos para mostrar alerta
+      if (resultado.partidos_sin_programar && resultado.partidos_sin_programar.length > 0) {
+        setPartidosNoProgramados(resultado.partidos_sin_programar);
+      }
+      
       await cargarDatos();
     } catch (error: any) {
       console.error('Error al generar fixture:', error);
-      setError(error.response?.data?.detail || 'Error al generar fixture');
+      console.error('Error response data:', error.response?.data);
+      
+      // Manejar correctamente el error 422 de FastAPI
+      let errorMsg = 'Error al generar fixture';
+      if (error.response?.data?.detail) {
+        const detail = error.response.data.detail;
+        // Si detail es un array (error de validación 422)
+        if (Array.isArray(detail)) {
+          errorMsg = detail.map((err: any) => err.msg || 'Error de validación').join(', ');
+        } else if (typeof detail === 'string') {
+          errorMsg = detail;
+        }
+      }
+      
+      setError(errorMsg);
     } finally {
       setGenerando(false);
     }
   };
 
-  const eliminarFixture = async () => {
-    if (!confirm('⚠️ ¿Estás seguro de eliminar el fixture?\n\nSe eliminarán todos los partidos de fase de grupos.\n\nEsta acción NO se puede deshacer.')) {
+  const eliminarFixture = async (categoriaId?: number) => {
+    const mensaje = categoriaId 
+      ? '⚠️ ¿Estás seguro de eliminar el fixture de esta categoría?\n\nSe eliminarán los partidos de fase de grupos de esta categoría.\n\nEsta acción NO se puede deshacer.'
+      : '⚠️ ¿Estás seguro de eliminar el fixture?\n\nSe eliminarán todos los partidos de fase de grupos.\n\nEsta acción NO se puede deshacer.';
+    
+    if (!confirm(mensaje)) {
       return;
     }
     
     try {
       setGenerando(true);
       setError(null);
-      await torneoService.eliminarFixture(torneoId);
+      await torneoService.eliminarFixture(torneoId, categoriaId);
       await cargarDatos();
     } catch (error: any) {
       console.error('Error al eliminar fixture:', error);
-      setError(error.response?.data?.detail || 'Error al eliminar fixture');
+      console.error('Error response data:', error.response?.data);
+      
+      // Manejar correctamente el error 422 de FastAPI
+      let errorMsg = 'Error al eliminar fixture';
+      if (error.response?.data?.detail) {
+        const detail = error.response.data.detail;
+        // Si detail es un array (error de validación 422)
+        if (Array.isArray(detail)) {
+          errorMsg = detail.map((err: any) => err.msg || 'Error de validación').join(', ');
+        } else if (typeof detail === 'string') {
+          errorMsg = detail;
+        }
+      }
+      
+      setError(errorMsg);
     } finally {
       setGenerando(false);
     }
@@ -265,6 +305,64 @@ export default function TorneoFixture({ torneoId, esOrganizador }: TorneoFixture
 
   return (
     <div className="space-y-6">
+      {/* Alerta de partidos no programados */}
+      {partidosNoProgramados.length > 0 && (
+        <motion.div
+          initial={{ opacity: 0, y: -10 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="p-4 bg-yellow-500/10 border border-yellow-500/30 rounded-lg"
+        >
+          <div className="flex items-start gap-3">
+            <AlertCircle size={20} className="text-yellow-500 flex-shrink-0 mt-0.5" />
+            <div className="flex-1">
+              <h4 className="text-yellow-500 font-bold text-sm mb-2">
+                ⚠️ Partidos sin programar por incompatibilidad horaria
+              </h4>
+              <p className="text-yellow-500/80 text-xs mb-3">
+                {partidosNoProgramados.length} partido{partidosNoProgramados.length > 1 ? 's' : ''} no pudo{partidosNoProgramados.length > 1 ? 'ieron' : ''} programarse porque las parejas no tienen horarios compatibles.
+              </p>
+              <div className="space-y-2">
+                {partidosNoProgramados.map((partido: any, idx: number) => (
+                  <div key={idx} className="p-3 bg-background/50 rounded border border-yellow-500/20">
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="text-xs font-bold text-yellow-500">{partido.zona_nombre}</span>
+                      <span className="text-[10px] text-yellow-500/60">{partido.motivo}</span>
+                    </div>
+                    <div className="space-y-1 text-xs text-textSecondary">
+                      <div className="flex items-center gap-2">
+                        <span className="font-medium text-textPrimary">{partido.pareja1_nombre}</span>
+                        <span className="text-[10px]">
+                          {partido.disponibilidad_pareja1 && typeof partido.disponibilidad_pareja1 === 'string' 
+                            ? partido.disponibilidad_pareja1
+                            : 'Sin restricciones'}
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <span className="font-medium text-textPrimary">{partido.pareja2_nombre}</span>
+                        <span className="text-[10px]">
+                          {partido.disponibilidad_pareja2 && typeof partido.disponibilidad_pareja2 === 'string'
+                            ? partido.disponibilidad_pareja2
+                            : 'Sin restricciones'}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+              <p className="text-yellow-500/70 text-[10px] mt-3">
+                💡 Sugerencia: Contacta a las parejas para ajustar su disponibilidad horaria o considera generar las zonas con el sistema inteligente que agrupa parejas con horarios compatibles.
+              </p>
+            </div>
+            <button
+              onClick={() => setPartidosNoProgramados([])}
+              className="text-yellow-500/70 hover:text-yellow-500 transition-colors"
+            >
+              <X size={18} />
+            </button>
+          </div>
+        </motion.div>
+      )}
+
       {/* Filtro por categoría */}
       {categorias.length > 0 && (
         <div className="flex items-center gap-2 overflow-x-auto pb-2">
@@ -286,7 +384,7 @@ export default function TorneoFixture({ torneoId, esOrganizador }: TorneoFixture
                 key={cat.id}
                 onClick={() => {
                   setCategoriaFiltro(cat.id);
-                  setFiltroZona(null); // Reset zona filter when changing category
+                  setFiltroZona(null);
                 }}
                 className={`px-3 py-1.5 rounded-lg text-xs font-bold whitespace-nowrap transition-all flex items-center gap-1.5 ${colorClasses}`}
               >
@@ -320,20 +418,6 @@ export default function TorneoFixture({ torneoId, esOrganizador }: TorneoFixture
         </div>
         
         <div className="flex items-center gap-2 self-end sm:self-auto">
-          {/* Botón eliminar fixture (solo organizador) */}
-          {esOrganizador && (
-            <Button
-              onClick={eliminarFixture}
-              disabled={generando}
-              variant="ghost"
-              size="sm"
-              className="flex items-center gap-1.5 text-xs text-red-500 hover:text-red-600 hover:bg-red-500/10 border border-red-500/30"
-            >
-              <X size={14} />
-              Eliminar Fixture
-            </Button>
-          )}
-          
           {/* Botón capturar para Instagram */}
           <Button
             variant="ghost"

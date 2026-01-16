@@ -1,7 +1,7 @@
 """
 Controller para endpoints de torneos
 """
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, Query
 from sqlalchemy.orm import Session
 from typing import List, Optional
 from pydantic import BaseModel
@@ -1427,12 +1427,18 @@ def generar_zonas_inteligente(
 @router.post("/{torneo_id}/generar-fixture")
 def generar_fixture(
     torneo_id: int,
+    categoria_id: Optional[int] = Query(None, description="ID de categoría para generar fixture solo de esa categoría"),
     db: Session = Depends(get_db),
     current_user: Usuario = Depends(get_current_user)
 ):
     """
-    Genera el fixture completo del torneo considerando:
-    - Todas las zonas y categorías
+    Genera el fixture completo del torneo o de una categoría específica
+    
+    Parámetros:
+    - categoria_id (opcional): Si se especifica, solo genera fixture para esa categoría
+    
+    Consideraciones:
+    - Todas las zonas y categorías (o solo la especificada)
     - Disponibilidad horaria de parejas
     - Canchas disponibles (no más partidos simultáneos que canchas)
     - Duración de partidos: 50 minutos
@@ -1443,14 +1449,25 @@ def generar_fixture(
     
     try:
         user_id = current_user.id_usuario
-        resultado = TorneoFixtureGlobalService.generar_fixture_completo(db, torneo_id, user_id)
-        return {
-            "message": "Fixture generado exitosamente",
+        resultado = TorneoFixtureGlobalService.generar_fixture_completo(
+            db, torneo_id, user_id, categoria_id
+        )
+        
+        response = {
+            "message": f"Fixture generado exitosamente{' para categoría ' + str(categoria_id) if categoria_id else ''}",
             "partidos_generados": resultado["partidos_generados"],
+            "partidos_no_programados": resultado["partidos_no_programados"],
             "zonas_procesadas": resultado["zonas_procesadas"],
             "canchas_utilizadas": resultado["canchas_utilizadas"],
             "slots_utilizados": resultado["slots_utilizados"]
         }
+        
+        # Incluir detalles de partidos no programados si existen
+        if resultado["partidos_sin_programar"]:
+            response["partidos_sin_programar"] = resultado["partidos_sin_programar"]
+            response["warning"] = f"⚠️ {resultado['partidos_no_programados']} partidos no pudieron programarse por incompatibilidad horaria"
+        
+        return response
     except ValueError as e:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
     except Exception as e:
@@ -1460,11 +1477,16 @@ def generar_fixture(
 @router.delete("/{torneo_id}/fixture")
 def eliminar_fixture(
     torneo_id: int,
+    categoria_id: Optional[int] = Query(None, description="ID de categoría para eliminar fixture solo de esa categoría"),
     db: Session = Depends(get_db),
     current_user: Usuario = Depends(get_current_user)
 ):
     """
-    Elimina todos los partidos de fase de grupos del torneo.
+    Elimina partidos de fase de grupos del torneo.
+    
+    Parámetros:
+    - categoria_id (opcional): Si se especifica, solo elimina partidos de esa categoría
+    
     Solo organizadores pueden eliminar fixture.
     """
     from ..models.torneo_models import Torneo
@@ -1479,25 +1501,33 @@ def eliminar_fixture(
         if torneo.creado_por != current_user.id_usuario:
             raise HTTPException(status_code=403, detail="No tienes permisos")
         
-        # Eliminar partidos de fase de grupos
-        partidos_eliminados = db.query(Partido).filter(
+        # Construir query base
+        query = db.query(Partido).filter(
             Partido.id_torneo == torneo_id,
             Partido.fase == 'zona'
-        ).delete(synchronize_session=False)
+        )
+        
+        # Filtrar por categoría si se especifica
+        if categoria_id:
+            query = query.filter(Partido.categoria_id == categoria_id)
+        
+        # Eliminar partidos
+        partidos_eliminados = query.delete(synchronize_session=False)
         
         db.commit()
         
+        mensaje = f"Fixture eliminado exitosamente"
+        if categoria_id:
+            mensaje += f" para categoría {categoria_id}"
+        
         return {
-            "message": "Fixture eliminado exitosamente",
+            "message": mensaje,
             "partidos_eliminados": partidos_eliminados
         }
-        
     except HTTPException:
         raise
     except Exception as e:
-        db.rollback()
-        import traceback
-        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=str(e))
         raise HTTPException(status_code=500, detail=str(e))
 
 

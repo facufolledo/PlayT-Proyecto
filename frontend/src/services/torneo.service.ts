@@ -346,10 +346,14 @@ class TorneoService {
     return response.data;
   }
 
-  async eliminarFixture(torneoId: number): Promise<any> {
+  async eliminarFixture(torneoId: number, categoriaId?: number): Promise<any> {
+    const config = this.getAuthHeaders();
+    if (categoriaId) {
+      config.params = { categoria_id: categoriaId };
+    }
     const response = await axios.delete(
       `${API_URL}/torneos/${torneoId}/fixture`,
-      this.getAuthHeaders()
+      config
     );
     return response.data;
   }
@@ -365,11 +369,15 @@ class TorneoService {
   }
 
   // Fixture
-  async generarFixture(torneoId: number): Promise<any> {
+  async generarFixture(torneoId: number, categoriaId?: number): Promise<any> {
+    const config = this.getAuthHeaders();
+    if (categoriaId) {
+      config.params = { categoria_id: categoriaId };
+    }
     const response = await axios.post(
       `${API_URL}/torneos/${torneoId}/generar-fixture`,
       {},
-      this.getAuthHeaders()
+      config
     );
     return response.data;
   }

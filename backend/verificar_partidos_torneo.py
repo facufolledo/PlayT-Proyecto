@@ -1,54 +1,54 @@
 """
-Script para verificar partidos de un torneo
+Verificar partidos del torneo 11
 """
 import sys
 import os
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+sys.path.insert(0, os.path.dirname(__file__))
 
-from src.database.config import SessionLocal
+from src.database.config import get_db
+from src.models.torneo_models import TorneoPareja, TorneoZona
 from src.models.driveplus_models import Partido
+from sqlalchemy import and_
 
-def verificar_partidos(torneo_id=11):
-    db = SessionLocal()
+def verificar_partidos():
+    db = next(get_db())
     
-    try:
-        print("=" * 80)
-        print(f"VERIFICANDO PARTIDOS DEL TORNEO {torneo_id}")
-        print("=" * 80)
+    torneo_id = 11
+    
+    print(f"\n{'='*80}")
+    print(f"PARTIDOS DEL TORNEO {torneo_id}")
+    print(f"{'='*80}\n")
+    
+    partidos = db.query(Partido).filter(
+        Partido.id_torneo == torneo_id
+    ).order_by(Partido.fecha_hora).all()
+    
+    print(f"Total de partidos: {len(partidos)}\n")
+    
+    for partido in partidos:
+        # Obtener nombres de parejas
+        pareja1 = db.query(TorneoPareja).filter(TorneoPareja.id == partido.pareja1_id).first()
+        pareja2 = db.query(TorneoPareja).filter(TorneoPareja.id == partido.pareja2_id).first()
         
-        # Buscar partidos del torneo
-        partidos = db.query(Partido).filter(
-            Partido.id_torneo == torneo_id
-        ).all()
+        # Obtener zona
+        zona = db.query(TorneoZona).filter(TorneoZona.id == partido.zona_id).first() if partido.zona_id else None
         
-        print(f"\n📊 Total de partidos encontrados: {len(partidos)}")
+        print(f"Partido {partido.id_partido}:")
+        print(f"  Zona: {zona.nombre if zona else 'Sin zona'} (Cat: {partido.categoria_id})")
+        print(f"  Pareja 1: {pareja1.id if pareja1 else 'N/A'}")
+        print(f"  Pareja 2: {pareja2.id if pareja2 else 'N/A'}")
+        print(f"  Fecha/Hora: {partido.fecha_hora}")
+        print(f"  Cancha: {partido.cancha_id}")
+        print(f"  Estado: {partido.estado}")
+        print(f"  Fase: {partido.fase}")
         
-        if len(partidos) == 0:
-            print("\n✅ No hay partidos creados para este torneo")
-            print("   Esto es correcto si aún no has generado las zonas y el fixture")
-        else:
-            print("\n⚠️  Se encontraron partidos:")
-            for partido in partidos[:10]:  # Mostrar primeros 10
-                print(f"   - Partido ID {partido.id_partido}: Estado {partido.estado}")
-                print(f"     Zona: {partido.zona_id}, Fecha: {partido.fecha}")
+        # Verificar disponibilidad de parejas
+        if pareja1:
+            print(f"  Disponibilidad P1: {pareja1.disponibilidad_horaria}")
+        if pareja2:
+            print(f"  Disponibilidad P2: {pareja2.disponibilidad_horaria}")
         
-        # Verificar partidos de otros torneos
-        print(f"\n📋 Partidos de otros torneos:")
-        otros_torneos = db.query(Partido.id_torneo).distinct().all()
-        for (tid,) in otros_torneos:
-            if tid != torneo_id:
-                count = db.query(Partido).filter(Partido.id_torneo == tid).count()
-                print(f"   - Torneo {tid}: {count} partidos")
-        
-        print("\n" + "=" * 80)
-        
-    except Exception as e:
-        print(f"❌ Error: {str(e)}")
-        import traceback
-        traceback.print_exc()
-    finally:
-        db.close()
+        print()
 
 if __name__ == "__main__":
-    torneo_id = int(sys.argv[1]) if len(sys.argv) > 1 else 11
-    verificar_partidos(torneo_id)
+    verificar_partidos()
