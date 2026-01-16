@@ -430,6 +430,7 @@ async def obtener_torneo(
         "fecha_fin": torneo.fecha_fin.isoformat() if torneo.fecha_fin else None,
         "lugar": torneo.lugar,
         "reglas_json": torneo.reglas_json,
+        "horarios_disponibles": torneo.horarios_disponibles,
         "creado_por": torneo.creado_por,
         "created_at": torneo.created_at.isoformat() if torneo.created_at else None,
         "updated_at": torneo.updated_at.isoformat() if torneo.updated_at else None,
@@ -1232,6 +1233,79 @@ def listar_zonas(
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
 
 
+@router.delete("/{torneo_id}/zonas")
+def eliminar_zonas(
+    torneo_id: int,
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(get_current_user),
+    categoria_id: Optional[int] = None
+):
+    """
+    Elimina todas las zonas de un torneo o de una categoría específica.
+    Solo organizadores pueden eliminar zonas.
+    Query params: categoria_id (opcional)
+    """
+    from ..models.torneo_models import Torneo, TorneoZona, TorneoZonaPareja, TorneoTablaPosiciones
+    from ..models.driveplus_models import Partido
+    
+    try:
+        # Verificar permisos
+        torneo = db.query(Torneo).filter(Torneo.id == torneo_id).first()
+        if not torneo:
+            raise HTTPException(status_code=404, detail="Torneo no encontrado")
+        
+        if torneo.creado_por != current_user.id_usuario:
+            raise HTTPException(status_code=403, detail="No tienes permisos")
+        
+        # Obtener zonas a eliminar
+        query = db.query(TorneoZona).filter(TorneoZona.torneo_id == torneo_id)
+        if categoria_id:
+            query = query.filter(TorneoZona.categoria_id == categoria_id)
+        
+        zonas = query.all()
+        zonas_ids = [z.id for z in zonas]
+        
+        if not zonas_ids:
+            return {"message": "No hay zonas para eliminar", "zonas_eliminadas": 0}
+        
+        # Eliminar partidos
+        db.query(Partido).filter(Partido.zona_id.in_(zonas_ids)).delete(synchronize_session=False)
+        
+        # Eliminar tablas de posiciones
+        db.query(TorneoTablaPosiciones).filter(
+            TorneoTablaPosiciones.zona_id.in_(zonas_ids)
+        ).delete(synchronize_session=False)
+        
+        # Eliminar relaciones zona-pareja
+        db.query(TorneoZonaPareja).filter(
+            TorneoZonaPareja.zona_id.in_(zonas_ids)
+        ).delete(synchronize_session=False)
+        
+        # Eliminar zonas
+        db.query(TorneoZona).filter(TorneoZona.id.in_(zonas_ids)).delete(synchronize_session=False)
+        
+        db.commit()
+        
+        return {
+            "message": "Zonas eliminadas exitosamente",
+            "zonas_eliminadas": len(zonas_ids)
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        db.rollback()
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=str(e))
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 @router.get("/{torneo_id}/zonas/{zona_id}/tabla")
 def obtener_tabla_zona(
     torneo_id: int,
@@ -1313,27 +1387,36 @@ def mover_pareja(
 def generar_zonas_inteligente(
     torneo_id: int,
     num_zonas: Optional[int] = None,
+    num_canchas: int = 3,
+    categoria_id: Optional[int] = None,
     db: Session = Depends(get_db),
     current_user: Usuario = Depends(get_current_user)
 ):
     """
     Genera zonas considerando disponibilidad horaria y balanceo por rating
     
-    Prioridad 1: Compatibilidad horaria
+    Prioridad 1: Compatibilidad horaria entre parejas de la misma zona
     Prioridad 2: Balanceo por rating
+    
+    Parámetros:
+    - num_zonas: Número de zonas (opcional, se calcula automáticamente)
+    - num_canchas: Número de canchas disponibles (default: 3)
+    - categoria_id: ID de categoría (opcional)
     
     Solo organizadores pueden generar zonas
     """
-    from ..services.torneo_fixture_service import TorneoFixtureService
+    from ..services.torneo_zona_horarios_service import TorneoZonaHorariosService
     
     try:
         user_id = current_user.id_usuario
-        zonas = TorneoFixtureService.generar_zonas_con_disponibilidad(
-            db, torneo_id, user_id, num_zonas
+        resultado = TorneoZonaHorariosService.generar_zonas_con_horarios(
+            db, torneo_id, user_id, num_zonas, num_canchas, categoria_id
         )
         return {
             "message": "Zonas generadas con criterio de disponibilidad horaria",
-            "zonas": [{"id": z.id, "nombre": z.nombre, "numero": z.numero_orden} for z in zonas]
+            "zonas_creadas": resultado["zonas_creadas"],
+            "zonas": resultado["zonas"],
+            "compatibilidad_promedio": f"{resultado['compatibilidad_promedio'] * 100:.1f}%"
         }
     except ValueError as e:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
@@ -1348,20 +1431,74 @@ def generar_fixture(
     current_user: Usuario = Depends(get_current_user)
 ):
     """
-    Genera el fixture completo del torneo (todos los partidos de todas las zonas)
+    Genera el fixture completo del torneo considerando:
+    - Todas las zonas y categorías
+    - Disponibilidad horaria de parejas
+    - Canchas disponibles (no más partidos simultáneos que canchas)
+    - Duración de partidos: 50 minutos
     
     Solo organizadores pueden generar fixture
     """
-    from ..services.torneo_fixture_service import TorneoFixtureService
+    from ..services.torneo_fixture_global_service import TorneoFixtureGlobalService
     
     try:
         user_id = current_user.id_usuario
-        resultado = TorneoFixtureService.generar_fixture_completo(db, torneo_id, user_id)
-        return resultado
+        resultado = TorneoFixtureGlobalService.generar_fixture_completo(db, torneo_id, user_id)
+        return {
+            "message": "Fixture generado exitosamente",
+            "partidos_generados": resultado["partidos_generados"],
+            "zonas_procesadas": resultado["zonas_procesadas"],
+            "canchas_utilizadas": resultado["canchas_utilizadas"],
+            "slots_utilizados": resultado["slots_utilizados"]
+        }
     except ValueError as e:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
     except Exception as e:
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
+
+
+@router.delete("/{torneo_id}/fixture")
+def eliminar_fixture(
+    torneo_id: int,
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(get_current_user)
+):
+    """
+    Elimina todos los partidos de fase de grupos del torneo.
+    Solo organizadores pueden eliminar fixture.
+    """
+    from ..models.torneo_models import Torneo
+    from ..models.driveplus_models import Partido
+    
+    try:
+        # Verificar permisos
+        torneo = db.query(Torneo).filter(Torneo.id == torneo_id).first()
+        if not torneo:
+            raise HTTPException(status_code=404, detail="Torneo no encontrado")
+        
+        if torneo.creado_por != current_user.id_usuario:
+            raise HTTPException(status_code=403, detail="No tienes permisos")
+        
+        # Eliminar partidos de fase de grupos
+        partidos_eliminados = db.query(Partido).filter(
+            Partido.id_torneo == torneo_id,
+            Partido.fase == 'zona'
+        ).delete(synchronize_session=False)
+        
+        db.commit()
+        
+        return {
+            "message": "Fixture eliminado exitosamente",
+            "partidos_eliminados": partidos_eliminados
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        db.rollback()
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 @router.get("/{torneo_id}/partidos")

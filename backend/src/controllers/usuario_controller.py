@@ -1,6 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from sqlalchemy.orm import Session
+from sqlalchemy import or_
 from pydantic import BaseModel
 from typing import Optional
 from datetime import datetime
@@ -689,12 +690,87 @@ async def buscar_usuarios_publico(
                 "categoria": categoria.nombre if categoria else None,
                 "ciudad": perfil.ciudad,
                 "foto_perfil": getattr(perfil, 'url_avatar', None),
-                "fecha_registro": usuario.fecha_registro.isoformat() if hasattr(usuario, 'fecha_registro') and usuario.fecha_registro else None,
-                "activo": getattr(usuario, 'activo', True)
+                "fecha_registro": usuario.creado_en.isoformat() if hasattr(usuario, 'creado_en') and usuario.creado_en else None
             })
         
         return resultado
         
     except Exception as e:
         print(f"Error en búsqueda pública: {str(e)}")
+        import traceback
+        traceback.print_exc()
         return []
+
+
+@router.get("/debug-busqueda")
+async def debug_busqueda(db: Session = Depends(get_db)):
+    """
+    Endpoint temporal de debug para verificar datos en producción
+    """
+    try:
+        from sqlalchemy import or_
+        
+        # Contar usuarios
+        total_usuarios = db.query(Usuario).count()
+        
+        # Contar perfiles
+        total_perfiles = db.query(PerfilUsuario).count()
+        
+        # Primeros 5 usuarios
+        usuarios = db.query(Usuario).limit(5).all()
+        usuarios_data = [
+            {
+                "id": u.id_usuario,
+                "username": u.nombre_usuario,
+                "email": u.email
+            }
+            for u in usuarios
+        ]
+        
+        # Primeros 5 perfiles
+        perfiles = db.query(PerfilUsuario).limit(5).all()
+        perfiles_data = [
+            {
+                "id_usuario": p.id_usuario,
+                "nombre": p.nombre,
+                "apellido": p.apellido
+            }
+            for p in perfiles
+        ]
+        
+        # Test búsqueda con "fac"
+        search_term = "%fac%"
+        resultados_join = db.query(Usuario, PerfilUsuario).outerjoin(
+            PerfilUsuario, Usuario.id_usuario == PerfilUsuario.id_usuario
+        ).filter(
+            or_(
+                Usuario.nombre_usuario.ilike(search_term),
+                PerfilUsuario.nombre.ilike(search_term),
+                PerfilUsuario.apellido.ilike(search_term)
+            )
+        ).limit(5).all()
+        
+        join_data = []
+        for usuario, perfil in resultados_join:
+            join_data.append({
+                "usuario": usuario.nombre_usuario if usuario else None,
+                "perfil": f"{perfil.nombre} {perfil.apellido}" if perfil else "SIN PERFIL"
+            })
+        
+        return {
+            "total_usuarios": total_usuarios,
+            "total_perfiles": total_perfiles,
+            "primeros_usuarios": usuarios_data,
+            "primeros_perfiles": perfiles_data,
+            "test_busqueda_fac": {
+                "resultados": len(resultados_join),
+                "datos": join_data
+            }
+        }
+        
+    except Exception as e:
+        import traceback
+        return {
+            "error": str(e),
+            "traceback": traceback.format_exc()
+        }

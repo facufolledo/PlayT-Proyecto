@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { ArrowLeft, Calendar, MapPin, Trophy, Users, Settings } from 'lucide-react';
+import { ArrowLeft, Calendar, MapPin, Trophy, Users, Settings, Clock } from 'lucide-react';
 import { useTorneos } from '../context/TorneosContext';
 import { useAuth } from '../context/AuthContext';
 import Card from '../components/Card';
@@ -167,6 +167,49 @@ export default function TorneoDetalle() {
               </div>
             </div>
           </div>
+
+          {/* Horarios del torneo */}
+          {(() => {
+            const horarios = (torneoActual as any).horarios_disponibles;
+            if (!horarios) return null;
+            
+            return (
+              <div className="mb-6 p-4 bg-background rounded-lg border border-primary/30">
+                <h3 className="font-bold text-textPrimary mb-3 flex items-center gap-2">
+                  <Clock className="text-primary" size={20} />
+                  Horarios del Torneo
+                </h3>
+                <div className="flex flex-col sm:flex-row sm:items-center gap-4">
+                  {horarios.semana && horarios.semana.length > 0 && (
+                    <div className="flex items-center gap-2 bg-cardBg px-3 py-2 rounded-lg">
+                      <span className="text-xs font-bold text-primary bg-primary/10 px-2 py-1 rounded">Lun-Vie</span>
+                      <span className="text-sm text-textPrimary font-medium">
+                        {horarios.semana.map((franja: any, idx: number) => (
+                          <span key={idx}>
+                            {franja.desde} - {franja.hasta}
+                            {idx < horarios.semana.length - 1 && ' | '}
+                          </span>
+                        ))}
+                      </span>
+                    </div>
+                  )}
+                  {horarios.finDeSemana && horarios.finDeSemana.length > 0 && (
+                    <div className="flex items-center gap-2 bg-cardBg px-3 py-2 rounded-lg">
+                      <span className="text-xs font-bold text-accent bg-accent/10 px-2 py-1 rounded">Sáb-Dom</span>
+                      <span className="text-sm text-textPrimary font-medium">
+                        {horarios.finDeSemana.map((franja: any, idx: number) => (
+                          <span key={idx}>
+                            {franja.desde} - {franja.hasta}
+                            {idx < horarios.finDeSemana.length - 1 && ' | '}
+                          </span>
+                        ))}
+                      </span>
+                    </div>
+                  )}
+                </div>
+              </div>
+            );
+          })()}
 
           {/* Descripción */}
           <div className="mb-6">

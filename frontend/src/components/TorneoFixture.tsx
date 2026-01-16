@@ -101,6 +101,24 @@ export default function TorneoFixture({ torneoId, esOrganizador }: TorneoFixture
     }
   };
 
+  const eliminarFixture = async () => {
+    if (!confirm('⚠️ ¿Estás seguro de eliminar el fixture?\n\nSe eliminarán todos los partidos de fase de grupos.\n\nEsta acción NO se puede deshacer.')) {
+      return;
+    }
+    
+    try {
+      setGenerando(true);
+      setError(null);
+      await torneoService.eliminarFixture(torneoId);
+      await cargarDatos();
+    } catch (error: any) {
+      console.error('Error al eliminar fixture:', error);
+      setError(error.response?.data?.detail || 'Error al eliminar fixture');
+    } finally {
+      setGenerando(false);
+    }
+  };
+
   const abrirModalResultado = (partido: any) => {
     setPartidoSeleccionado(partido);
     setModalResultadoOpen(true);
@@ -252,43 +270,61 @@ export default function TorneoFixture({ torneoId, esOrganizador }: TorneoFixture
       )}
 
       {/* Header con filtros de zona y botón de captura */}
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        {/* Filtros por zona */}
-        {zonas.length > 1 && (
-          <div className="flex gap-2 overflow-x-auto pb-2 -mx-4 px-4 md:mx-0 md:px-0 flex-1">
-            <Button
-              variant={filtroZona === 'todas' ? 'primary' : 'ghost'}
-              onClick={() => setFiltroZona('todas')}
-              size="sm"
-              className="whitespace-nowrap text-xs md:text-sm"
-            >
-              Todas
-            </Button>
-            {zonas.map(zona => (
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+        <div className="flex items-center gap-2 overflow-x-auto">
+          {/* Filtros por zona */}
+          {zonas.length > 1 && (
+            <div className="flex gap-2 pb-2 sm:pb-0">
               <Button
-                key={zona.id}
-                variant={filtroZona === zona.id.toString() ? 'primary' : 'ghost'}
-                onClick={() => setFiltroZona(zona.id.toString())}
+                variant={filtroZona === 'todas' ? 'primary' : 'ghost'}
+                onClick={() => setFiltroZona('todas')}
                 size="sm"
-                className="whitespace-nowrap text-xs md:text-sm"
+                className="whitespace-nowrap text-xs"
               >
-                {zona.nombre}
+                Todas
               </Button>
-            ))}
-          </div>
-        )}
+              {zonas.map(zona => (
+                <Button
+                  key={zona.id}
+                  variant={filtroZona === zona.id.toString() ? 'primary' : 'ghost'}
+                  onClick={() => setFiltroZona(zona.id.toString())}
+                  size="sm"
+                  className="whitespace-nowrap text-xs"
+                >
+                  {zona.nombre}
+                </Button>
+              ))}
+            </div>
+          )}
+        </div>
         
-        {/* Botón capturar para Instagram */}
-        <Button
-          variant="ghost"
-          size="sm"
-          onClick={capturarFixture}
-          disabled={capturando}
-          className="flex items-center gap-2 text-xs md:text-sm"
-        >
-          <Camera size={16} />
-          {capturando ? 'Capturando...' : 'Capturar'}
-        </Button>
+        <div className="flex items-center gap-2 self-end sm:self-auto">
+          {/* Botón eliminar fixture (solo organizador) */}
+          {esOrganizador && (
+            <Button
+              onClick={eliminarFixture}
+              disabled={generando}
+              variant="ghost"
+              size="sm"
+              className="flex items-center gap-1.5 text-xs text-red-500 hover:text-red-600 hover:bg-red-500/10 border border-red-500/30"
+            >
+              <X size={14} />
+              Eliminar Fixture
+            </Button>
+          )}
+          
+          {/* Botón capturar para Instagram */}
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={capturarFixture}
+            disabled={capturando}
+            className="flex items-center gap-2 text-xs"
+          >
+            <Camera size={14} />
+            {capturando ? 'Capturando...' : 'Capturar'}
+          </Button>
+        </div>
       </div>
 
       {/* Partidos por zona */}

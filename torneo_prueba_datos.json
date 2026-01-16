@@ -1,0 +1,419 @@
+{
+  "torneo": {
+    "nombre": "Torneo Test Completo - Drive+",
+    "descripcion": "Torneo de prueba con todas las características: múltiples categorías, horarios, canchas, pagos por transferencia",
+    "fecha_inicio": "2026-01-22",
+    "fecha_fin": "2026-01-25",
+    "lugar": "Club de Prueba - Drive+",
+    "formato": "grupos_playoffs",
+    "genero": "mixto",
+    "categoria": "8va",
+    "precio_inscripcion": 5000,
+    "metodo_pago": "transferencia",
+    "alias_transferencia": "DRIVEPLUS.TEST",
+    "horarios_disponibles": {
+      "semana": [
+        {
+          "desde": "12:00",
+          "hasta": "23:00"
+        }
+      ],
+      "finDeSemana": [
+        {
+          "desde": "09:00",
+          "hasta": "23:00"
+        }
+      ]
+    },
+    "duracion_partido": 60,
+    "descanso_entre_partidos": 15
+  },
+  "usuarios": [
+    {
+      "id": 17,
+      "nombre": "Facundo Folledo"
+    },
+    {
+      "id": 32,
+      "nombre": "Santiago Fernandez"
+    },
+    {
+      "id": 21,
+      "nombre": "Santi Folledo"
+    },
+    {
+      "id": 22,
+      "nombre": "Diego  Folledo"
+    },
+    {
+      "id": 23,
+      "nombre": "Magali Ocaña"
+    },
+    {
+      "id": 26,
+      "nombre": "Cassiel Maxi Lucero"
+    },
+    {
+      "id": 31,
+      "nombre": "Matias Castelli"
+    },
+    {
+      "id": 20,
+      "nombre": "Cassiel Maximiliano Lucero"
+    },
+    {
+      "id": 24,
+      "nombre": "Cassiel Lucero"
+    },
+    {
+      "id": 35,
+      "nombre": "nacho Romero"
+    },
+    {
+      "id": 33,
+      "nombre": "Luciano Romero"
+    },
+    {
+      "id": 19,
+      "nombre": "Juancruz Folledo"
+    },
+    {
+      "id": 11,
+      "nombre": "Libre1 Demo"
+    },
+    {
+      "id": 12,
+      "nombre": "Libre2 Demo"
+    },
+    {
+      "id": 30,
+      "nombre": "Mario elmudo"
+    },
+    {
+      "id": 40,
+      "nombre": "Tiago Lucero"
+    }
+  ],
+  "franjas_horarias": [
+    {
+      "usuario_id": 17,
+      "nombre": "Facundo Folledo",
+      "username": "facund10s",
+      "franja_tipo": "Solo tardes",
+      "horarios": {
+        "semana": [
+          {
+            "desde": "18:00",
+            "hasta": "23:00"
+          }
+        ],
+        "finDeSemana": [
+          {
+            "desde": "09:00",
+            "hasta": "23:00"
+          }
+        ]
+      }
+    },
+    {
+      "usuario_id": 32,
+      "nombre": "Santiago Fernandez",
+      "username": "santiagofernandez111",
+      "franja_tipo": "Fines de semana completos",
+      "horarios": {
+        "semana": [
+          {
+            "desde": "20:00",
+            "hasta": "23:00"
+          }
+        ],
+        "finDeSemana": [
+          {
+            "desde": "09:00",
+            "hasta": "23:00"
+          }
+        ]
+      }
+    },
+    {
+      "usuario_id": 21,
+      "nombre": "Santi Folledo",
+      "username": "santiagogfolledo",
+      "franja_tipo": "Horario flexible",
+      "horarios": {
+        "semana": [
+          {
+            "desde": "12:00",
+            "hasta": "23:00"
+          }
+        ],
+        "finDeSemana": [
+          {
+            "desde": "09:00",
+            "hasta": "23:00"
+          }
+        ]
+      }
+    },
+    {
+      "usuario_id": 22,
+      "nombre": "Diego  Folledo",
+      "username": "diegofolledo",
+      "franja_tipo": "Mañanas de finde",
+      "horarios": {
+        "semana": [
+          {
+            "desde": "20:00",
+            "hasta": "23:00"
+          }
+        ],
+        "finDeSemana": [
+          {
+            "desde": "09:00",
+            "hasta": "14:00"
+          }
+        ]
+      }
+    },
+    {
+      "usuario_id": 23,
+      "nombre": "Magali Ocaña",
+      "username": "ocanamagali",
+      "franja_tipo": "Tardes de finde",
+      "horarios": {
+        "semana": [
+          {
+            "desde": "19:00",
+            "hasta": "23:00"
+          }
+        ],
+        "finDeSemana": [
+          {
+            "desde": "15:00",
+            "hasta": "23:00"
+          }
+        ]
+      }
+    },
+    {
+      "usuario_id": 26,
+      "nombre": "Cassiel Maxi Lucero",
+      "username": "maxiluc1234",
+      "franja_tipo": "Nocturnos",
+      "horarios": {
+        "semana": [
+          {
+            "desde": "21:00",
+            "hasta": "23:00"
+          }
+        ],
+        "finDeSemana": [
+          {
+            "desde": "20:00",
+            "hasta": "23:00"
+          }
+        ]
+      }
+    },
+    {
+      "usuario_id": 31,
+      "nombre": "Matias Castelli",
+      "username": "castellimatias2016",
+      "franja_tipo": "Solo tardes",
+      "horarios": {
+        "semana": [
+          {
+            "desde": "18:00",
+            "hasta": "23:00"
+          }
+        ],
+        "finDeSemana": [
+          {
+            "desde": "09:00",
+            "hasta": "23:00"
+          }
+        ]
+      }
+    },
+    {
+      "usuario_id": 20,
+      "nombre": "Cassiel Maximiliano Lucero",
+      "username": "cassieluc",
+      "franja_tipo": "Fines de semana completos",
+      "horarios": {
+        "semana": [
+          {
+            "desde": "20:00",
+            "hasta": "23:00"
+          }
+        ],
+        "finDeSemana": [
+          {
+            "desde": "09:00",
+            "hasta": "23:00"
+          }
+        ]
+      }
+    },
+    {
+      "usuario_id": 24,
+      "nombre": "Cassiel Lucero",
+      "username": "cassiellucero76",
+      "franja_tipo": "Horario flexible",
+      "horarios": {
+        "semana": [
+          {
+            "desde": "12:00",
+            "hasta": "23:00"
+          }
+        ],
+        "finDeSemana": [
+          {
+            "desde": "09:00",
+            "hasta": "23:00"
+          }
+        ]
+      }
+    },
+    {
+      "usuario_id": 35,
+      "nombre": "nacho Romero",
+      "username": "demlujupsi",
+      "franja_tipo": "Mañanas de finde",
+      "horarios": {
+        "semana": [
+          {
+            "desde": "20:00",
+            "hasta": "23:00"
+          }
+        ],
+        "finDeSemana": [
+          {
+            "desde": "09:00",
+            "hasta": "14:00"
+          }
+        ]
+      }
+    },
+    {
+      "usuario_id": 33,
+      "nombre": "Luciano Romero",
+      "username": "j50frigxa6",
+      "franja_tipo": "Tardes de finde",
+      "horarios": {
+        "semana": [
+          {
+            "desde": "19:00",
+            "hasta": "23:00"
+          }
+        ],
+        "finDeSemana": [
+          {
+            "desde": "15:00",
+            "hasta": "23:00"
+          }
+        ]
+      }
+    },
+    {
+      "usuario_id": 19,
+      "nombre": "Juancruz Folledo",
+      "username": "ffolledo",
+      "franja_tipo": "Nocturnos",
+      "horarios": {
+        "semana": [
+          {
+            "desde": "21:00",
+            "hasta": "23:00"
+          }
+        ],
+        "finDeSemana": [
+          {
+            "desde": "20:00",
+            "hasta": "23:00"
+          }
+        ]
+      }
+    },
+    {
+      "usuario_id": 11,
+      "nombre": "Libre1 Demo",
+      "username": "libre_1",
+      "franja_tipo": "Solo tardes",
+      "horarios": {
+        "semana": [
+          {
+            "desde": "18:00",
+            "hasta": "23:00"
+          }
+        ],
+        "finDeSemana": [
+          {
+            "desde": "09:00",
+            "hasta": "23:00"
+          }
+        ]
+      }
+    },
+    {
+      "usuario_id": 12,
+      "nombre": "Libre2 Demo",
+      "username": "libre_2",
+      "franja_tipo": "Fines de semana completos",
+      "horarios": {
+        "semana": [
+          {
+            "desde": "20:00",
+            "hasta": "23:00"
+          }
+        ],
+        "finDeSemana": [
+          {
+            "desde": "09:00",
+            "hasta": "23:00"
+          }
+        ]
+      }
+    },
+    {
+      "usuario_id": 30,
+      "nombre": "Mario elmudo",
+      "username": "rotobon425",
+      "franja_tipo": "Horario flexible",
+      "horarios": {
+        "semana": [
+          {
+            "desde": "12:00",
+            "hasta": "23:00"
+          }
+        ],
+        "finDeSemana": [
+          {
+            "desde": "09:00",
+            "hasta": "23:00"
+          }
+        ]
+      }
+    },
+    {
+      "usuario_id": 40,
+      "nombre": "Tiago Lucero",
+      "username": "tiagoalesio2006",
+      "franja_tipo": "Mañanas de finde",
+      "horarios": {
+        "semana": [
+          {
+            "desde": "20:00",
+            "hasta": "23:00"
+          }
+        ],
+        "finDeSemana": [
+          {
+            "desde": "09:00",
+            "hasta": "14:00"
+          }
+        ]
+      }
+    }
+  ]
+}
