@@ -245,7 +245,7 @@ export default function TorneoFixture({ torneoId, esOrganizador }: TorneoFixture
           
           {esOrganizador && (
             <Button
-              onClick={generarFixture}
+              onClick={() => generarFixture()}
               disabled={generando}
               variant="accent"
             >
