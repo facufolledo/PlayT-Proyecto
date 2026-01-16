@@ -230,9 +230,14 @@ export default function TorneoZonas({ torneoId, esOrganizador }: TorneoZonasProp
   }
 
   // Función para ir al tab de Fixture
-  const irAlFixture = () => {
-    // Emitir evento para cambiar de tab
-    window.dispatchEvent(new CustomEvent('cambiarTab', { detail: 'partidos' }));
+  const irAlFixture = (zonaId?: number, categoriaId?: number) => {
+    // Emitir evento para cambiar de tab con filtros opcionales
+    window.dispatchEvent(new CustomEvent('cambiarTab', { 
+      detail: 'partidos',
+      // Pasar filtros adicionales si se proporcionan
+      ...(zonaId && { zonaId }),
+      ...(categoriaId && { categoriaId })
+    }));
   };
 
   // Filtrar tablas por categoría (SIEMPRE filtrar, nunca mostrar todas)
@@ -576,6 +581,21 @@ export default function TorneoZonas({ torneoId, esOrganizador }: TorneoZonasProp
                   </tbody>
                 </table>
               </div>
+
+              {/* Botón Cargar Resultados para esta zona */}
+              {esOrganizador && (
+                <div className="mt-4 pt-4 border-t border-cardBorder">
+                  <Button
+                    onClick={() => irAlFixture(tabla.zona_id, tabla.categoria_id)}
+                    variant="accent"
+                    size="sm"
+                    className="w-full flex items-center justify-center gap-2"
+                  >
+                    <Calendar size={16} />
+                    Cargar Resultados de {tabla.zona_nombre}
+                  </Button>
+                </div>
+              )}
             </div>
           </Card>
         </motion.div>

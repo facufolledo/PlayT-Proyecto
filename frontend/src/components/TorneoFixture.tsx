@@ -32,6 +32,20 @@ export default function TorneoFixture({ torneoId, esOrganizador }: TorneoFixture
     cargarDatos();
   }, [torneoId]);
 
+  // Escuchar evento de cambio de tab con filtros
+  useEffect(() => {
+    const handleCambiarTabConFiltros = (event: any) => {
+      if (event.detail.zonaId) {
+        setFiltroZona(event.detail.zonaId.toString());
+      }
+      if (event.detail.categoriaId) {
+        setCategoriaFiltro(event.detail.categoriaId);
+      }
+    };
+    window.addEventListener('cambiarTab', handleCambiarTabConFiltros);
+    return () => window.removeEventListener('cambiarTab', handleCambiarTabConFiltros);
+  }, []);
+
   const cargarDatos = async () => {
     try {
       setLoading(true);
