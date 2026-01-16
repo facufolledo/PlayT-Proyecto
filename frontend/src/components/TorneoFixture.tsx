@@ -270,16 +270,16 @@ export default function TorneoFixture({ torneoId, esOrganizador }: TorneoFixture
       )}
 
       {/* Header con filtros de zona y botón de captura */}
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="flex items-center gap-2">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+        <div className="flex items-center gap-2 overflow-x-auto">
           {/* Filtros por zona */}
           {zonas.length > 1 && (
-            <div className="flex gap-2 overflow-x-auto pb-2">
+            <div className="flex gap-2 pb-2 sm:pb-0">
               <Button
                 variant={filtroZona === 'todas' ? 'primary' : 'ghost'}
                 onClick={() => setFiltroZona('todas')}
                 size="sm"
-                className="whitespace-nowrap text-xs md:text-sm"
+                className="whitespace-nowrap text-xs"
               >
                 Todas
               </Button>
@@ -289,7 +289,7 @@ export default function TorneoFixture({ torneoId, esOrganizador }: TorneoFixture
                   variant={filtroZona === zona.id.toString() ? 'primary' : 'ghost'}
                   onClick={() => setFiltroZona(zona.id.toString())}
                   size="sm"
-                  className="whitespace-nowrap text-xs md:text-sm"
+                  className="whitespace-nowrap text-xs"
                 >
                   {zona.nombre}
                 </Button>
@@ -298,17 +298,19 @@ export default function TorneoFixture({ torneoId, esOrganizador }: TorneoFixture
           )}
         </div>
         
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 self-end sm:self-auto">
           {/* Botón eliminar fixture (solo organizador) */}
           {esOrganizador && (
-            <button
+            <Button
               onClick={eliminarFixture}
               disabled={generando}
-              className="flex items-center gap-1.5 text-xs text-red-500 hover:text-red-600 hover:bg-red-500/10 transition-colors px-2 py-1 rounded border border-red-500/20 disabled:opacity-50 disabled:cursor-not-allowed"
+              variant="ghost"
+              size="sm"
+              className="flex items-center gap-1.5 text-xs text-red-500 hover:text-red-600 hover:bg-red-500/10 border border-red-500/30"
             >
               <X size={14} />
               Eliminar Fixture
-            </button>
+            </Button>
           )}
           
           {/* Botón capturar para Instagram */}
@@ -317,9 +319,9 @@ export default function TorneoFixture({ torneoId, esOrganizador }: TorneoFixture
             size="sm"
             onClick={capturarFixture}
             disabled={capturando}
-            className="flex items-center gap-2 text-xs md:text-sm"
+            className="flex items-center gap-2 text-xs"
           >
-            <Camera size={16} />
+            <Camera size={14} />
             {capturando ? 'Capturando...' : 'Capturar'}
           </Button>
         </div>

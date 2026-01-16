@@ -246,8 +246,8 @@ export default function TorneoZonas({ torneoId, esOrganizador }: TorneoZonasProp
   return (
     <div className="space-y-6">
       {/* Header con botones */}
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="flex items-center gap-2">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+        <div className="flex flex-wrap items-center gap-2">
           {/* Botón ir al fixture (solo organizador) */}
           {esOrganizador && (
             <Button
@@ -263,7 +263,7 @@ export default function TorneoZonas({ torneoId, esOrganizador }: TorneoZonasProp
           
           {/* Botón eliminar zonas de categoría actual (solo organizador) */}
           {esOrganizador && categoriaFiltro && tablasFiltradas.length > 0 && (
-            <button
+            <Button
               onClick={() => {
                 const cat = categorias.find(c => c.id === categoriaFiltro);
                 if (confirm(`⚠️ ¿Estás seguro de eliminar las zonas de ${cat?.nombre}?\n\nSe eliminarán:\n- Todas las zonas\n- Todos los partidos\n- Todas las tablas de posiciones\n\nEsta acción NO se puede deshacer.`)) {
@@ -271,11 +271,13 @@ export default function TorneoZonas({ torneoId, esOrganizador }: TorneoZonasProp
                 }
               }}
               disabled={generando}
-              className="flex items-center gap-1.5 text-xs text-red-500 hover:text-red-600 hover:bg-red-500/10 transition-colors px-2 py-1 rounded border border-red-500/20 disabled:opacity-50 disabled:cursor-not-allowed"
+              variant="ghost"
+              size="sm"
+              className="flex items-center gap-1.5 text-xs text-red-500 hover:text-red-600 hover:bg-red-500/10 border border-red-500/30"
             >
               <X size={14} />
               Eliminar Zonas
-            </button>
+            </Button>
           )}
         </div>
         
@@ -283,7 +285,7 @@ export default function TorneoZonas({ torneoId, esOrganizador }: TorneoZonasProp
         <button
           onClick={refrescarDatos}
           disabled={loading}
-          className="flex items-center gap-1.5 text-xs text-textSecondary hover:text-primary transition-colors px-2 py-1 rounded hover:bg-background"
+          className="flex items-center gap-1.5 text-xs text-textSecondary hover:text-primary transition-colors px-2 py-1 rounded hover:bg-background self-end sm:self-auto"
         >
           <RefreshCw size={14} className={loading ? 'animate-spin' : ''} />
           Actualizar

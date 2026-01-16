@@ -170,45 +170,46 @@ export default function TorneoDetalle() {
 
           {/* Horarios del torneo */}
           {(() => {
-            console.log('torneoActual:', torneoActual);
-            console.log('horarios_disponibles:', (torneoActual as any).horarios_disponibles);
-            return (torneoActual as any).horarios_disponibles;
-          })() && (
-            <div className="mb-6 p-4 bg-background rounded-lg border-2 border-accent">
-              <h3 className="font-bold text-textPrimary mb-3 flex items-center gap-2">
-                <Clock className="text-primary" size={20} />
-                Horarios del Torneo
-              </h3>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                {(torneoActual as any).horarios_disponibles.semana && (torneoActual as any).horarios_disponibles.semana.length > 0 && (
-                  <div className="flex items-start gap-2">
-                    <span className="text-xs font-bold text-textSecondary">Lun-Vie:</span>
-                    <div className="flex-1">
-                      {(torneoActual as any).horarios_disponibles.semana.map((franja: any, idx: number) => (
-                        <span key={idx} className="text-sm text-textPrimary">
-                          {franja.desde} - {franja.hasta}
-                          {idx < (torneoActual as any).horarios_disponibles.semana.length - 1 && ', '}
-                        </span>
-                      ))}
+            const horarios = (torneoActual as any).horarios_disponibles;
+            if (!horarios) return null;
+            
+            return (
+              <div className="mb-6 p-4 bg-background rounded-lg border border-primary/30">
+                <h3 className="font-bold text-textPrimary mb-3 flex items-center gap-2">
+                  <Clock className="text-primary" size={20} />
+                  Horarios del Torneo
+                </h3>
+                <div className="flex flex-col sm:flex-row sm:items-center gap-4">
+                  {horarios.semana && horarios.semana.length > 0 && (
+                    <div className="flex items-center gap-2 bg-cardBg px-3 py-2 rounded-lg">
+                      <span className="text-xs font-bold text-primary bg-primary/10 px-2 py-1 rounded">Lun-Vie</span>
+                      <span className="text-sm text-textPrimary font-medium">
+                        {horarios.semana.map((franja: any, idx: number) => (
+                          <span key={idx}>
+                            {franja.desde} - {franja.hasta}
+                            {idx < horarios.semana.length - 1 && ' | '}
+                          </span>
+                        ))}
+                      </span>
                     </div>
-                  </div>
-                )}
-                {(torneoActual as any).horarios_disponibles.finDeSemana && (torneoActual as any).horarios_disponibles.finDeSemana.length > 0 && (
-                  <div className="flex items-start gap-2">
-                    <span className="text-xs font-bold text-textSecondary">Sáb-Dom:</span>
-                    <div className="flex-1">
-                      {(torneoActual as any).horarios_disponibles.finDeSemana.map((franja: any, idx: number) => (
-                        <span key={idx} className="text-sm text-textPrimary">
-                          {franja.desde} - {franja.hasta}
-                          {idx < (torneoActual as any).horarios_disponibles.finDeSemana.length - 1 && ', '}
-                        </span>
-                      ))}
+                  )}
+                  {horarios.finDeSemana && horarios.finDeSemana.length > 0 && (
+                    <div className="flex items-center gap-2 bg-cardBg px-3 py-2 rounded-lg">
+                      <span className="text-xs font-bold text-accent bg-accent/10 px-2 py-1 rounded">Sáb-Dom</span>
+                      <span className="text-sm text-textPrimary font-medium">
+                        {horarios.finDeSemana.map((franja: any, idx: number) => (
+                          <span key={idx}>
+                            {franja.desde} - {franja.hasta}
+                            {idx < horarios.finDeSemana.length - 1 && ' | '}
+                          </span>
+                        ))}
+                      </span>
                     </div>
-                  </div>
-                )}
+                  )}
+                </div>
               </div>
-            </div>
-          )}
+            );
+          })()}
 
           {/* Descripción */}
           <div className="mb-6">
