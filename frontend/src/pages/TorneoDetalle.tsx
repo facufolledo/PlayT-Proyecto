@@ -222,17 +222,19 @@ export default function TorneoDetalle() {
             {estaInscripto ? (
               <div className="flex items-center gap-3">
                 <div className={`inline-flex items-center gap-2 px-4 py-2 rounded-full ${
-                  estadoInscripcion === 'inscripta' || estadoInscripcion === 'confirmada'
+                  estadoInscripcion === 'confirmada'
                     ? 'bg-green-500/10 text-green-500'
+                    : estadoInscripcion === 'inscripta'
+                    ? 'bg-yellow-500/10 text-yellow-500'
                     : estadoInscripcion === 'pendiente'
                     ? 'bg-yellow-500/10 text-yellow-500'
                     : 'bg-gray-500/10 text-gray-500'
                 }`}>
                   <span className="w-2 h-2 rounded-full bg-current" />
                   <span className="font-bold text-sm">
-                    {estadoInscripcion === 'inscripta' && '✓ Inscripto'}
+                    {estadoInscripcion === 'inscripta' && '⏳ Pendiente de confirmación'}
                     {estadoInscripcion === 'confirmada' && '✓ Confirmado'}
-                    {estadoInscripcion === 'pendiente' && '⏳ Pendiente de confirmación'}
+                    {estadoInscripcion === 'pendiente' && '⏳ Esperando confirmación de compañero'}
                     {!['inscripta', 'confirmada', 'pendiente'].includes(estadoInscripcion || '') && 'Participando'}
                   </span>
                 </div>
