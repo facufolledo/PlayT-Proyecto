@@ -312,19 +312,12 @@ class TorneoFixtureGlobalService:
                         slots_compatibles.append((fecha, dia, hora))
             
             if not slots_compatibles:
-                # Si no hay slots compatibles con disponibilidad específica,
-                # usar cualquier slot del torneo (las zonas ya consideran compatibilidad)
-                print(f"⚠️ Partido sin horarios compatibles específicos: Pareja {pareja1_id} vs {pareja2_id}")
-                print(f"   Asignando primer slot disponible del torneo...")
-                for fecha, dia, hora in slots_disponibles:
-                    canchas_ocupadas = ocupacion.get((fecha, hora), [])
-                    if len(canchas_ocupadas) < num_canchas:
-                        slots_compatibles.append((fecha, dia, hora))
-                        break
-            
-            if not slots_compatibles:
-                # No hay slots disponibles en absoluto (todas las canchas ocupadas)
-                print(f"❌ No se pudo programar partido: Pareja {pareja1_id} vs {pareja2_id} - Todas las canchas ocupadas")
+                # Si no hay slots compatibles, NO asignar el partido
+                # La disponibilidad horaria debe respetarse siempre
+                print(f"❌ No se pudo programar partido: Pareja {pareja1_id} vs {pareja2_id}")
+                print(f"   Disponibilidad P1: {disp1 if disp1 else 'Sin restricciones'}")
+                print(f"   Disponibilidad P2: {disp2 if disp2 else 'Sin restricciones'}")
+                print(f"   No hay horarios compatibles disponibles")
                 continue
             
             # Tomar el primer slot compatible
