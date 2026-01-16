@@ -16,6 +16,7 @@ class RankingResponse(BaseModel):
     categoria: Optional[str] = None
     sexo: Optional[str] = None
     imagen_url: Optional[str] = None
+    tendencia: Optional[str] = "neutral"  # up, down, stable, neutral
 
     class Config:
         from_attributes = True

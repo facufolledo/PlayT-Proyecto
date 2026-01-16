@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { Trophy, Minus, Medal, Filter, Search } from 'lucide-react';
+import { Trophy, Minus, Medal, Filter, Search, TrendingUp, TrendingDown } from 'lucide-react';
 import Card from '../components/Card';
 import Button from '../components/Button';
 import Input from '../components/Input';
@@ -322,8 +322,24 @@ export default function Rankings() {
                       </td>
                       <td className="py-2 md:py-4 px-1 md:px-4 text-center hidden xl:table-cell">
                         <div className="flex items-center justify-center gap-1">
-                          <Minus className="text-textSecondary" size={16} />
-                          <span className="text-textSecondary font-bold text-xs">-</span>
+                          {jugador.tendencia === 'up' && (
+                            <>
+                              <TrendingUp className="text-green-500" size={16} />
+                              <span className="text-green-500 font-bold text-xs">↑</span>
+                            </>
+                          )}
+                          {jugador.tendencia === 'down' && (
+                            <>
+                              <TrendingDown className="text-red-500" size={16} />
+                              <span className="text-red-500 font-bold text-xs">↓</span>
+                            </>
+                          )}
+                          {(jugador.tendencia === 'stable' || jugador.tendencia === 'neutral' || !jugador.tendencia) && (
+                            <>
+                              <Minus className="text-textSecondary" size={16} />
+                              <span className="text-textSecondary font-bold text-xs">→</span>
+                            </>
+                          )}
                         </div>
                       </td>
                     </motion.tr>

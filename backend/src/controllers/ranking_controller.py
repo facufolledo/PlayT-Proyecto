@@ -117,12 +117,34 @@ async def get_ranking(
                     partidos_ganados=u["partidos_ganados"],
                     categoria=u["categoria_nombre"],
                     sexo=u["sexo"],
-                    imagen_url=u["url_avatar"]
+                    imagen_url=u["url_avatar"],
+                    tendencia=u.get("tendencia", "neutral")
                 ))
             return ranking
         
         # Cache miss - obtener de DB
         usuarios_data = _get_ranking_from_db(db, limit, offset, sexo)
+        
+        # Calcular tendencia para cada usuario
+        from ..models.driveplus_models import HistorialRating
+        for u in usuarios_data:
+            # Obtener últimos 5 partidos del usuario
+            ultimos_partidos = db.query(HistorialRating).filter(
+                HistorialRating.id_usuario == u["id_usuario"]
+            ).order_by(HistorialRating.creado_en.desc()).limit(5).all()
+            
+            if len(ultimos_partidos) >= 3:
+                # Calcular suma de deltas de los últimos partidos
+                suma_deltas = sum(p.delta for p in ultimos_partidos)
+                
+                if suma_deltas > 10:
+                    u["tendencia"] = "up"  # Subiendo
+                elif suma_deltas < -10:
+                    u["tendencia"] = "down"  # Bajando
+                else:
+                    u["tendencia"] = "stable"  # Estable
+            else:
+                u["tendencia"] = "neutral"  # Pocos partidos para determinar
         
         # Guardar en caché
         cache.set(cache_key, usuarios_data, CACHE_TTL["ranking"])
@@ -143,7 +165,8 @@ async def get_ranking(
                 partidos_ganados=u["partidos_ganados"],
                 categoria=u["categoria_nombre"],
                 sexo=u["sexo"],
-                imagen_url=u["url_avatar"]
+                imagen_url=u["url_avatar"],
+                tendencia=u.get("tendencia", "neutral")
             ))
         
         return ranking
