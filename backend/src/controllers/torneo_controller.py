@@ -268,6 +268,13 @@ def listar_torneos(
         # Convertir a formato simple para evitar problemas de serialización
         resultado = []
         for torneo in torneos:
+            # Contar parejas inscritas correctamente
+            from ..models.torneo_models import TorneoPareja
+            parejas_count = db.query(TorneoPareja).filter(
+                TorneoPareja.torneo_id == torneo.id,
+                TorneoPareja.estado.in_(['inscripta', 'confirmada'])
+            ).count()
+            
             resultado.append({
                 "id": torneo.id,
                 "nombre": torneo.nombre,
@@ -280,7 +287,7 @@ def listar_torneos(
                 "fecha_fin": torneo.fecha_fin.isoformat() if torneo.fecha_fin else None,
                 "lugar": torneo.lugar,
                 "created_at": torneo.created_at.isoformat() if torneo.created_at else None,
-                "parejas_inscritas": 0  # Temporalmente 0, se puede calcular después
+                "parejas_inscritas": parejas_count  # ✅ Ahora calcula correctamente
             })
         
         return resultado
@@ -290,43 +297,6 @@ def listar_torneos(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, 
             detail=f"Error al listar torneos: {str(e)}"
         )
-    
-    try:
-        torneos = TorneoService.listar_torneos(db, skip, limit, estado, categoria)
-        
-        # Agregar conteo de parejas a cada torneo
-        resultado = []
-        for torneo in torneos:
-            # Contar parejas inscritas
-            parejas_count = db.query(TorneoPareja).filter(
-                TorneoPareja.torneo_id == torneo.id,
-                TorneoPareja.estado.in_(['inscripta', 'confirmada'])
-            ).count()
-            
-            resultado.append({
-                "id": torneo.id,
-                "nombre": torneo.nombre,
-                "descripcion": torneo.descripcion,
-                "tipo": torneo.tipo.value if hasattr(torneo.tipo, 'value') else str(torneo.tipo),
-                "categoria": torneo.categoria,
-                "genero": torneo.genero or 'masculino',
-                "estado": torneo.estado.value if hasattr(torneo.estado, 'value') else str(torneo.estado),
-                "fecha_inicio": torneo.fecha_inicio.isoformat() if torneo.fecha_inicio else None,
-                "fecha_fin": torneo.fecha_fin.isoformat() if torneo.fecha_fin else None,
-                "lugar": torneo.lugar,
-                "reglas_json": torneo.reglas_json,
-                "creado_por": torneo.creado_por,
-                "created_at": torneo.created_at.isoformat() if torneo.created_at else None,
-                "updated_at": torneo.updated_at.isoformat() if torneo.updated_at else None,
-                "parejas_inscritas": parejas_count,
-                "total_partidos": 0  # TODO: contar partidos
-            })
-        
-        return resultado
-    except Exception as e:
-        import traceback
-        traceback.print_exc()
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
 
 
 @router.get("/mis-torneos")

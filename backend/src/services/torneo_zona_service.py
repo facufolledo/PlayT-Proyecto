@@ -222,35 +222,50 @@ class TorneoZonaService:
     
     @staticmethod
     def listar_zonas(db: Session, torneo_id: int) -> List[dict]:
-        """Lista todas las zonas de un torneo con sus parejas"""
+        """Lista todas las zonas de un torneo con sus parejas (incluyendo eliminadas)"""
         zonas = db.query(TorneoZona).filter(
             TorneoZona.torneo_id == torneo_id
         ).order_by(TorneoZona.numero_orden).all()
         
         resultado = []
         for zona in zonas:
-            # Obtener parejas de la zona
-            parejas_zona = db.query(TorneoPareja).join(
-                TorneoZonaPareja,
-                TorneoZonaPareja.pareja_id == TorneoPareja.id
-            ).filter(
+            # Obtener todas las asignaciones de parejas a esta zona
+            asignaciones = db.query(TorneoZonaPareja).filter(
                 TorneoZonaPareja.zona_id == zona.id
             ).all()
+            
+            parejas_info = []
+            for asignacion in asignaciones:
+                # Intentar obtener la pareja
+                pareja = db.query(TorneoPareja).filter(
+                    TorneoPareja.id == asignacion.pareja_id
+                ).first()
+                
+                if pareja:
+                    # Pareja existe
+                    parejas_info.append({
+                        'id': pareja.id,
+                        'jugador1_id': pareja.jugador1_id,
+                        'jugador2_id': pareja.jugador2_id,
+                        'estado': pareja.estado,
+                        'eliminada': False
+                    })
+                else:
+                    # Pareja fue eliminada - mostrar placeholder
+                    parejas_info.append({
+                        'id': asignacion.pareja_id,
+                        'jugador1_id': None,
+                        'jugador2_id': None,
+                        'estado': 'eliminada',
+                        'eliminada': True
+                    })
             
             resultado.append({
                 'id': zona.id,
                 'nombre': zona.nombre,
                 'numero': zona.numero_orden,
                 'categoria_id': getattr(zona, 'categoria_id', None),
-                'parejas': [
-                    {
-                        'id': p.id,
-                        'jugador1_id': p.jugador1_id,
-                        'jugador2_id': p.jugador2_id,
-                        'estado': p.estado
-                    }
-                    for p in parejas_zona
-                ]
+                'parejas': parejas_info
             })
         
         return resultado
@@ -258,7 +273,7 @@ class TorneoZonaService:
     @staticmethod
     def obtener_tabla_posiciones(db: Session, zona_id: int) -> dict:
         """
-        Obtiene la tabla de posiciones de una zona
+        Obtiene la tabla de posiciones de una zona (incluyendo parejas eliminadas)
         
         Calcula:
         - Partidos jugados
@@ -273,30 +288,50 @@ class TorneoZonaService:
         if not zona:
             raise ValueError("Zona no encontrada")
         
-        # Obtener parejas de la zona
-        parejas = db.query(TorneoPareja).join(
-            TorneoZonaPareja,
-            TorneoZonaPareja.pareja_id == TorneoPareja.id
-        ).filter(
+        # Obtener todas las asignaciones de parejas a esta zona
+        asignaciones = db.query(TorneoZonaPareja).filter(
             TorneoZonaPareja.zona_id == zona_id
         ).all()
         
-        # Inicializar estadísticas
+        # Inicializar estadísticas para todas las parejas (existentes y eliminadas)
         tabla = []
-        for pareja in parejas:
-            tabla.append({
-                'pareja_id': pareja.id,
-                'jugador1_id': pareja.jugador1_id,
-                'jugador2_id': pareja.jugador2_id,
-                'partidos_jugados': 0,
-                'partidos_ganados': 0,
-                'partidos_perdidos': 0,
-                'sets_ganados': 0,
-                'sets_perdidos': 0,
-                'games_ganados': 0,
-                'games_perdidos': 0,
-                'puntos': 0
-            })
+        for asignacion in asignaciones:
+            pareja = db.query(TorneoPareja).filter(
+                TorneoPareja.id == asignacion.pareja_id
+            ).first()
+            
+            if pareja:
+                # Pareja existe
+                tabla.append({
+                    'pareja_id': pareja.id,
+                    'jugador1_id': pareja.jugador1_id,
+                    'jugador2_id': pareja.jugador2_id,
+                    'eliminada': False,
+                    'partidos_jugados': 0,
+                    'partidos_ganados': 0,
+                    'partidos_perdidos': 0,
+                    'sets_ganados': 0,
+                    'sets_perdidos': 0,
+                    'games_ganados': 0,
+                    'games_perdidos': 0,
+                    'puntos': 0
+                })
+            else:
+                # Pareja eliminada
+                tabla.append({
+                    'pareja_id': asignacion.pareja_id,
+                    'jugador1_id': None,
+                    'jugador2_id': None,
+                    'eliminada': True,
+                    'partidos_jugados': 0,
+                    'partidos_ganados': 0,
+                    'partidos_perdidos': 0,
+                    'sets_ganados': 0,
+                    'sets_perdidos': 0,
+                    'games_ganados': 0,
+                    'games_perdidos': 0,
+                    'puntos': 0
+                })
         
         # Obtener partidos de la zona (confirmados = finalizados)
         partidos = db.query(Partido).filter(
@@ -377,31 +412,43 @@ class TorneoZonaService:
             -(x['games_ganados'] - x['games_perdidos'])
         ))
         
-        # Obtener nombres y usernames de jugadores
+        # Obtener nombres y usernames de jugadores (solo para parejas existentes)
         from ..models.driveplus_models import Usuario, PerfilUsuario
         jugadores_ids = set()
         for item in tabla:
-            jugadores_ids.add(item['jugador1_id'])
-            jugadores_ids.add(item['jugador2_id'])
+            if not item['eliminada'] and item['jugador1_id'] and item['jugador2_id']:
+                jugadores_ids.add(item['jugador1_id'])
+                jugadores_ids.add(item['jugador2_id'])
         
-        usuarios = {u.id_usuario: u for u in db.query(Usuario).filter(Usuario.id_usuario.in_(jugadores_ids)).all()}
-        perfiles = {p.id_usuario: p for p in db.query(PerfilUsuario).filter(PerfilUsuario.id_usuario.in_(jugadores_ids)).all()}
+        usuarios = {}
+        perfiles = {}
+        if jugadores_ids:
+            usuarios = {u.id_usuario: u for u in db.query(Usuario).filter(Usuario.id_usuario.in_(jugadores_ids)).all()}
+            perfiles = {p.id_usuario: p for p in db.query(PerfilUsuario).filter(PerfilUsuario.id_usuario.in_(jugadores_ids)).all()}
         
         # Agregar posición y nombres
         for i, item in enumerate(tabla):
             item['posicion'] = i + 1
             
-            # Agregar nombres y usernames
-            p1 = perfiles.get(item['jugador1_id'])
-            p2 = perfiles.get(item['jugador2_id'])
-            u1 = usuarios.get(item['jugador1_id'])
-            u2 = usuarios.get(item['jugador2_id'])
-            
-            item['jugador1_nombre'] = f"{p1.nombre} {p1.apellido}" if p1 else None
-            item['jugador2_nombre'] = f"{p2.nombre} {p2.apellido}" if p2 else None
-            item['jugador1_username'] = u1.nombre_usuario if u1 else None
-            item['jugador2_username'] = u2.nombre_usuario if u2 else None
-            item['pareja_nombre'] = f"{item['jugador1_nombre']} / {item['jugador2_nombre']}" if item['jugador1_nombre'] and item['jugador2_nombre'] else None
+            if item['eliminada']:
+                # Pareja eliminada - mostrar placeholder
+                item['jugador1_nombre'] = "Pareja"
+                item['jugador2_nombre'] = "Eliminada"
+                item['jugador1_username'] = None
+                item['jugador2_username'] = None
+                item['pareja_nombre'] = "Pareja Eliminada"
+            else:
+                # Pareja existente - obtener nombres reales
+                p1 = perfiles.get(item['jugador1_id'])
+                p2 = perfiles.get(item['jugador2_id'])
+                u1 = usuarios.get(item['jugador1_id'])
+                u2 = usuarios.get(item['jugador2_id'])
+                
+                item['jugador1_nombre'] = f"{p1.nombre} {p1.apellido}" if p1 else None
+                item['jugador2_nombre'] = f"{p2.nombre} {p2.apellido}" if p2 else None
+                item['jugador1_username'] = u1.nombre_usuario if u1 else None
+                item['jugador2_username'] = u2.nombre_usuario if u2 else None
+                item['pareja_nombre'] = f"{item['jugador1_nombre']} / {item['jugador2_nombre']}" if item['jugador1_nombre'] and item['jugador2_nombre'] else None
         
         return {
             'zona_id': zona_id,

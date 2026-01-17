@@ -580,6 +580,38 @@ class TorneoResultadoService:
         games_a = sum(s.get('gamesEquipoA', 0) for s in sets)
         games_b = sum(s.get('gamesEquipoB', 0) for s in sets)
         
+        # MAPEAR CORRECTAMENTE PAREJAS PARA ELO (FIX CRÍTICO)
+        # Problema: pareja1/pareja2 != equipoA/equipoB necesariamente
+        # Solución: Determinar correspondencia basándose en jugadores
+        
+        # Obtener información de jugadores por equipo del resultado
+        jugadores_resultado = resultado_data.get('jugadores', {})
+        jugadores_equipoA = jugadores_resultado.get('equipoA', [])
+        jugadores_equipoB = jugadores_resultado.get('equipoB', [])
+        
+        # Determinar si pareja1 corresponde a equipoA o equipoB
+        pareja1_es_equipoA = False
+        
+        if jugadores_equipoA:
+            # Verificar si algún jugador de pareja1 está en equipoA
+            ids_pareja1 = {pareja1.jugador1_id, pareja1.jugador2_id}
+            ids_equipoA = {j.get('id') for j in jugadores_equipoA if j.get('id')}
+            pareja1_es_equipoA = bool(ids_pareja1.intersection(ids_equipoA))
+        
+        # Asignar sets correctamente según la correspondencia
+        if pareja1_es_equipoA:
+            # pareja1 = equipoA, pareja2 = equipoB
+            sets_pareja1 = sets_a  # sets de equipoA
+            sets_pareja2 = sets_b  # sets de equipoB
+            games_pareja1 = games_a
+            games_pareja2 = games_b
+        else:
+            # pareja1 = equipoB, pareja2 = equipoA (INVERTIDO)
+            sets_pareja1 = sets_b  # sets de equipoB
+            sets_pareja2 = sets_a  # sets de equipoA
+            games_pareja1 = games_b
+            games_pareja2 = games_a
+        
         # Convertir sets al formato esperado por EloService (games_a, games_b)
         sets_detail = [
             {
@@ -589,15 +621,15 @@ class TorneoResultadoService:
             for s in sets
         ]
         
-        # Calcular ELO
+        # Calcular ELO (CORREGIDO)
         elo_service = EloService()
         cambios_elo_result = elo_service.calculate_match_ratings(
             team_a_players=team_a_players,
             team_b_players=team_b_players,
-            sets_a=sets_a,
-            sets_b=sets_b,
-            games_a=games_a,
-            games_b=games_b,
+            sets_a=sets_pareja1,  # Ahora corresponde correctamente a pareja1
+            sets_b=sets_pareja2,  # Ahora corresponde correctamente a pareja2
+            games_a=games_pareja1,
+            games_b=games_pareja2,
             sets_detail=sets_detail,
             match_type='torneo',
             match_date=partido.fecha or datetime.now()

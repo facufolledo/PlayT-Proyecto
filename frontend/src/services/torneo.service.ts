@@ -348,7 +348,7 @@ class TorneoService {
 
   async eliminarFixture(torneoId: number, categoriaId?: number): Promise<any> {
     const config = this.getAuthHeaders();
-    if (categoriaId) {
+    if (categoriaId !== undefined && categoriaId !== null) {
       config.params = { categoria_id: categoriaId };
     }
     const response = await axios.delete(
@@ -371,12 +371,24 @@ class TorneoService {
   // Fixture
   async generarFixture(torneoId: number, categoriaId?: number): Promise<any> {
     const config = this.getAuthHeaders();
-    if (categoriaId) {
+    if (categoriaId !== undefined && categoriaId !== null) {
       config.params = { categoria_id: categoriaId };
     }
     const response = await axios.post(
       `${API_URL}/torneos/${torneoId}/generar-fixture`,
       {},
+      config
+    );
+    return response.data;
+  }
+
+  async eliminarFixture(torneoId: number, categoriaId?: number): Promise<any> {
+    const config = this.getAuthHeaders();
+    if (categoriaId !== undefined && categoriaId !== null) {
+      config.params = { categoria_id: categoriaId };
+    }
+    const response = await axios.delete(
+      `${API_URL}/torneos/${torneoId}/fixture`,
       config
     );
     return response.data;

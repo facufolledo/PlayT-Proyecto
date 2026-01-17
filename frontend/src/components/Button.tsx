@@ -3,7 +3,7 @@ import { motion } from 'framer-motion';
 
 interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
   children: ReactNode;
-  variant?: 'primary' | 'secondary' | 'accent' | 'ghost';
+  variant?: 'primary' | 'secondary' | 'accent' | 'ghost' | 'danger';
   size?: 'sm' | 'md' | 'lg';
 }
 
@@ -21,6 +21,7 @@ export default function Button({
     secondary: 'bg-gradient-to-r from-secondary to-pink-600 text-white hover:shadow-lg hover:shadow-secondary/50 shadow-md shadow-secondary/30',
     accent: 'bg-gradient-to-r from-accent to-yellow-500 text-background hover:shadow-lg hover:shadow-accent/50 shadow-md shadow-accent/30 font-black',
     ghost: 'bg-cardBg text-textPrimary hover:bg-cardBorder border border-cardBorder hover:border-primary/50 shadow-sm hover:shadow-md',
+    danger: 'bg-gradient-to-r from-red-500 to-red-600 text-white hover:shadow-lg hover:shadow-red-500/50 shadow-md shadow-red-500/30',
   };
 
   const sizes = {

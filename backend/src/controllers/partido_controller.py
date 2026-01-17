@@ -513,14 +513,47 @@ async def calcular_elo_partido(
                     except (ValueError, AttributeError):
                         pass  # Si no se puede parsear, usar 0
         
-        # Calcular nuevos ratings usando el algoritmo Elo avanzado
+        # MAPEAR CORRECTAMENTE EQUIPOS PARA ELO (FIX CRÍTICO)
+        # Problema: equipo1/equipo2 != equipoA/equipoB necesariamente
+        # Solución: Determinar correspondencia basándose en jugadores
+        
+        # Obtener información de jugadores por equipo del resultado JSON
+        resultado_json = partido.resultado_padel or {}
+        jugadores_resultado = resultado_json.get('jugadores', {})
+        jugadores_equipoA = jugadores_resultado.get('equipoA', [])
+        jugadores_equipoB = jugadores_resultado.get('equipoB', [])
+        
+        # Determinar si equipo1 corresponde a equipoA o equipoB
+        equipo1_es_equipoA = False
+        
+        if jugadores_equipoA and equipo1:
+            # Verificar si algún jugador de equipo1 está en equipoA
+            ids_equipo1 = {j.id_usuario for j in equipo1}
+            ids_equipoA = {j.get('id') for j in jugadores_equipoA if j.get('id')}
+            equipo1_es_equipoA = bool(ids_equipo1.intersection(ids_equipoA))
+        
+        # Asignar sets correctamente según la correspondencia
+        if equipo1_es_equipoA:
+            # equipo1 = equipoA, equipo2 = equipoB
+            sets_equipo1 = resultado.sets_eq1  # sets de equipoA
+            sets_equipo2 = resultado.sets_eq2  # sets de equipoB
+            games_equipo1_corregido = games_equipo1
+            games_equipo2_corregido = games_equipo2
+        else:
+            # equipo1 = equipoB, equipo2 = equipoA (INVERTIDO)
+            sets_equipo1 = resultado.sets_eq2  # sets de equipoB
+            sets_equipo2 = resultado.sets_eq1  # sets de equipoA  
+            games_equipo1_corregido = games_equipo2
+            games_equipo2_corregido = games_equipo1
+        
+        # Calcular nuevos ratings usando el algoritmo Elo avanzado (CORREGIDO)
         nuevos_ratings = elo_service.calculate_match_ratings(
             team_a_players=equipo1_players,
             team_b_players=equipo2_players,
-            sets_a=resultado.sets_eq1,
-            sets_b=resultado.sets_eq2,
-            games_a=games_equipo1,
-            games_b=games_equipo2,
+            sets_a=sets_equipo1,  # Ahora corresponde correctamente a equipo1
+            sets_b=sets_equipo2,  # Ahora corresponde correctamente a equipo2
+            games_a=games_equipo1_corregido,
+            games_b=games_equipo2_corregido,
             desenlace=resultado.desenlace
         )
         

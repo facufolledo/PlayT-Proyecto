@@ -1,5 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
+from sqlalchemy import func, case
 from typing import List
 from datetime import datetime
 
@@ -8,6 +9,9 @@ from ..models.sala import Sala, SalaJugador
 from ..models.driveplus_models import Usuario, PerfilUsuario
 from ..schemas.sala import SalaCreate, SalaResponse, SalaJoin, SalaCompleta
 from ..auth.auth_utils import get_current_user
+from ..utils.logger import Loggers
+
+logger = Loggers.sala()
 
 router = APIRouter(prefix="/salas", tags=["Salas"])
 
@@ -75,57 +79,79 @@ async def unirse_sala(
     current_user: Usuario = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
-    """Unirse a una sala con código de invitación"""
-    
-    # Buscar sala por código
-    sala = db.query(Sala).filter(
-        Sala.codigo_invitacion == join_data.codigo_invitacion.upper()
-    ).first()
-    
-    if not sala:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Sala no encontrada"
-        )
-    
-    # Verificar que la sala no esté llena
-    jugadores_actuales = db.query(SalaJugador).filter(
-        SalaJugador.id_sala == sala.id_sala
-    ).count()
-    
-    if jugadores_actuales >= sala.max_jugadores:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="La sala está llena"
-        )
-    
-    # Verificar que el usuario no esté ya en la sala
-    ya_esta = db.query(SalaJugador).filter(
-        SalaJugador.id_sala == sala.id_sala,
-        SalaJugador.id_usuario == current_user.id_usuario
-    ).first()
-    
-    if ya_esta:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Ya estás en esta sala"
-        )
+    """Unirse a una sala con código de invitación (OPTIMIZADO)"""
     
     try:
-        # Agregar jugador a la sala
+        # OPTIMIZACIÓN 1: Query única con joins para obtener toda la info necesaria
+        sala_info = db.query(
+            Sala.id_sala,
+            Sala.codigo_invitacion,
+            Sala.max_jugadores,
+            Sala.estado,
+            func.count(SalaJugador.id_usuario).label('jugadores_actuales'),
+            func.sum(case((SalaJugador.id_usuario == current_user.id_usuario, 1), else_=0)).label('ya_esta')
+        ).outerjoin(
+            SalaJugador, Sala.id_sala == SalaJugador.id_sala
+        ).filter(
+            Sala.codigo_invitacion == join_data.codigo_invitacion.upper()
+        ).group_by(
+            Sala.id_sala, Sala.codigo_invitacion, Sala.max_jugadores, Sala.estado
+        ).first()
+        
+        if not sala_info:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Sala no encontrada"
+            )
+        
+        # Verificaciones usando datos de la query única
+        if sala_info.jugadores_actuales >= sala_info.max_jugadores:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="La sala está llena"
+            )
+        
+        if sala_info.ya_esta > 0:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Ya estás en esta sala"
+            )
+        
+        # OPTIMIZACIÓN 2: Agregar jugador con orden correcto
         db_jugador = SalaJugador(
-            id_sala=sala.id_sala,
+            id_sala=sala_info.id_sala,
             id_usuario=current_user.id_usuario,
-            orden=jugadores_actuales + 1
+            orden=sala_info.jugadores_actuales + 1
         )
         db.add(db_jugador)
         db.commit()
         
-        # Obtener información completa de la sala
-        return await obtener_sala(sala.id_sala, current_user, db)
+        # OPTIMIZACIÓN 3: Notificar via WebSocket de forma asíncrona
+        from ..websocket.connection_manager import manager
+        try:
+            await manager.broadcast_to_room(
+                f"sala_{sala_info.id_sala}",
+                {
+                    "type": "jugador_unido",
+                    "jugador": {
+                        "id": str(current_user.id_usuario),
+                        "nombre": current_user.nombre_usuario,
+                        "rating": current_user.rating or 1500
+                    }
+                }
+            )
+        except Exception as ws_error:
+            logger.warning(f"Error enviando WebSocket: {ws_error}")
         
+        # OPTIMIZACIÓN 4: Retornar sala optimizada (reutilizar función optimizada)
+        return await obtener_sala_optimizada(sala_info.id_sala, current_user, db)
+        
+    except HTTPException:
+        db.rollback()
+        raise
     except Exception as e:
         db.rollback()
+        logger.error(f"Error al unirse a sala: {str(e)}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Error al unirse a la sala: {str(e)}"
@@ -220,44 +246,59 @@ async def listar_salas(
     current_user: Usuario = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
-    """Listar todas las salas activas y las últimas 10 finalizadas donde el usuario participó"""
+    """Listar todas las salas activas y las últimas 10 finalizadas donde el usuario participó (OPTIMIZADO)"""
     
     try:
-        # Obtener todas las salas que no están finalizadas
-        salas_activas = db.query(Sala).filter(
+        # OPTIMIZACIÓN 1: Query única con joins para salas activas
+        salas_activas_query = db.query(Sala).filter(
             Sala.estado.in_(['esperando', 'activa', 'programada', 'en_juego'])
-        ).order_by(
-            Sala.creado_en.desc()
-        ).all()
+        ).order_by(Sala.creado_en.desc())
         
-        # Obtener las últimas 10 salas finalizadas donde el usuario participó
-        salas_finalizadas = db.query(Sala).join(
+        # OPTIMIZACIÓN 2: Query única con joins para salas finalizadas del usuario
+        salas_finalizadas_query = db.query(Sala).join(
             SalaJugador, Sala.id_sala == SalaJugador.id_sala
         ).filter(
             Sala.estado == 'finalizada',
             SalaJugador.id_usuario == current_user.id_usuario
-        ).order_by(
-            Sala.creado_en.desc()
-        ).limit(10).all()
+        ).order_by(Sala.creado_en.desc()).limit(10)
         
-        # Combinar ambas listas
-        salas = list(salas_activas) + list(salas_finalizadas)
+        # Ejecutar ambas queries
+        salas_activas = salas_activas_query.all()
+        salas_finalizadas = salas_finalizadas_query.all()
+        
+        # Combinar y deduplicar
+        salas_dict = {s.id_sala: s for s in salas_activas}
+        for s in salas_finalizadas:
+            if s.id_sala not in salas_dict:
+                salas_dict[s.id_sala] = s
+        
+        salas = list(salas_dict.values())
+        
     except Exception as e:
-        print(f"❌ Error al obtener salas: {str(e)}")
-        import traceback
-        traceback.print_exc()
+        logger.error(f"Error al obtener salas: {str(e)}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Error al obtener salas: {str(e)}"
         )
     
-    # Optimización: Obtener todos los jugadores de todas las salas en una sola query
-    from sqlalchemy.orm import joinedload
+    if not salas:
+        return []
     
+    # OPTIMIZACIÓN 3: Batch query para todos los datos relacionados
     salas_ids = [s.id_sala for s in salas]
+    partidos_ids = [s.id_partido for s in salas if s.id_partido]
     
-    # Obtener todos los jugadores con sus usuarios y perfiles en una query
-    jugadores_query = db.query(SalaJugador, Usuario, PerfilUsuario).join(
+    # Query 1: Todos los jugadores con usuarios y perfiles en una sola query
+    jugadores_data = db.query(
+        SalaJugador.id_sala,
+        SalaJugador.id_usuario,
+        SalaJugador.equipo,
+        SalaJugador.orden,
+        Usuario.nombre_usuario,
+        Usuario.rating,
+        PerfilUsuario.nombre,
+        PerfilUsuario.apellido
+    ).join(
         Usuario, SalaJugador.id_usuario == Usuario.id_usuario
     ).outerjoin(
         PerfilUsuario, Usuario.id_usuario == PerfilUsuario.id_usuario
@@ -265,64 +306,74 @@ async def listar_salas(
         SalaJugador.id_sala.in_(salas_ids)
     ).order_by(SalaJugador.id_sala, SalaJugador.orden).all()
     
-    # Agrupar jugadores por sala
-    jugadores_por_sala = {}
-    for sj, usuario, perfil in jugadores_query:
-        if sj.id_sala not in jugadores_por_sala:
-            jugadores_por_sala[sj.id_sala] = []
-        
-        # Simplificar datos del jugador
-        nombre_completo = f"{perfil.nombre} {perfil.apellido}".strip() if perfil and perfil.nombre else usuario.nombre_usuario
-        
-        jugadores_por_sala[sj.id_sala].append({
-            "id": str(usuario.id_usuario),
-            "nombre": nombre_completo,
-            "nombre_usuario": usuario.nombre_usuario,
-            "rating": usuario.rating or 1500,
-            "equipo": sj.equipo,
-            "esCreador": False  # Se actualizará después
-        })
-    
-    # Obtener resultados de partidos y cambios de Elo
-    from ..models.driveplus_models import Partido, PartidoJugador, ResultadoPartido
-    from ..models.confirmacion import Confirmacion
-    partidos_ids = [s.id_partido for s in salas if s.id_partido]
-    partidos_dict = {}
-    cambios_elo_dict = {}
-    confirmaciones_dict = {}  # IDs de usuarios que ya confirmaron por partido
-    
+    # Query 2: Todos los partidos relacionados
+    partidos_data = {}
     if partidos_ids:
         partidos = db.query(Partido).filter(Partido.id_partido.in_(partidos_ids)).all()
-        for partido in partidos:
-            partidos_dict[partido.id_partido] = partido
-        
-        # Obtener cambios de Elo de los jugadores
+        partidos_data = {p.id_partido: p for p in partidos}
+    
+    # Query 3: Todos los resultados de partidos
+    resultados_data = {}
+    if partidos_ids:
+        from ..models.driveplus_models import ResultadoPartido
+        resultados = db.query(ResultadoPartido).filter(
+            ResultadoPartido.id_partido.in_(partidos_ids)
+        ).all()
+        resultados_data = {r.id_partido: r for r in resultados}
+    
+    # Query 4: Todos los cambios de ELO
+    cambios_elo_data = {}
+    if partidos_ids:
+        from ..models.driveplus_models import PartidoJugador
         cambios_elo = db.query(PartidoJugador).filter(
             PartidoJugador.id_partido.in_(partidos_ids)
         ).all()
         
         for cambio in cambios_elo:
-            if cambio.id_partido not in cambios_elo_dict:
-                cambios_elo_dict[cambio.id_partido] = []
-            cambios_elo_dict[cambio.id_partido].append({
+            if cambio.id_partido not in cambios_elo_data:
+                cambios_elo_data[cambio.id_partido] = []
+            cambios_elo_data[cambio.id_partido].append({
                 "id_usuario": cambio.id_usuario,
                 "rating_antes": cambio.rating_antes,
                 "rating_despues": cambio.rating_despues,
                 "cambio_elo": cambio.cambio_elo
             })
-        
-        # Obtener confirmaciones de cada partido
+    
+    # Query 5: Todas las confirmaciones
+    confirmaciones_data = {}
+    if partidos_ids:
+        from ..models.confirmacion import Confirmacion
         confirmaciones = db.query(Confirmacion).filter(
             Confirmacion.id_partido.in_(partidos_ids),
             Confirmacion.tipo == 'confirmacion'
         ).all()
         
         for conf in confirmaciones:
-            if conf.id_partido not in confirmaciones_dict:
-                confirmaciones_dict[conf.id_partido] = []
-            confirmaciones_dict[conf.id_partido].append(conf.id_usuario)
+            if conf.id_partido not in confirmaciones_data:
+                confirmaciones_data[conf.id_partido] = []
+            confirmaciones_data[conf.id_partido].append(conf.id_usuario)
     
-    # Construir resultado
+    # OPTIMIZACIÓN 4: Procesar datos en memoria (mucho más rápido que queries)
+    jugadores_por_sala = {}
+    for row in jugadores_data:
+        id_sala = row.id_sala
+        if id_sala not in jugadores_por_sala:
+            jugadores_por_sala[id_sala] = []
+        
+        # Construir nombre completo
+        nombre_completo = f"{row.nombre} {row.apellido}".strip() if row.nombre else row.nombre_usuario
+        
+        jugadores_por_sala[id_sala].append({
+            "id": str(row.id_usuario),
+            "nombre": nombre_completo,
+            "nombre_usuario": row.nombre_usuario,
+            "rating": row.rating or 1500,
+            "equipo": row.equipo,
+            "esCreador": False  # Se actualizará después
+        })
+    
+    
+    # OPTIMIZACIÓN 5: Construir resultado final (procesamiento en memoria)
     resultado = []
     for sala in salas:
         try:
@@ -333,24 +384,23 @@ async def listar_salas(
                 if int(jugador["id"]) == sala.id_creador:
                     jugador["esCreador"] = True
             
-            # Obtener resultado del partido si existe (UNIFICADO)
+            # Obtener datos del partido si existe (usando datos pre-cargados)
             resultado_partido = None
             estado_confirmacion = None
             cambios_elo = None
             elo_aplicado = False
+            usuarios_confirmados = []
             
-            if sala.id_partido and sala.id_partido in partidos_dict:
-                partido = partidos_dict[sala.id_partido]
-                estado_confirmacion = partido.estado_confirmacion
-                elo_aplicado = partido.elo_aplicado if hasattr(partido, 'elo_aplicado') else False
+            if sala.id_partido:
+                # Usar datos pre-cargados (no más queries)
+                partido = partidos_data.get(sala.id_partido)
+                if partido:
+                    estado_confirmacion = partido.estado_confirmacion
+                    elo_aplicado = getattr(partido, 'elo_aplicado', False)
                 
-                # Buscar resultado en resultados_partidos (UNIFICADO)
-                resultado_db = db.query(ResultadoPartido).filter(
-                    ResultadoPartido.id_partido == partido.id_partido
-                ).first()
-                
+                # Resultado del partido
+                resultado_db = resultados_data.get(sala.id_partido)
                 if resultado_db:
-                    # Convertir a formato que espera el frontend
                     resultado_partido = {
                         "formato": "best_of_3",
                         "sets": [
@@ -362,18 +412,15 @@ async def listar_salas(
                             }
                             for set_data in resultado_db.detalle_sets
                         ],
-                        "ganador": "equipoA" if partido.ganador_equipo == 1 else "equipoB",
+                        "ganador": "equipoA" if partido and partido.ganador_equipo == 1 else "equipoB",
                         "completado": True
                     }
-                    
-                    # Agregar cambios de Elo si existen
-                    if sala.id_partido in cambios_elo_dict:
-                        cambios_elo = cambios_elo_dict[sala.id_partido]
-            
-            # Obtener usuarios que ya confirmaron este partido
-            usuarios_confirmados = []
-            if sala.id_partido and sala.id_partido in confirmaciones_dict:
-                usuarios_confirmados = confirmaciones_dict[sala.id_partido]
+                
+                # Cambios de ELO
+                cambios_elo = cambios_elo_data.get(sala.id_partido)
+                
+                # Usuarios confirmados
+                usuarios_confirmados = confirmaciones_data.get(sala.id_partido, [])
             
             sala_completa = SalaCompleta(
                 id_sala=str(sala.id_sala),
@@ -393,10 +440,9 @@ async def listar_salas(
                 usuarios_confirmados=usuarios_confirmados
             )
             resultado.append(sala_completa)
+            
         except Exception as e:
-            print(f"⚠️ Error al procesar sala {sala.id_sala}: {str(e)}")
-            import traceback
-            traceback.print_exc()
+            logger.error(f"Error al procesar sala {sala.id_sala}: {str(e)}")
             continue
     
     return resultado
@@ -1019,3 +1065,142 @@ async def eliminar_sala(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Error al eliminar sala: {str(e)}"
         )
+
+# ============================================
+# FUNCIONES AUXILIARES OPTIMIZADAS
+# ============================================
+
+async def obtener_sala_optimizada(
+    sala_id: int,
+    current_user: Usuario,
+    db: Session
+) -> SalaCompleta:
+    """Obtener información completa de una sala de forma optimizada"""
+    
+    # Query única para obtener sala con jugadores
+    sala_data = db.query(
+        Sala.id_sala,
+        Sala.nombre,
+        Sala.fecha,
+        Sala.estado,
+        Sala.codigo_invitacion,
+        Sala.id_creador,
+        Sala.max_jugadores,
+        Sala.creado_en,
+        Sala.id_partido
+    ).filter(Sala.id_sala == sala_id).first()
+    
+    if not sala_data:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Sala no encontrada"
+        )
+    
+    # Query optimizada para jugadores
+    jugadores_data = db.query(
+        SalaJugador.id_usuario,
+        SalaJugador.equipo,
+        SalaJugador.orden,
+        Usuario.nombre_usuario,
+        Usuario.rating,
+        PerfilUsuario.nombre,
+        PerfilUsuario.apellido
+    ).join(
+        Usuario, SalaJugador.id_usuario == Usuario.id_usuario
+    ).outerjoin(
+        PerfilUsuario, Usuario.id_usuario == PerfilUsuario.id_usuario
+    ).filter(
+        SalaJugador.id_sala == sala_id
+    ).order_by(SalaJugador.orden).all()
+    
+    # Procesar jugadores
+    jugadores = []
+    for row in jugadores_data:
+        nombre_completo = f"{row.nombre} {row.apellido}".strip() if row.nombre else row.nombre_usuario
+        jugadores.append({
+            "id": str(row.id_usuario),
+            "nombre": nombre_completo,
+            "nombre_usuario": row.nombre_usuario,
+            "rating": row.rating or 1500,
+            "equipo": row.equipo,
+            "esCreador": row.id_usuario == sala_data.id_creador
+        })
+    
+    # Datos del partido (si existe)
+    resultado_partido = None
+    estado_confirmacion = None
+    cambios_elo = None
+    elo_aplicado = False
+    usuarios_confirmados = []
+    
+    if sala_data.id_partido:
+        from ..models.driveplus_models import Partido, ResultadoPartido, PartidoJugador
+        from ..models.confirmacion import Confirmacion
+        
+        # Obtener datos del partido
+        partido = db.query(Partido).filter(Partido.id_partido == sala_data.id_partido).first()
+        if partido:
+            estado_confirmacion = partido.estado_confirmacion
+            elo_aplicado = getattr(partido, 'elo_aplicado', False)
+            
+            # Resultado
+            resultado_db = db.query(ResultadoPartido).filter(
+                ResultadoPartido.id_partido == sala_data.id_partido
+            ).first()
+            
+            if resultado_db:
+                resultado_partido = {
+                    "formato": "best_of_3",
+                    "sets": [
+                        {
+                            "gamesEquipoA": set_data.get("juegos_eq1", 0),
+                            "gamesEquipoB": set_data.get("juegos_eq2", 0),
+                            "ganador": "equipoA" if set_data.get("juegos_eq1", 0) > set_data.get("juegos_eq2", 0) else "equipoB",
+                            "completado": True
+                        }
+                        for set_data in resultado_db.detalle_sets
+                    ],
+                    "ganador": "equipoA" if partido.ganador_equipo == 1 else "equipoB",
+                    "completado": True
+                }
+            
+            # Cambios ELO
+            cambios_elo_db = db.query(PartidoJugador).filter(
+                PartidoJugador.id_partido == sala_data.id_partido
+            ).all()
+            
+            if cambios_elo_db:
+                cambios_elo = [
+                    {
+                        "id_usuario": cambio.id_usuario,
+                        "rating_antes": cambio.rating_antes,
+                        "rating_despues": cambio.rating_despues,
+                        "cambio_elo": cambio.cambio_elo
+                    }
+                    for cambio in cambios_elo_db
+                ]
+            
+            # Confirmaciones
+            confirmaciones = db.query(Confirmacion).filter(
+                Confirmacion.id_partido == sala_data.id_partido,
+                Confirmacion.tipo == 'confirmacion'
+            ).all()
+            usuarios_confirmados = [conf.id_usuario for conf in confirmaciones]
+    
+    return SalaCompleta(
+        id_sala=str(sala_data.id_sala),
+        nombre=sala_data.nombre,
+        fecha=sala_data.fecha,
+        estado=sala_data.estado,
+        codigo_invitacion=sala_data.codigo_invitacion,
+        id_creador=sala_data.id_creador,
+        jugadores_actuales=len(jugadores),
+        max_jugadores=sala_data.max_jugadores,
+        creado_en=sala_data.creado_en,
+        jugadores=jugadores,
+        resultado=resultado_partido,
+        estado_confirmacion=estado_confirmacion,
+        cambios_elo=cambios_elo,
+        elo_aplicado=elo_aplicado,
+        usuarios_confirmados=usuarios_confirmados
+    )

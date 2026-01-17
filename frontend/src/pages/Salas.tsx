@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { motion } from 'framer-motion';
 import Button from '../components/Button';
 import ModalCrearSala from '../components/ModalCrearSala';
@@ -10,7 +10,7 @@ import MisSalasSection from '../components/salas/MisSalasSection';
 import SalasEnJuegoSection from '../components/salas/SalasEnJuegoSection';
 import ExplorarSalasTable from '../components/salas/ExplorarSalasTable';
 import { SalasDebug } from '../components/SalasDebug';
-import { Plus, Settings, AlertCircle } from 'lucide-react';
+import { Plus, Settings, AlertCircle, RefreshCw } from 'lucide-react';
 import { useSalas } from '../context/SalasContext';
 import { useAuth } from '../context/AuthContext';
 import { Sala } from '../utils/types';
@@ -28,22 +28,53 @@ export default function Salas() {
   const [busqueda, setBusqueda] = useState('');
   const [mostrarFiltros, setMostrarFiltros] = useState(false);
   const [historialColapsado, setHistorialColapsado] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [lastRefresh, setLastRefresh] = useState<Date>(new Date());
 
-  // Cargar salas cuando se monta la página y hay usuario
+  // OPTIMIZACIÓN: Cargar salas con debounce
+  const cargarSalasOptimizado = useCallback(async (forceRefresh: boolean = false) => {
+    if (usuario && !loading) {
+      try {
+        setRefreshing(forceRefresh);
+        await cargarSalas(forceRefresh);
+        setLastRefresh(new Date());
+      } catch (error) {
+        console.error('Error al cargar salas:', error);
+      } finally {
+        setRefreshing(false);
+      }
+    }
+  }, [usuario, loading, cargarSalas]);
+
+  // OPTIMIZACIÓN: Auto-refresh cada 30 segundos solo si la página está visible
   useEffect(() => {
-    const cargarDatos = async () => {
-      if (usuario) {
-        try {
-          await cargarSalas();
-        } catch (error) {
-          console.error('Error al cargar salas:', error);
+    let intervalId: NodeJS.Timeout;
+    
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        // Refresh cuando la página vuelve a ser visible
+        cargarSalasOptimizado(false);
+        
+        // Configurar auto-refresh
+        intervalId = setInterval(() => {
+          cargarSalasOptimizado(false);
+        }, 30000); // 30 segundos
+      } else {
+        // Limpiar interval cuando la página no es visible
+        if (intervalId) {
+          clearInterval(intervalId);
         }
       }
     };
 
-    cargarDatos();
+    // Cargar inicial
+    cargarSalasOptimizado(false);
     
-    // Verificar si hay un código en la URL
+    // Configurar listeners
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    handleVisibilityChange(); // Ejecutar inmediatamente
+    
+    // Verificar código en URL
     const params = new URLSearchParams(window.location.search);
     const codigo = params.get('codigo');
     if (codigo) {
@@ -51,13 +82,36 @@ export default function Salas() {
       setModalUnirseOpen(true);
       window.history.replaceState({}, '', '/salas');
     }
-  }, [usuario]);
 
-  const salasPendientes = usuario ? getSalasPendientesConfirmacion(usuario.id_usuario?.toString() || '') : [];
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      if (intervalId) {
+        clearInterval(intervalId);
+      }
+    };
+  }, [cargarSalasOptimizado]);
 
-  // Separar salas por categorías
-  const misSalas = salas.filter(s => s.jugadores?.some(j => j.id === usuario?.id_usuario?.toString()));
-  const salasEnJuego = salas.filter(s => (s.estado === 'activa' || s.estado === 'en_juego') && !misSalas.includes(s));
+  // OPTIMIZACIÓN: Memoizar cálculos pesados
+  const salasPendientes = useMemo(() => {
+    return usuario ? getSalasPendientesConfirmacion(usuario.id_usuario?.toString() || '') : [];
+  }, [usuario, getSalasPendientesConfirmacion]);
+
+  // OPTIMIZACIÓN: Memoizar separación de salas
+  const { misSalas, salasEnJuego } = useMemo(() => {
+    const userId = usuario?.id_usuario?.toString();
+    const mis = salas.filter(s => s.jugadores?.some(j => j.id === userId));
+    const enJuego = salas.filter(s => 
+      (s.estado === 'activa' || s.estado === 'en_juego') && 
+      !mis.some(m => m.id_sala === s.id_sala)
+    );
+    
+    return { misSalas: mis, salasEnJuego: enJuego };
+  }, [salas, usuario]);
+
+  // OPTIMIZACIÓN: Función de refresh manual
+  const handleRefresh = useCallback(async () => {
+    await cargarSalasOptimizado(true);
+  }, [cargarSalasOptimizado]);
   const salasExplorar = salas.filter(s => !misSalas.includes(s) && !salasEnJuego.includes(s));
   const salasHistorial = salas.filter(s => s.estado === 'finalizada');
 
@@ -146,7 +200,29 @@ export default function Salas() {
               <Settings size={16} />
               <span className="hidden sm:inline">Filtros</span>
             </Button>
+
+            {/* OPTIMIZACIÓN: Botón de refresh */}
+            <Button 
+              variant="outline" 
+              onClick={handleRefresh}
+              disabled={refreshing}
+              className="flex items-center gap-2 px-3 py-2.5 text-sm"
+            >
+              <RefreshCw size={16} className={refreshing ? 'animate-spin' : ''} />
+              <span className="hidden sm:inline">{refreshing ? 'Actualizando...' : 'Actualizar'}</span>
+            </Button>
           </div>
+        </div>
+
+        {/* OPTIMIZACIÓN: Indicador de estado */}
+        <div className="flex items-center gap-2 text-xs text-textSecondary">
+          <div className={`w-2 h-2 rounded-full ${loading || refreshing ? 'bg-yellow-500 animate-pulse' : 'bg-green-500'}`} />
+          <span>
+            {loading || refreshing 
+              ? 'Actualizando salas...' 
+              : `Última actualización: ${lastRefresh.toLocaleTimeString()}`
+            }
+          </span>
         </div>
       </motion.div>
 

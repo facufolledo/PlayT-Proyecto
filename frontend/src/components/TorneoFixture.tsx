@@ -132,10 +132,18 @@ export default function TorneoFixture({ torneoId, esOrganizador }: TorneoFixture
         const detail = error.response.data.detail;
         // Si detail es un array (error de validación 422)
         if (Array.isArray(detail)) {
-          errorMsg = detail.map((err: any) => err.msg || 'Error de validación').join(', ');
+          errorMsg = detail.map((err: any) => {
+            if (typeof err === 'string') return err;
+            return err.msg || err.message || 'Error de validación';
+          }).join(', ');
         } else if (typeof detail === 'string') {
           errorMsg = detail;
+        } else {
+          // Si detail es un objeto, convertir a string seguro
+          errorMsg = JSON.stringify(detail);
         }
+      } else if (error.message) {
+        errorMsg = error.message;
       }
       
       setError(errorMsg);
@@ -145,36 +153,44 @@ export default function TorneoFixture({ torneoId, esOrganizador }: TorneoFixture
   };
 
   const eliminarFixture = async (categoriaId?: number) => {
-    const mensaje = categoriaId 
-      ? '⚠️ ¿Estás seguro de eliminar el fixture de esta categoría?\n\nSe eliminarán los partidos de fase de grupos de esta categoría.\n\nEsta acción NO se puede deshacer.'
-      : '⚠️ ¿Estás seguro de eliminar el fixture?\n\nSe eliminarán todos los partidos de fase de grupos.\n\nEsta acción NO se puede deshacer.';
+    const categoriaTexto = categoriaId 
+      ? categorias.find(c => c.id === categoriaId)?.nombre || `categoría ${categoriaId}`
+      : 'todo el torneo';
     
-    if (!confirm(mensaje)) {
-      return;
-    }
+    const confirmacion = window.confirm(
+      `⚠️ ELIMINAR FIXTURE\n\n` +
+      `¿Estás seguro de que quieres eliminar el fixture de ${categoriaTexto}?\n\n` +
+      '• Esta acción no se puede deshacer\n' +
+      '• Se eliminarán todos los partidos programados\n' +
+      '• Los resultados ya cargados se mantendrán\n\n' +
+      'Presiona OK para confirmar o Cancelar para abortar.'
+    );
+    
+    if (!confirmacion) return;
     
     try {
       setGenerando(true);
       setError(null);
+      
       await torneoService.eliminarFixture(torneoId, categoriaId);
       await cargarDatos();
+      
+      // Mostrar mensaje de éxito temporal
+      const mensajeExito = `✅ Fixture de ${categoriaTexto} eliminado exitosamente`;
+      setError(mensajeExito);
+      setTimeout(() => setError(null), 4000);
+      
     } catch (error: any) {
       console.error('Error al eliminar fixture:', error);
-      console.error('Error response data:', error.response?.data);
       
-      // Manejar correctamente el error 422 de FastAPI
       let errorMsg = 'Error al eliminar fixture';
       if (error.response?.data?.detail) {
-        const detail = error.response.data.detail;
-        // Si detail es un array (error de validación 422)
-        if (Array.isArray(detail)) {
-          errorMsg = detail.map((err: any) => err.msg || 'Error de validación').join(', ');
-        } else if (typeof detail === 'string') {
-          errorMsg = detail;
-        }
+        errorMsg = error.response.data.detail;
+      } else if (error.message) {
+        errorMsg = error.message;
       }
       
-      setError(errorMsg);
+      setError(`❌ ${errorMsg}`);
     } finally {
       setGenerando(false);
     }
@@ -223,20 +239,37 @@ export default function TorneoFixture({ torneoId, esOrganizador }: TorneoFixture
             El fixture se genera después de crear las zonas
           </p>
           
-          {/* Mensaje de error */}
+          {/* Mensaje de error/éxito */}
           {error && (
             <motion.div
               initial={{ opacity: 0, y: -10 }}
               animate={{ opacity: 1, y: 0 }}
-              className="mb-4 p-4 bg-red-500/10 border border-red-500/30 rounded-lg flex items-start gap-3"
+              className={`mb-4 p-4 rounded-lg flex items-start gap-3 ${
+                error.startsWith('✅') 
+                  ? 'bg-green-500/10 border border-green-500/30' 
+                  : 'bg-red-500/10 border border-red-500/30'
+              }`}
             >
-              <AlertCircle size={20} className="text-red-500 flex-shrink-0 mt-0.5" />
+              <AlertCircle 
+                size={20} 
+                className={`flex-shrink-0 mt-0.5 ${
+                  error.startsWith('✅') ? 'text-green-500' : 'text-red-500'
+                }`} 
+              />
               <div className="flex-1 text-left">
-                <p className="text-red-500 font-medium text-sm">{error}</p>
+                <p className={`font-medium text-sm ${
+                  error.startsWith('✅') ? 'text-green-500' : 'text-red-500'
+                }`}>
+                  {typeof error === 'string' ? error : 'Error inesperado'}
+                </p>
               </div>
               <button
                 onClick={() => setError(null)}
-                className="text-red-500/70 hover:text-red-500 transition-colors"
+                className={`transition-colors ${
+                  error.startsWith('✅') 
+                    ? 'text-green-500/70 hover:text-green-500' 
+                    : 'text-red-500/70 hover:text-red-500'
+                }`}
               >
                 <X size={18} />
               </button>
@@ -244,13 +277,57 @@ export default function TorneoFixture({ torneoId, esOrganizador }: TorneoFixture
           )}
           
           {esOrganizador && (
-            <Button
-              onClick={() => generarFixture()}
-              disabled={generando}
-              variant="accent"
-            >
-              {generando ? 'Generando...' : 'Generar Fixture'}
-            </Button>
+            <div className="space-y-3">
+              {/* Botones de generar */}
+              <div className="flex flex-wrap gap-2">
+                <Button
+                  onClick={() => generarFixture()}
+                  disabled={generando}
+                  variant="accent"
+                  className="flex-1 min-w-[200px]"
+                >
+                  {generando ? 'Generando...' : 'Generar Fixture Completo'}
+                </Button>
+                
+                {categoriaFiltro && (
+                  <Button
+                    onClick={() => generarFixture(categoriaFiltro)}
+                    disabled={generando}
+                    variant="secondary"
+                    className="flex-1 min-w-[200px]"
+                  >
+                    {generando ? 'Generando...' : 'Generar Solo Esta Categoría'}
+                  </Button>
+                )}
+              </div>
+              
+              {/* Botones de eliminar (solo si hay partidos) */}
+              {partidos.length > 0 && (
+                <div className="flex flex-wrap gap-2 pt-2 border-t border-cardBorder/50">
+                  <Button
+                    onClick={() => eliminarFixture()}
+                    disabled={generando}
+                    variant="danger"
+                    size="sm"
+                    className="flex-1 min-w-[180px]"
+                  >
+                    {generando ? 'Eliminando...' : 'Eliminar Todo el Fixture'}
+                  </Button>
+                  
+                  {categoriaFiltro && (
+                    <Button
+                      onClick={() => eliminarFixture(categoriaFiltro)}
+                      disabled={generando}
+                      variant="danger"
+                      size="sm"
+                      className="flex-1 min-w-[180px]"
+                    >
+                      {generando ? 'Eliminando...' : 'Eliminar Esta Categoría'}
+                    </Button>
+                  )}
+                </div>
+              )}
+            </div>
           )}
         </div>
       </Card>
@@ -325,25 +402,36 @@ export default function TorneoFixture({ torneoId, esOrganizador }: TorneoFixture
                 {partidosNoProgramados.map((partido: any, idx: number) => (
                   <div key={idx} className="p-3 bg-background/50 rounded border border-yellow-500/20">
                     <div className="flex items-center justify-between mb-2">
-                      <span className="text-xs font-bold text-yellow-500">{partido.zona_nombre}</span>
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs font-bold text-yellow-500">{partido.zona_nombre}</span>
+                        {partido.categoria_nombre && (
+                          <span className="text-[10px] px-2 py-0.5 bg-yellow-500/20 text-yellow-500 rounded-full font-bold">
+                            {partido.categoria_nombre}
+                          </span>
+                        )}
+                      </div>
                       <span className="text-[10px] text-yellow-500/60">{partido.motivo}</span>
                     </div>
                     <div className="space-y-1 text-xs text-textSecondary">
-                      <div className="flex items-center gap-2">
-                        <span className="font-medium text-textPrimary">{partido.pareja1_nombre}</span>
-                        <span className="text-[10px]">
-                          {partido.disponibilidad_pareja1 && typeof partido.disponibilidad_pareja1 === 'string' 
+                      <div className="flex flex-col gap-1">
+                        <div className="flex items-center gap-2">
+                          <span className="font-medium text-textPrimary min-w-0 flex-1">{partido.pareja1_nombre}</span>
+                        </div>
+                        <div className="text-[10px] text-yellow-500/80 ml-2">
+                          📅 {partido.disponibilidad_pareja1 && typeof partido.disponibilidad_pareja1 === 'string' 
                             ? partido.disponibilidad_pareja1
-                            : 'Sin restricciones'}
-                        </span>
+                            : 'Sin restricciones horarias'}
+                        </div>
                       </div>
-                      <div className="flex items-center gap-2">
-                        <span className="font-medium text-textPrimary">{partido.pareja2_nombre}</span>
-                        <span className="text-[10px]">
-                          {partido.disponibilidad_pareja2 && typeof partido.disponibilidad_pareja2 === 'string'
+                      <div className="flex flex-col gap-1">
+                        <div className="flex items-center gap-2">
+                          <span className="font-medium text-textPrimary min-w-0 flex-1">{partido.pareja2_nombre}</span>
+                        </div>
+                        <div className="text-[10px] text-yellow-500/80 ml-2">
+                          📅 {partido.disponibilidad_pareja2 && typeof partido.disponibilidad_pareja2 === 'string'
                             ? partido.disponibilidad_pareja2
-                            : 'Sin restricciones'}
-                        </span>
+                            : 'Sin restricciones horarias'}
+                        </div>
                       </div>
                     </div>
                   </div>

@@ -353,9 +353,38 @@ class ConfirmacionService:
         if not resultado_db:
             raise ValueError("El partido no tiene resultado cargado")
         
-        # Usar los datos de resultados_partidos
-        sets_a = resultado_db.sets_eq1
-        sets_b = resultado_db.sets_eq2
+        # MAPEAR CORRECTAMENTE EQUIPOS PARA ELO (FIX CRÍTICO)
+        # Problema: equipo1/equipo2 != equipoA/equipoB necesariamente
+        # Solución: Determinar correspondencia basándose en jugadores
+        
+        # Obtener información de jugadores por equipo del resultado JSON
+        resultado_json = partido.resultado_padel or {}
+        jugadores_resultado = resultado_json.get('jugadores', {})
+        jugadores_equipoA = jugadores_resultado.get('equipoA', [])
+        jugadores_equipoB = jugadores_resultado.get('equipoB', [])
+        
+        # Determinar si equipo1 corresponde a equipoA o equipoB
+        equipo1_es_equipoA = False
+        
+        if jugadores_equipoA and equipo1:
+            # Verificar si algún jugador de equipo1 está en equipoA
+            ids_equipo1 = {j.id_usuario for j in equipo1}
+            ids_equipoA = {j.get('id') for j in jugadores_equipoA if j.get('id')}
+            equipo1_es_equipoA = bool(ids_equipo1.intersection(ids_equipoA))
+        
+        # Asignar sets correctamente según la correspondencia
+        if equipo1_es_equipoA:
+            # equipo1 = equipoA, equipo2 = equipoB
+            sets_equipo1 = resultado_db.sets_eq1  # sets de equipoA
+            sets_equipo2 = resultado_db.sets_eq2  # sets de equipoB
+            games_equipo1 = games_a
+            games_equipo2 = games_b
+        else:
+            # equipo1 = equipoB, equipo2 = equipoA (INVERTIDO)
+            sets_equipo1 = resultado_db.sets_eq2  # sets de equipoB
+            sets_equipo2 = resultado_db.sets_eq1  # sets de equipoA
+            games_equipo1 = games_b
+            games_equipo2 = games_a
         
         # Calcular games totales desde detalle_sets
         games_a = sum(set_data.get('juegos_eq1', 0) for set_data in resultado_db.detalle_sets)
@@ -371,15 +400,15 @@ class ConfirmacionService:
             for set_data in resultado_db.detalle_sets
         ]
         
-        # Calcular Elo usando el servicio existente
+        # Calcular Elo usando el servicio existente (CORREGIDO)
         elo_service = EloService()
         cambios_elo_result = elo_service.calculate_match_ratings(
             team_a_players=team_a_players,
             team_b_players=team_b_players,
-            sets_a=sets_a,
-            sets_b=sets_b,
-            games_a=games_a,
-            games_b=games_b,
+            sets_a=sets_equipo1,  # Ahora corresponde correctamente a equipo1
+            sets_b=sets_equipo2,  # Ahora corresponde correctamente a equipo2
+            games_a=games_equipo1,
+            games_b=games_equipo2,
             sets_detail=sets_detail,
             match_type='amistoso',
             match_date=partido.fecha
@@ -401,8 +430,7 @@ class ConfirmacionService:
                 'cambio': player_change['rating_change']
             }
         
-        # Aplicar cambios (convertir a enteros)
-        # NOTA: Invertimos el signo porque el cálculo estaba dando resultados invertidos
+        # Aplicar cambios (convertir a enteros) - CORREGIDO
         resultado = {}
         
         for i, j in enumerate(equipo1):
@@ -410,9 +438,9 @@ class ConfirmacionService:
             cambio_key = f'jugador_a_{i}'
             cambio = cambios_elo[cambio_key]
             
-            # Convertir a enteros e INVERTIR el signo
-            cambio_elo_int = -int(round(cambio['cambio']))  # INVERTIDO
-            nuevo_rating = int(usuario.rating) + cambio_elo_int  # Calcular desde rating actual
+            # Convertir a enteros (SIN INVERTIR - el ELO ya está corregido)
+            cambio_elo_int = int(round(cambio['cambio']))  # CORREGIDO: Sin inversión
+            nuevo_rating = int(usuario.rating) + cambio_elo_int
             
             usuario.rating = nuevo_rating
             j.rating_despues = nuevo_rating
@@ -432,9 +460,9 @@ class ConfirmacionService:
             cambio_key = f'jugador_b_{i}'
             cambio = cambios_elo[cambio_key]
             
-            # Convertir a enteros e INVERTIR el signo
-            cambio_elo_int = -int(round(cambio['cambio']))  # INVERTIDO
-            nuevo_rating = int(usuario.rating) + cambio_elo_int  # Calcular desde rating actual
+            # Convertir a enteros (SIN INVERTIR - el ELO ya está corregido)
+            cambio_elo_int = int(round(cambio['cambio']))  # CORREGIDO: Sin inversión
+            nuevo_rating = int(usuario.rating) + cambio_elo_int
             
             usuario.rating = nuevo_rating
             j.rating_despues = nuevo_rating

@@ -502,13 +502,50 @@ class EloService:
                 team_b_k = 0.0
                 break  # Si cualquier jugador excede el límite, el equipo no gana puntos
         
-        # 5. Calcular delta base - CORREGIDO: Calcular independientemente para cada equipo
-        delta_base_a = self.calculate_base_delta(
-            team_a_k, actual_score_a, expected_a, sets_multiplier
-        )
-        delta_base_b = self.calculate_base_delta(
-            team_b_k, actual_score_b, expected_b, sets_multiplier
-        )
+        # 5. Calcular delta base - CORREGIDO: Separar signo (resultado) de magnitud (rendimiento)
+        # REGLA FUNDAMENTAL: Ganador SIEMPRE sube, perdedor SIEMPRE baja
+        # La expectativa solo afecta CUÁNTO, no EL SIGNO
+        
+        # Determinar quién ganó realmente
+        team_a_won = sets_a > sets_b
+        team_b_won = sets_b > sets_a
+        
+        # Calcular magnitud base usando la diferencia de expectativa
+        # Favoritos ganan menos puntos, underdogs ganan más puntos
+        if team_a_won:
+            # A ganó: calcular cuánto debería ganar basado en expectativa
+            if expected_a > 0.5:  # A era favorito
+                # Favorito gana pocos puntos (mínimo 1, máximo basado en performance)
+                magnitude_a = max(1.0, team_a_k * (1.0 - expected_a) * sets_multiplier)
+            else:  # A era underdog
+                # Underdog gana muchos puntos
+                magnitude_a = team_a_k * (1.0 - expected_a) * sets_multiplier
+            
+            # B perdió: pierde puntos proporcionales
+            magnitude_b = team_b_k * expected_b * sets_multiplier
+            
+            delta_base_a = abs(magnitude_a)   # Positivo (ganador)
+            delta_base_b = -abs(magnitude_b)  # Negativo (perdedor)
+            
+        elif team_b_won:
+            # B ganó: calcular cuánto debería ganar basado en expectativa
+            if expected_b > 0.5:  # B era favorito
+                # Favorito gana pocos puntos (mínimo 1, máximo basado en performance)
+                magnitude_b = max(1.0, team_b_k * (1.0 - expected_b) * sets_multiplier)
+            else:  # B era underdog
+                # Underdog gana muchos puntos
+                magnitude_b = team_b_k * (1.0 - expected_b) * sets_multiplier
+            
+            # A perdió: pierde puntos proporcionales
+            magnitude_a = team_a_k * expected_a * sets_multiplier
+            
+            delta_base_a = -abs(magnitude_a)  # Negativo (perdedor)
+            delta_base_b = abs(magnitude_b)   # Positivo (ganador)
+            
+        else:
+            # Empate (muy raro en pádel): cambios mínimos basados en expectativa
+            delta_base_a = team_a_k * (actual_score_a - expected_a) * sets_multiplier * 0.1
+            delta_base_b = team_b_k * (actual_score_b - expected_b) * sets_multiplier * 0.1
         
         # 6. Aplicar suavizador de derrotas
         loss_softener_a = self.calculate_loss_softener(

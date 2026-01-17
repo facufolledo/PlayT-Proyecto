@@ -489,17 +489,28 @@ export default function TorneoZonas({ torneoId, esOrganizador }: TorneoZonasProp
                       <tr
                         key={item.pareja_id}
                         className={`border-b border-cardBorder/50 transition-colors hover:bg-background/50 ${
-                          idx < 2 ? 'bg-green-500/5' : ''
+                          item.eliminada 
+                            ? 'bg-red-500/5 opacity-60' 
+                            : idx < 2 
+                            ? 'bg-green-500/5' 
+                            : ''
                         }`}
                       >
                         <td className="py-2 md:py-3 px-2">
                           <div className="flex items-center gap-1">
-                            {idx < 2 && (
+                            {!item.eliminada && idx < 2 && (
                               <Trophy size={12} className="text-green-500" />
+                            )}
+                            {item.eliminada && (
+                              <span className="text-red-500 text-xs">❌</span>
                             )}
                             <span
                               className={`font-bold text-xs md:text-sm ${
-                                idx < 2 ? 'text-green-500' : 'text-textPrimary'
+                                item.eliminada
+                                  ? 'text-red-500/70 line-through'
+                                  : idx < 2 
+                                  ? 'text-green-500' 
+                                  : 'text-textPrimary'
                               }`}
                             >
                               {item.posicion}
@@ -508,7 +519,12 @@ export default function TorneoZonas({ torneoId, esOrganizador }: TorneoZonasProp
                         </td>
                         <td className="py-2 md:py-3 px-2">
                           <div className="flex items-center gap-2">
-                            {item.jugador1_id && item.jugador2_id ? (
+                            {item.eliminada ? (
+                              <span className="text-red-500/70 font-medium text-xs md:text-sm line-through flex items-center gap-1">
+                                <span className="text-red-500">❌</span>
+                                Pareja Eliminada
+                              </span>
+                            ) : item.jugador1_id && item.jugador2_id ? (
                               <span className="text-textPrimary font-medium text-xs md:text-sm truncate max-w-[100px] md:max-w-none flex items-center gap-1">
                                 <PlayerLink 
                                   id={item.jugador1_id} 
@@ -529,7 +545,7 @@ export default function TorneoZonas({ torneoId, esOrganizador }: TorneoZonasProp
                                 {item.pareja_nombre || 'Pareja'}
                               </span>
                             )}
-                            {idx < 2 && (
+                            {!item.eliminada && idx < 2 && (
                               <span className="hidden md:inline-flex px-1.5 py-0.5 bg-green-500/20 text-green-500 text-[9px] font-bold rounded uppercase">
                                 Clasifica
                               </span>
@@ -537,42 +553,46 @@ export default function TorneoZonas({ torneoId, esOrganizador }: TorneoZonasProp
                           </div>
                         </td>
                         <td className="py-2 md:py-3 px-1 text-center">
-                          <span className="text-textSecondary text-xs md:text-sm">
+                          <span className={`text-xs md:text-sm ${item.eliminada ? 'text-red-500/50 line-through' : 'text-textSecondary'}`}>
                             {item.partidos_jugados}
                           </span>
                         </td>
                         <td className="py-2 md:py-3 px-1 text-center">
-                          <span className="text-green-500 font-bold text-xs md:text-sm">
+                          <span className={`font-bold text-xs md:text-sm ${item.eliminada ? 'text-red-500/50 line-through' : 'text-green-500'}`}>
                             {item.partidos_ganados}
                           </span>
                         </td>
                         <td className="py-2 md:py-3 px-1 text-center">
-                          <span className="text-red-500 font-bold text-xs md:text-sm">
+                          <span className={`font-bold text-xs md:text-sm ${item.eliminada ? 'text-red-500/50 line-through' : 'text-red-500'}`}>
                             {item.partidos_perdidos}
                           </span>
                         </td>
                         <td className="py-2 md:py-3 px-1 text-center">
-                          <span className="text-textSecondary text-xs md:text-sm">
+                          <span className={`text-xs md:text-sm ${item.eliminada ? 'text-red-500/50 line-through' : 'text-textSecondary'}`}>
                             {item.sets_ganados}
                           </span>
                         </td>
                         <td className="py-2 md:py-3 px-1 text-center">
-                          <span className="text-textSecondary text-xs md:text-sm">
+                          <span className={`text-xs md:text-sm ${item.eliminada ? 'text-red-500/50 line-through' : 'text-textSecondary'}`}>
                             {item.sets_perdidos}
                           </span>
                         </td>
                         <td className="py-2 md:py-3 px-1 text-center hidden md:table-cell">
-                          <span className="text-green-500/70 text-xs md:text-sm">
+                          <span className={`text-xs md:text-sm ${item.eliminada ? 'text-red-500/50 line-through' : 'text-green-500/70'}`}>
                             {item.games_ganados}
                           </span>
                         </td>
                         <td className="py-2 md:py-3 px-1 text-center hidden md:table-cell">
-                          <span className="text-red-500/70 text-xs md:text-sm">
+                          <span className={`text-xs md:text-sm ${item.eliminada ? 'text-red-500/50 line-through' : 'text-red-500/70'}`}>
                             {item.games_perdidos}
                           </span>
                         </td>
                         <td className="py-2 md:py-3 px-2 text-center">
-                          <span className="font-bold text-primary text-sm md:text-base bg-primary/10 px-2 py-0.5 rounded-full">
+                          <span className={`font-bold text-sm md:text-base px-2 py-0.5 rounded-full ${
+                            item.eliminada 
+                              ? 'text-red-500/50 bg-red-500/5 line-through' 
+                              : 'text-primary bg-primary/10'
+                          }`}>
                             {item.puntos}
                           </span>
                         </td>
