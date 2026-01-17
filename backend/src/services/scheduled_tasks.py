@@ -22,14 +22,25 @@ class ScheduledTasksService:
         self.last_categoria_check: Optional[datetime] = None
     
     async def start_scheduler(self):
-        """Inicia el programador de tareas"""
+        """Inicia el programador de tareas (NO BLOQUEANTE)"""
         if self.running:
             return
         
         self.running = True
         logger.info("🕐 Iniciando programador de tareas automáticas")
         
-        # Ejecutar en bucle
+        # CORREGIDO: No ejecutar bucle infinito aquí
+        # Solo marcar como iniciado y programar primera ejecución
+        try:
+            # Ejecutar primera verificación inmediata (sin bloquear)
+            import asyncio
+            asyncio.create_task(self._background_scheduler())
+            logger.info("✅ Programador de tareas iniciado en background")
+        except Exception as e:
+            logger.error(f"Error iniciando programador: {e}")
+    
+    async def _background_scheduler(self):
+        """Bucle de tareas en background (separado del startup)"""
         while self.running:
             try:
                 await self.check_and_run_tasks()

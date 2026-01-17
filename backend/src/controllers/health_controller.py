@@ -14,8 +14,22 @@ router = APIRouter(prefix="/health", tags=["Health"])
 
 @router.get("/")
 async def health_check():
-    """Health check básico"""
-    return {"status": "ok"}
+    """Health check básico + inicio de tareas programadas"""
+    try:
+        # Iniciar tareas programadas si no están iniciadas
+        from ..services.scheduled_tasks import scheduler_service
+        if not scheduler_service.running:
+            await scheduler_service.start_scheduler()
+        
+        return {
+            "status": "ok",
+            "scheduled_tasks": "running" if scheduler_service.running else "stopped"
+        }
+    except Exception as e:
+        return {
+            "status": "ok",
+            "scheduled_tasks_error": str(e)
+        }
 
 
 @router.get("/db")

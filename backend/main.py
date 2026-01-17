@@ -57,15 +57,13 @@ async def lifespan(app: FastAPI):
     except Exception as e:
         logger.error(f"❌ Error al inicializar Firebase Admin: {e}")
 
-    # Inicializar tareas programadas
+    # TEMPORALMENTE DESHABILITADO - Las tareas programadas estaban bloqueando el startup
+    # Se pueden activar manualmente via /health endpoint
     try:
-        import asyncio
-        from src.services.scheduled_tasks import start_background_tasks
-        # Ejecutar en background sin bloquear el startup
-        asyncio.create_task(start_background_tasks())
-        logger.info("✅ Tareas programadas iniciadas")
+        logger.info("✅ Tareas programadas deshabilitadas temporalmente (startup más rápido)")
+        # Para activar: GET /health
     except Exception as e:
-        logger.error(f"❌ Error al inicializar tareas programadas: {e}")
+        logger.error(f"❌ Error al configurar tareas programadas: {e}")
 
     yield
 
