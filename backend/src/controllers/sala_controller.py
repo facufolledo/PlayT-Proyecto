@@ -6,7 +6,8 @@ from datetime import datetime
 
 from ..database.config import get_db
 from ..models.sala import Sala, SalaJugador
-from ..models.driveplus_models import Usuario, PerfilUsuario
+from ..models.driveplus_models import Usuario, PerfilUsuario, Partido, PartidoJugador, ResultadoPartido
+from ..models.confirmacion import Confirmacion
 from ..schemas.sala import SalaCreate, SalaResponse, SalaJoin, SalaCompleta
 from ..auth.auth_utils import get_current_user
 from ..utils.logger import Loggers
@@ -315,7 +316,6 @@ async def listar_salas(
     # Query 3: Todos los resultados de partidos
     resultados_data = {}
     if partidos_ids:
-        from ..models.driveplus_models import ResultadoPartido
         resultados = db.query(ResultadoPartido).filter(
             ResultadoPartido.id_partido.in_(partidos_ids)
         ).all()
@@ -324,7 +324,6 @@ async def listar_salas(
     # Query 4: Todos los cambios de ELO
     cambios_elo_data = {}
     if partidos_ids:
-        from ..models.driveplus_models import PartidoJugador
         cambios_elo = db.query(PartidoJugador).filter(
             PartidoJugador.id_partido.in_(partidos_ids)
         ).all()
@@ -342,7 +341,6 @@ async def listar_salas(
     # Query 5: Todas las confirmaciones
     confirmaciones_data = {}
     if partidos_ids:
-        from ..models.confirmacion import Confirmacion
         confirmaciones = db.query(Confirmacion).filter(
             Confirmacion.id_partido.in_(partidos_ids),
             Confirmacion.tipo == 'confirmacion'
