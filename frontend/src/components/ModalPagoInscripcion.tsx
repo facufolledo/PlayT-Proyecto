@@ -99,6 +99,12 @@ export default function ModalPagoInscripcion({
                         <span className="text-textPrimary">{pagoInfo.banco}</span>
                       </div>
                     )}
+                    {pagoInfo.telefono_contacto && (
+                      <div className="flex justify-between border-t border-cardBorder pt-2 mt-2">
+                        <span className="text-textSecondary">📱 Enviar comprobante a:</span>
+                        <span className="text-accent font-bold">{pagoInfo.telefono_contacto}</span>
+                      </div>
+                    )}
                   </div>
                 </div>
 

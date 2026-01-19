@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, Users, AlertCircle, Search } from 'lucide-react';
+import { X, Users, AlertCircle, Search, Loader2 } from 'lucide-react';
 import Button from './Button';
 import { useTorneos } from '../context/TorneosContext';
 import { useAuth } from '../context/AuthContext';
@@ -646,8 +646,17 @@ export default function ModalInscribirTorneo({
                         type="submit"
                         variant="accent"
                         disabled={loading}
-                        className="flex-1 text-xs sm:text-sm py-2 sm:py-2.5"
+                        className="flex-1 text-xs sm:text-sm py-2 sm:py-2.5 flex items-center justify-center gap-2"
                       >
+                        {loading ? (
+                          <>
+                            <Loader2 size={14} className="animate-spin" />
+                            Inscribiendo...
+                          </>
+                        ) : (
+                          'Inscribir Pareja'
+                        )}
+                      </Button>
                         {loading ? 'Inscribiendo...' : 'Inscribirse'}
                       </Button>
                     </div>
