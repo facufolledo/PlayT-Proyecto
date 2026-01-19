@@ -143,7 +143,10 @@ class SalaService {
         
         // Retry solo en errores de red, no en errores de servidor
         if (error.name === 'AbortError' || error.message === 'Failed to fetch') {
-          logger.warn(`Intento ${attempt + 1} falló, reintentando...`);
+          // Solo loggear en el último intento
+          if (attempt === retries - 1) {
+            logger.warn(`Intento ${attempt + 1} falló, reintentando...`);
+          }
           await new Promise(resolve => setTimeout(resolve, 1000 * (attempt + 1)));
           continue;
         }
@@ -223,8 +226,9 @@ class SalaService {
 
         const data = await response.json();
         
-        // OPTIMIZACIÓN: Invalidar cache de salas al unirse
+        // OPTIMIZACIÓN: Invalidar cache de salas al unirse (solo el patrón específico)
         cache.invalidate('salas_list');
+        cache.invalidate('unirse_');
         
         return data;
       } catch (error: any) {
@@ -272,7 +276,7 @@ class SalaService {
     if (!forceRefresh) {
       const cached = cache.get<SalaCompleta[]>(cacheKey);
       if (cached) {
-        logger.log('Usando salas desde cache');
+        // Solo loggear en desarrollo y no tan frecuentemente
         return cached;
       }
     }
@@ -541,7 +545,10 @@ class SalaService {
   // OPTIMIZACIÓN: Métodos para gestión de cache
   invalidateCache(pattern?: string): void {
     cache.invalidate(pattern);
-    logger.log('Cache invalidado:', pattern || 'todo');
+    // Solo loggear invalidaciones manuales importantes
+    if (pattern) {
+      logger.log('Cache invalidado:', pattern);
+    }
   }
 
   // OPTIMIZACIÓN: Refresh forzado de salas

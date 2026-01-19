@@ -46,34 +46,8 @@ export default function Salas() {
     }
   }, [usuario, loading, cargarSalas]);
 
-  // OPTIMIZACIÓN: Auto-refresh cada 30 segundos solo si la página está visible
+  // Cargar salas inicial y verificar código en URL
   useEffect(() => {
-    let intervalId: NodeJS.Timeout;
-    
-    const handleVisibilityChange = () => {
-      if (document.visibilityState === 'visible') {
-        // Refresh cuando la página vuelve a ser visible
-        cargarSalasOptimizado(false);
-        
-        // Configurar auto-refresh
-        intervalId = setInterval(() => {
-          cargarSalasOptimizado(false);
-        }, 30000); // 30 segundos
-      } else {
-        // Limpiar interval cuando la página no es visible
-        if (intervalId) {
-          clearInterval(intervalId);
-        }
-      }
-    };
-
-    // Cargar inicial
-    cargarSalasOptimizado(false);
-    
-    // Configurar listeners
-    document.addEventListener('visibilitychange', handleVisibilityChange);
-    handleVisibilityChange(); // Ejecutar inmediatamente
-    
     // Verificar código en URL
     const params = new URLSearchParams(window.location.search);
     const codigo = params.get('codigo');
@@ -83,13 +57,52 @@ export default function Salas() {
       window.history.replaceState({}, '', '/salas');
     }
 
+    // Cargar salas inicial
+    if (usuario) {
+      cargarSalas(false);
+      setLastRefresh(new Date());
+    }
+  }, [usuario, cargarSalas]);
+
+  // Auto-refresh cada 30 segundos solo si la página está visible
+  useEffect(() => {
+    if (!usuario) return;
+
+    let intervalId: NodeJS.Timeout;
+    
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        // Configurar auto-refresh
+        intervalId = setInterval(() => {
+          cargarSalas(false);
+          setLastRefresh(new Date());
+        }, 30000); // 30 segundos
+      } else {
+        // Limpiar interval cuando la página no es visible
+        if (intervalId) {
+          clearInterval(intervalId);
+        }
+      }
+    };
+
+    // Configurar listener
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    
+    // Iniciar interval si la página ya es visible
+    if (document.visibilityState === 'visible') {
+      intervalId = setInterval(() => {
+        cargarSalas(false);
+        setLastRefresh(new Date());
+      }, 30000);
+    }
+
     return () => {
       document.removeEventListener('visibilitychange', handleVisibilityChange);
       if (intervalId) {
         clearInterval(intervalId);
       }
     };
-  }, [cargarSalasOptimizado]);
+  }, [usuario, cargarSalas]);
 
   // OPTIMIZACIÓN: Memoizar cálculos pesados
   const salasPendientes = useMemo(() => {

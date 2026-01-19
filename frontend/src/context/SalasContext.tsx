@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, ReactNode } from 'react';
+import { createContext, useContext, useState, useCallback, ReactNode } from 'react';
 import { Sala } from '../utils/types';
 import { salaService, SalaCompleta } from '../services/sala.service';
 import { logger } from '../utils/logger';
@@ -14,7 +14,7 @@ interface SalasContextType {
   confirmarResultado: (id: string, equipo: 'equipoA' | 'equipoB', jugadorId: string) => void;
   disputarResultado: (id: string, motivo: string) => void;
   getSalasPendientesConfirmacion: (jugadorId: string) => Sala[];
-  cargarSalas: () => Promise<void>;
+  cargarSalas: (forceRefresh?: boolean) => Promise<void>;
   loading: boolean;
 }
 
@@ -109,11 +109,11 @@ export function SalasProvider({ children }: { children: ReactNode }) {
   const [salas, setSalas] = useState<Sala[]>([]);
   const [loading, setLoading] = useState(false);
 
-  // Cargar salas del backend
-  const cargarSalas = async () => {
+  // Cargar salas del backend (MEMOIZADO para evitar recreación)
+  const cargarSalas = useCallback(async (forceRefresh: boolean = false) => {
     try {
       setLoading(true);
-      const salasBackend = await salaService.listarSalas();
+      const salasBackend = await salaService.listarSalas(forceRefresh);
       const salasConvertidas = salasBackend.map(convertirSalaBackendAFrontend);
       setSalas(salasConvertidas);
     } catch (error: any) {
@@ -122,7 +122,7 @@ export function SalasProvider({ children }: { children: ReactNode }) {
     } finally {
       setLoading(false);
     }
-  };
+  }, []); // Sin dependencias - la función es estable
 
   // NO cargar salas automáticamente al montar
   // Las páginas que necesiten salas deben llamar a cargarSalas() explícitamente
@@ -245,7 +245,7 @@ export function SalasProvider({ children }: { children: ReactNode }) {
     }));
   };
 
-  const getSalasPendientesConfirmacion = (jugadorId: string) => {
+  const getSalasPendientesConfirmacion = useCallback((jugadorId: string) => {
     return salas.filter(sala => {
       // Solo salas con estado pendiente_confirmacion
       if (sala.estadoConfirmacion !== 'pendiente_confirmacion') return false;
@@ -263,7 +263,7 @@ export function SalasProvider({ children }: { children: ReactNode }) {
       
       return true;
     });
-  };
+  }, [salas]);
 
   return (
     <SalasContext.Provider value={{
