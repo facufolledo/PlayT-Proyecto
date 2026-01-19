@@ -91,14 +91,14 @@ class TorneoService:
             reglas_json=torneo_data.reglas_json,
             creado_por=user_id,
             estado=EstadoTorneo.INSCRIPCION,
-            # Campos de pago
-            requiere_pago=torneo_data.requiere_pago,
-            monto_inscripcion=torneo_data.monto_inscripcion,
-            alias_cbu_cvu=torneo_data.alias_cbu_cvu,
-            titular_cuenta=torneo_data.titular_cuenta,
-            banco=torneo_data.banco,
+            # Campos de pago (con valores por defecto si no vienen)
+            requiere_pago=getattr(torneo_data, 'requiere_pago', False),
+            monto_inscripcion=getattr(torneo_data, 'monto_inscripcion', 0),
+            alias_cbu_cvu=getattr(torneo_data, 'alias_cbu_cvu', None),
+            titular_cuenta=getattr(torneo_data, 'titular_cuenta', None),
+            banco=getattr(torneo_data, 'banco', None),
             # Horarios disponibles
-            horarios_disponibles=torneo_data.horarios_disponibles
+            horarios_disponibles=getattr(torneo_data, 'horarios_disponibles', [])
         )
         
         db.add(torneo)
