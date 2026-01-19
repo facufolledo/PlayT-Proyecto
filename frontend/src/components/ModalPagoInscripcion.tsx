@@ -12,6 +12,7 @@ interface ModalPagoInscripcionProps {
     alias_cbu_cvu: string;
     titular: string;
     banco: string;
+    telefono_contacto?: string;
   };
 }
 
@@ -111,6 +112,9 @@ export default function ModalPagoInscripcion({
                     <li>Seleccioná "Transferir" o "Enviar dinero"</li>
                     <li>Ingresá el alias: <strong className="text-textPrimary">{pagoInfo.alias_cbu_cvu}</strong></li>
                     <li>Transferí <strong className="text-accent">${pagoInfo.monto.toLocaleString('es-AR')}</strong></li>
+                    {pagoInfo.telefono_contacto && (
+                      <li>Enviá el comprobante por WhatsApp al <strong className="text-textPrimary">{pagoInfo.telefono_contacto}</strong></li>
+                    )}
                     <li>Esperá la confirmación del organizador</li>
                   </ol>
                 </div>
@@ -118,7 +122,10 @@ export default function ModalPagoInscripcion({
                 {/* Información adicional */}
                 <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
                   <p className="text-xs text-blue-800">
-                    <strong>Importante:</strong> Tu inscripción quedará pendiente hasta que el organizador verifique el pago. Una vez confirmado, recibirás una notificación.
+                    <strong>Importante:</strong> {pagoInfo.telefono_contacto 
+                      ? `Enviá el comprobante al ${pagoInfo.telefono_contacto} para confirmar tu inscripción.`
+                      : 'Tu inscripción quedará pendiente hasta que el organizador verifique el pago.'
+                    } Una vez confirmado, recibirás una notificación.
                   </p>
                 </div>
               </div>

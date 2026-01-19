@@ -94,6 +94,7 @@ class Torneo(Base):
     alias_cbu_cvu = Column(String(100), nullable=True, comment="Alias, CBU o CVU para transferencias")
     titular_cuenta = Column(String(200), nullable=True, comment="Nombre del titular de la cuenta")
     banco = Column(String(100), nullable=True, comment="Banco de la cuenta")
+    telefono_contacto = Column(String(20), nullable=True, comment="Teléfono para enviar comprobante de pago")
     
     # Horarios disponibles del torneo
     horarios_disponibles = Column(JSON, nullable=True, comment="Horarios en los que se pueden programar partidos")

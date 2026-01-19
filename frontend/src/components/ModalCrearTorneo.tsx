@@ -32,6 +32,7 @@ export default function ModalCrearTorneo({ isOpen, onClose }: ModalCrearTorneoPr
     alias: '',
     titular: '',
     banco: '',
+    telefono: '',
   });
 
   // Horarios disponibles del torneo
@@ -141,6 +142,7 @@ export default function ModalCrearTorneo({ isOpen, onClose }: ModalCrearTorneoPr
         alias_cbu_cvu: formData.requierePago && formData.alias ? formData.alias.trim() : undefined,
         titular_cuenta: formData.requierePago && formData.titular ? formData.titular.trim() : undefined,
         banco: formData.requierePago && formData.banco ? formData.banco.trim() : undefined,
+        telefono_contacto: formData.requierePago && formData.telefono ? formData.telefono.trim() : undefined,
         horarios_disponibles: horariosDisponibles,
         reglas_json: {
           puntos_victoria: 3,
@@ -184,6 +186,7 @@ export default function ModalCrearTorneo({ isOpen, onClose }: ModalCrearTorneoPr
         alias: '',
         titular: '',
         banco: '',
+        telefono: '',
       });
       setGeneroMasculino(true);
       setGeneroFemenino(false);
@@ -549,6 +552,21 @@ export default function ModalCrearTorneo({ isOpen, onClose }: ModalCrearTorneoPr
                           placeholder="Ej: Banco Galicia"
                           required={formData.requierePago}
                         />
+                      </div>
+
+                      <div>
+                        <label className="block text-textSecondary text-xs font-bold mb-1">
+                          Teléfono de contacto *
+                        </label>
+                        <Input
+                          value={formData.telefono}
+                          onChange={(e) => setFormData({ ...formData, telefono: e.target.value })}
+                          placeholder="Ej: +54 9 11 1234-5678"
+                          required={formData.requierePago}
+                        />
+                        <p className="text-[10px] text-textSecondary mt-1">
+                          Los jugadores enviarán el comprobante a este número
+                        </p>
                       </div>
                     </motion.div>
                   )}

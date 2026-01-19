@@ -97,6 +97,7 @@ class TorneoService:
             alias_cbu_cvu=getattr(torneo_data, 'alias_cbu_cvu', None),
             titular_cuenta=getattr(torneo_data, 'titular_cuenta', None),
             banco=getattr(torneo_data, 'banco', None),
+            telefono_contacto=getattr(torneo_data, 'telefono_contacto', None),
             # Horarios disponibles
             horarios_disponibles=getattr(torneo_data, 'horarios_disponibles', [])
         )

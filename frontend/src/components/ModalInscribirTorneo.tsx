@@ -252,7 +252,8 @@ export default function ModalInscribirTorneo({
           monto: resultado.monto_inscripcion,
           alias_cbu_cvu: resultado.alias_cbu_cvu,
           titular: resultado.titular_cuenta,
-          banco: resultado.banco
+          banco: resultado.banco,
+          telefono_contacto: resultado.telefono_contacto
         });
         setMostrarModalPago(true);
       } else {
