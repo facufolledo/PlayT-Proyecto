@@ -30,7 +30,6 @@ export default function TorneoCategorias({ torneoId, esOrganizador, onCategoriaS
   const [editando, setEditando] = useState<Categoria | null>(null);
   const [nombre, setNombre] = useState('');
   const [genero, setGenero] = useState('masculino');
-  const [maxParejas, setMaxParejas] = useState(16);
   const [guardando, setGuardando] = useState(false);
   
   // Expandir/colapsar
@@ -56,7 +55,6 @@ export default function TorneoCategorias({ torneoId, esOrganizador, onCategoriaS
     setEditando(null);
     setNombre('');
     setGenero('masculino');
-    setMaxParejas(16);
     setModalOpen(true);
   };
 
@@ -64,7 +62,6 @@ export default function TorneoCategorias({ torneoId, esOrganizador, onCategoriaS
     setEditando(cat);
     setNombre(cat.nombre);
     setGenero(cat.genero);
-    setMaxParejas(cat.max_parejas);
     setModalOpen(true);
   };
 
@@ -82,14 +79,14 @@ export default function TorneoCategorias({ torneoId, esOrganizador, onCategoriaS
         await torneoService.actualizarCategoria(torneoId, editando.id, {
           nombre: nombre.trim(),
           genero,
-          max_parejas: maxParejas,
+          max_parejas: 999, // Sin límite
           orden: editando.orden
         });
       } else {
         await torneoService.crearCategoria(torneoId, {
           nombre: nombre.trim(),
           genero,
-          max_parejas: maxParejas,
+          max_parejas: 999, // Sin límite
           orden: categorias.length
         });
       }
@@ -226,7 +223,7 @@ export default function TorneoCategorias({ torneoId, esOrganizador, onCategoriaS
                           <div className="flex items-center gap-3 mt-1 text-xs text-textSecondary">
                             <span className="flex items-center gap-1">
                               <Users size={12} />
-                              {cat.parejas_inscritas}/{cat.max_parejas} parejas
+                              {cat.parejas_inscritas} parejas
                             </span>
                           </div>
                         </button>
@@ -323,21 +320,6 @@ export default function TorneoCategorias({ torneoId, esOrganizador, onCategoriaS
                   </button>
                 ))}
               </div>
-            </div>
-
-            {/* Max Parejas */}
-            <div className="mb-6">
-              <label className="block text-sm font-bold text-textSecondary mb-2">
-                Máximo de Parejas
-              </label>
-              <input
-                type="number"
-                value={maxParejas}
-                onChange={(e) => setMaxParejas(parseInt(e.target.value) || 16)}
-                min={2}
-                max={64}
-                className="w-full px-4 py-3 bg-background border border-cardBorder rounded-lg text-textPrimary"
-              />
             </div>
 
             {/* Botones */}

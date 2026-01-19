@@ -288,18 +288,39 @@ export default function TorneoFixture({ torneoId, esOrganizador }: TorneoFixture
                 >
                   {generando ? 'Generando...' : 'Generar Fixture Completo'}
                 </Button>
-                
-                {categoriaFiltro && (
-                  <Button
-                    onClick={() => generarFixture(categoriaFiltro)}
-                    disabled={generando}
-                    variant="secondary"
-                    className="flex-1 min-w-[200px]"
-                  >
-                    {generando ? 'Generando...' : 'Generar Solo Esta Categoría'}
-                  </Button>
-                )}
               </div>
+              
+              {/* Botones por categoría */}
+              {categorias.length > 0 && (
+                <div className="space-y-2">
+                  <p className="text-sm text-textSecondary font-medium">O generar por categoría:</p>
+                  <div className="flex flex-wrap gap-2">
+                    {categorias.map(cat => {
+                      const esF = cat.genero === 'femenino';
+                      const esMixto = cat.genero === 'mixto';
+                      const icon = esMixto ? '⚥' : esF ? '♀' : '♂';
+                      const colorClass = esMixto 
+                        ? 'from-purple-500 to-purple-600' 
+                        : esF 
+                          ? 'from-pink-500 to-pink-600' 
+                          : 'from-blue-500 to-blue-600';
+                      
+                      return (
+                        <Button
+                          key={cat.id}
+                          onClick={() => generarFixture(cat.id)}
+                          disabled={generando}
+                          variant="secondary"
+                          className={`flex items-center gap-2 bg-gradient-to-r ${colorClass} text-white hover:opacity-90`}
+                        >
+                          <span>{icon}</span>
+                          <span>{cat.nombre}</span>
+                        </Button>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
               
               {/* Botones de eliminar (solo si hay partidos) */}
               {partidos.length > 0 && (

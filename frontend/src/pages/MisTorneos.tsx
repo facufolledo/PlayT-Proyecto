@@ -35,6 +35,12 @@ export default function MisTorneos() {
   const [mostrarTodos, setMostrarTodos] = useState(false);
   const ITEMS_POR_PAGINA = 6;
 
+  // Helper para parsear fechas sin problemas de zona horaria
+  const parseFechaSinZonaHoraria = (fechaISO: string): Date => {
+    const [year, month, day] = fechaISO.split('-').map(Number);
+    return new Date(year, month - 1, day);
+  };
+
   useEffect(() => {
     cargarMisTorneos();
   }, []);
@@ -253,12 +259,12 @@ export default function MisTorneos() {
                         <div className="flex items-center gap-2 text-textSecondary text-xs md:text-sm">
                           <Calendar size={14} className="flex-shrink-0 md:w-4 md:h-4" />
                           <span className="truncate">
-                            {new Date(torneo.fecha_inicio).toLocaleDateString('es-ES', { 
+                            {parseFechaSinZonaHoraria(torneo.fecha_inicio).toLocaleDateString('es-ES', { 
                               day: 'numeric', 
                               month: 'short' 
                             })}
                             {torneo.fecha_inicio !== torneo.fecha_fin && 
-                              ` - ${new Date(torneo.fecha_fin).toLocaleDateString('es-ES', { 
+                              ` - ${parseFechaSinZonaHoraria(torneo.fecha_fin).toLocaleDateString('es-ES', { 
                                 day: 'numeric', 
                                 month: 'short' 
                               })}`
@@ -280,7 +286,7 @@ export default function MisTorneos() {
                           <div className="flex items-center gap-2 text-accent text-xs md:text-sm font-bold">
                             <Clock size={14} className="flex-shrink-0 md:w-4 md:h-4" />
                             <span>
-                              Próximo partido: {new Date(torneo.proxima_fecha).toLocaleDateString('es-ES', {
+                              Próximo partido: {parseFechaSinZonaHoraria(torneo.proxima_fecha).toLocaleDateString('es-ES', {
                                 day: 'numeric',
                                 month: 'short',
                                 hour: '2-digit',

@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Test Días Disponibles</title>
+</head>
+<body>
+    <h1>Test de Cálculo de Días Disponibles</h1>
+    <div id="resultado"></div>
+
+    <script>
+        const TODOS_LOS_DIAS = [
+            { value: 'lunes', label: 'Lun', dayOfWeek: 1 },
+            { value: 'martes', label: 'Mar', dayOfWeek: 2 },
+            { value: 'miercoles', label: 'Mié', dayOfWeek: 3 },
+            { value: 'jueves', label: 'Jue', dayOfWeek: 4 },
+            { value: 'viernes', label: 'Vie', dayOfWeek: 5 },
+            { value: 'sabado', label: 'Sáb', dayOfWeek: 6 },
+            { value: 'domingo', label: 'Dom', dayOfWeek: 0 },
+        ];
+
+        // Versión VIEJA (con bug)
+        function calcularDiasDisponiblesViejo(fechaInicio, fechaFin) {
+            const inicio = new Date(fechaInicio);
+            const fin = new Date(fechaFin);
+            const diasEncontrados = new Set();
+            
+            const current = new Date(inicio);
+            while (current <= fin) {
+                diasEncontrados.add(current.getDay());
+                current.setDate(current.getDate() + 1);
+            }
+            
+            return TODOS_LOS_DIAS
+                .filter(dia => diasEncontrados.has(dia.dayOfWeek))
+                .map(dia => dia.value);
+        }
+
+        // Versión NUEVA (arreglada)
+        function calcularDiasDisponiblesNuevo(fechaInicio, fechaFin) {
+            const [yearI, monthI, dayI] = fechaInicio.split('-').map(Number);
+            const [yearF, monthF, dayF] = fechaFin.split('-').map(Number);
+            
+            const inicio = new Date(yearI, monthI - 1, dayI);
+            const fin = new Date(yearF, monthF - 1, dayF);
+            const diasEncontrados = new Set();
+            
+            const current = new Date(inicio);
+            while (current <= fin) {
+                diasEncontrados.add(current.getDay());
+                current.setDate(current.getDate() + 1);
+            }
+            
+            return TODOS_LOS_DIAS
+                .filter(dia => diasEncontrados.has(dia.dayOfWeek))
+                .map(dia => dia.value);
+        }
+
+        // Test
+        const fechaInicio = "2026-01-23"; // Viernes
+        const fechaFin = "2026-01-25";    // Domingo
+
+        const diasViejos = calcularDiasDisponiblesViejo(fechaInicio, fechaFin);
+        const diasNuevos = calcularDiasDisponiblesNuevo(fechaInicio, fechaFin);
+
+        const resultado = document.getElementById('resultado');
+        resultado.innerHTML = `
+            <h2>Fechas del Torneo Weekend:</h2>
+            <p><strong>Inicio:</strong> ${fechaInicio} (debería ser Viernes)</p>
+            <p><strong>Fin:</strong> ${fechaFin} (debería ser Domingo)</p>
+            
+            <h3>Versión VIEJA (con bug):</h3>
+            <p style="color: red;">${diasViejos.join(', ')}</p>
+            
+            <h3>Versión NUEVA (arreglada):</h3>
+            <p style="color: green;">${diasNuevos.join(', ')}</p>
+            
+            <h3>Esperado:</h3>
+            <p><strong>viernes, sabado, domingo</strong></p>
+            
+            <hr>
+            <h3>Verificación de fechas:</h3>
+            <p>new Date("2026-01-23"): ${new Date("2026-01-23").toString()}</p>
+            <p>new Date(2026, 0, 23): ${new Date(2026, 0, 23).toString()}</p>
+        `;
+    </script>
+</body>
+</html>

@@ -167,11 +167,21 @@ class TorneoZonaService:
         zonas: List[TorneoZona]
     ):
         """Distribuye parejas balanceando por rating promedio"""
-        # Calcular rating promedio de cada pareja
+        # OPTIMIZACIÓN: Obtener todos los jugadores en una sola query (batch)
+        jugadores_ids = set()
+        for pareja in parejas:
+            jugadores_ids.add(pareja.jugador1_id)
+            jugadores_ids.add(pareja.jugador2_id)
+        
+        # Batch query - traer todos los usuarios de una vez
+        usuarios = db.query(Usuario).filter(Usuario.id_usuario.in_(jugadores_ids)).all()
+        usuarios_dict = {u.id_usuario: u for u in usuarios}
+        
+        # Calcular rating promedio de cada pareja (procesamiento en memoria)
         parejas_con_rating = []
         for pareja in parejas:
-            jugador1 = db.query(Usuario).filter(Usuario.id_usuario == pareja.jugador1_id).first()
-            jugador2 = db.query(Usuario).filter(Usuario.id_usuario == pareja.jugador2_id).first()
+            jugador1 = usuarios_dict.get(pareja.jugador1_id)
+            jugador2 = usuarios_dict.get(pareja.jugador2_id)
             
             rating1 = jugador1.rating if jugador1 and jugador1.rating else 1200
             rating2 = jugador2.rating if jugador2 and jugador2.rating else 1200
@@ -222,24 +232,42 @@ class TorneoZonaService:
     
     @staticmethod
     def listar_zonas(db: Session, torneo_id: int) -> List[dict]:
-        """Lista todas las zonas de un torneo con sus parejas (incluyendo eliminadas)"""
+        """Lista todas las zonas de un torneo con sus parejas (OPTIMIZADO - elimina N+1 queries)"""
         zonas = db.query(TorneoZona).filter(
             TorneoZona.torneo_id == torneo_id
         ).order_by(TorneoZona.numero_orden).all()
         
+        if not zonas:
+            return []
+        
+        # OPTIMIZACIÓN 1: Obtener todas las asignaciones en una sola query
+        zonas_ids = [z.id for z in zonas]
+        asignaciones = db.query(TorneoZonaPareja).filter(
+            TorneoZonaPareja.zona_id.in_(zonas_ids)
+        ).all()
+        
+        # OPTIMIZACIÓN 2: Obtener todas las parejas en una sola query (batch)
+        parejas_ids = [a.pareja_id for a in asignaciones]
+        parejas = db.query(TorneoPareja).filter(
+            TorneoPareja.id.in_(parejas_ids)
+        ).all()
+        parejas_dict = {p.id: p for p in parejas}
+        
+        # OPTIMIZACIÓN 3: Agrupar asignaciones por zona (procesamiento en memoria)
+        asignaciones_por_zona = {}
+        for asignacion in asignaciones:
+            if asignacion.zona_id not in asignaciones_por_zona:
+                asignaciones_por_zona[asignacion.zona_id] = []
+            asignaciones_por_zona[asignacion.zona_id].append(asignacion)
+        
+        # Construir resultado (procesamiento en memoria - súper rápido)
         resultado = []
         for zona in zonas:
-            # Obtener todas las asignaciones de parejas a esta zona
-            asignaciones = db.query(TorneoZonaPareja).filter(
-                TorneoZonaPareja.zona_id == zona.id
-            ).all()
+            asignaciones_zona = asignaciones_por_zona.get(zona.id, [])
             
             parejas_info = []
-            for asignacion in asignaciones:
-                # Intentar obtener la pareja
-                pareja = db.query(TorneoPareja).filter(
-                    TorneoPareja.id == asignacion.pareja_id
-                ).first()
+            for asignacion in asignaciones_zona:
+                pareja = parejas_dict.get(asignacion.pareja_id)
                 
                 if pareja:
                     # Pareja existe

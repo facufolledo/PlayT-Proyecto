@@ -240,7 +240,7 @@ export default function ModalInscribirTorneo({
         jugador2_id: jugador2.id_usuario,
         nombre_pareja: nombrePareja,
         categoria_id: categoriaSeleccionada || undefined,
-        disponibilidad_horaria: Object.keys(disponibilidadHoraria).length > 0 ? disponibilidadHoraria : undefined,
+        disponibilidad_horaria: disponibilidadHoraria.length > 0 ? disponibilidadHoraria : undefined,
       });
 
       setCodigoConfirmacion(resultado.codigo_confirmacion);
@@ -390,12 +390,9 @@ export default function ModalInscribirTorneo({
                                 key={cat.id}
                                 type="button"
                                 onClick={() => setCategoriaSeleccionada(cat.id)}
-                                disabled={cat.parejas_inscritas >= cat.max_parejas}
                                 className={`p-2 rounded-lg border text-left transition-all ${
                                   categoriaSeleccionada === cat.id
                                     ? 'border-primary bg-primary/10'
-                                    : cat.parejas_inscritas >= cat.max_parejas
-                                    ? 'border-cardBorder opacity-50 cursor-not-allowed'
                                     : 'border-cardBorder hover:border-primary/50'
                                 }`}
                               >
@@ -407,7 +404,7 @@ export default function ModalInscribirTorneo({
                                   ({cat.genero.charAt(0).toUpperCase()})
                                 </span>
                                 <p className="text-xs text-textSecondary">
-                                  {cat.parejas_inscritas}/{cat.max_parejas} parejas
+                                  {cat.parejas_inscritas} parejas inscritas
                                 </p>
                               </button>
                             ))}
@@ -616,6 +613,7 @@ export default function ModalInscribirTorneo({
                           onChange={setDisponibilidadHoraria}
                           fechaInicio={fechaInicio || torneoData?.fecha_inicio || ''}
                           fechaFin={fechaFin || torneoData?.fecha_fin || ''}
+                          horariosDisponibles={torneoData?.horarios_disponibles}
                         />
                       </div>
                     )}

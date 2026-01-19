@@ -23,6 +23,12 @@ export default function TorneoDetalle() {
   const [tab, setTab] = useState<'info' | 'parejas' | 'zonas' | 'partidos' | 'playoffs' | 'programacion'>('info');
   const [modalInscripcionOpen, setModalInscripcionOpen] = useState(false);
 
+  // Helper para parsear fechas sin problemas de zona horaria
+  const parseFechaSinZonaHoraria = (fechaISO: string): Date => {
+    const [year, month, day] = fechaISO.split('-').map(Number);
+    return new Date(year, month - 1, day);
+  };
+
   useEffect(() => {
     if (id) {
       cargarTorneo(parseInt(id));
@@ -137,10 +143,10 @@ export default function TorneoDetalle() {
               <div>
                 <p className="text-xs text-textSecondary">Fechas</p>
                 <p className="font-bold text-textPrimary">
-                  {new Date(torneoActual.fechaInicio).toLocaleDateString('es-ES', { 
+                  {parseFechaSinZonaHoraria(torneoActual.fechaInicio).toLocaleDateString('es-ES', { 
                     day: 'numeric', 
                     month: 'short' 
-                  })} - {new Date(torneoActual.fechaFin).toLocaleDateString('es-ES', { 
+                  })} - {parseFechaSinZonaHoraria(torneoActual.fechaFin).toLocaleDateString('es-ES', { 
                     day: 'numeric', 
                     month: 'short',
                     year: 'numeric'
@@ -173,13 +179,46 @@ export default function TorneoDetalle() {
             const horarios = (torneoActual as any).horarios_disponibles;
             if (!horarios) return null;
             
+            // Formato nuevo: por día específico (viernes, sabado, domingo, etc.)
+            const diasConHorarios = Object.entries(horarios).filter(([key]) => 
+              !['semana', 'finDeSemana'].includes(key)
+            );
+            
+            // Formato antiguo: semana y finDeSemana
+            const tieneFormatoAntiguo = horarios.semana || horarios.finDeSemana;
+            
+            if (diasConHorarios.length === 0 && !tieneFormatoAntiguo) return null;
+            
+            const nombresDias: Record<string, string> = {
+              'lunes': 'Lun',
+              'martes': 'Mar',
+              'miercoles': 'Mié',
+              'jueves': 'Jue',
+              'viernes': 'Vie',
+              'sabado': 'Sáb',
+              'domingo': 'Dom'
+            };
+            
             return (
               <div className="mb-6 p-4 bg-background rounded-lg border border-primary/30">
                 <h3 className="font-bold text-textPrimary mb-3 flex items-center gap-2">
                   <Clock className="text-primary" size={20} />
                   Horarios del Torneo
                 </h3>
-                <div className="flex flex-col sm:flex-row sm:items-center gap-4">
+                <div className="flex flex-col sm:flex-row sm:flex-wrap gap-3">
+                  {/* Formato nuevo: por día */}
+                  {diasConHorarios.map(([dia, horario]: [string, any]) => (
+                    <div key={dia} className="flex items-center gap-2 bg-cardBg px-3 py-2 rounded-lg">
+                      <span className="text-xs font-bold text-primary bg-primary/10 px-2 py-1 rounded capitalize">
+                        {nombresDias[dia] || dia}
+                      </span>
+                      <span className="text-sm text-textPrimary font-medium">
+                        {horario.inicio} - {horario.fin}
+                      </span>
+                    </div>
+                  ))}
+                  
+                  {/* Formato antiguo: semana y fin de semana */}
                   {horarios.semana && horarios.semana.length > 0 && (
                     <div className="flex items-center gap-2 bg-cardBg px-3 py-2 rounded-lg">
                       <span className="text-xs font-bold text-primary bg-primary/10 px-2 py-1 rounded">Lun-Vie</span>

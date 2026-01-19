@@ -1,4 +1,4 @@
-import { forwardRef } from 'react';
+import { forwardRef, memo } from 'react';
 import { motion, useReducedMotion } from 'framer-motion';
 import { Calendar, Trophy, Trash2, Play } from 'lucide-react';
 import Button from './Button';
@@ -252,4 +252,5 @@ const SalaCard = forwardRef<HTMLDivElement, SalaCardProps>(
 
 SalaCard.displayName = 'SalaCard';
 
-export default SalaCard;
+// OPTIMIZACIÓN MOBILE: Memoizar para evitar re-renders innecesarios
+export default memo(SalaCard);

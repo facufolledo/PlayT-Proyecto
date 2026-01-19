@@ -196,8 +196,21 @@ class TorneoFixtureGlobalService:
             
             disp_raw = pareja.disponibilidad_horaria or {}
             
+            # Manejar diferentes formatos de disponibilidad_horaria
+            # Formato 1: Lista directa de restricciones [{'dias': [...], 'horaInicio': ..., 'horaFin': ...}]
+            # Formato 2: Diccionario con franjas {'franjas': [...]}
+            # Formato 3: Vacío o None = sin restricciones
+            
+            franjas = []
+            if isinstance(disp_raw, list):
+                # Formato 1: lista directa
+                franjas = disp_raw
+            elif isinstance(disp_raw, dict):
+                # Formato 2: diccionario con franjas
+                franjas = disp_raw.get('franjas', [])
+            
             # Si no tiene restricciones o está vacía, está disponible siempre
-            if not disp_raw or not disp_raw.get('franjas'):
+            if not franjas:
                 disponibilidad[pareja_id] = {
                     'restricciones': {}  # Sin restricciones = disponible siempre
                 }
@@ -206,7 +219,6 @@ class TorneoFixtureGlobalService:
             # Procesar franjas como RESTRICCIONES (horarios que NO puede jugar)
             restricciones = {}
             
-            franjas = disp_raw.get('franjas', [])
             for franja in franjas:
                 dias = franja.get('dias', [])
                 hora_inicio = franja.get('horaInicio', '00:00')
@@ -248,20 +260,48 @@ class TorneoFixtureGlobalService:
         while fecha_actual <= fecha_fin:
             dia_semana = TorneoFixtureGlobalService._obtener_dia_semana(fecha_actual)
             
-            # Determinar si es semana o fin de semana
-            tipo_dia = 'finDeSemana' if dia_semana in ['sabado', 'domingo'] else 'semana'
+            # Intentar obtener horarios específicos del día
+            horarios_dia = None
             
-            # Obtener franjas horarias para este tipo de día
-            franjas = horarios_torneo.get(tipo_dia, [])
+            # Formato nuevo: horarios por día específico (viernes, sabado, domingo, etc.)
+            if dia_semana in horarios_torneo:
+                horarios_dia = horarios_torneo[dia_semana]
+            # Formato viejo: horarios por tipo de día (semana, finDeSemana)
+            else:
+                tipo_dia = 'finDeSemana' if dia_semana in ['sabado', 'domingo'] else 'semana'
+                franjas = horarios_torneo.get(tipo_dia, [])
+                
+                if not franjas:
+                    # Si no hay franjas definidas, usar horario por defecto
+                    franjas = [{'desde': '08:00', 'hasta': '23:00'}]
+                
+                # Generar slots para cada franja (formato viejo)
+                for franja in franjas:
+                    hora_desde = franja.get('desde', '08:00')
+                    hora_hasta = franja.get('hasta', '23:00')
+                    
+                    hora_actual = datetime.strptime(hora_desde, '%H:%M')
+                    hora_limite = datetime.strptime(hora_hasta, '%H:%M')
+                    
+                    # IMPORTANTE: Asegurar que no se generen slots que excedan el límite
+                    # Restar 50 minutos del límite para que el partido termine antes del cierre
+                    hora_limite_ajustada = hora_limite - timedelta(minutes=50)
+                    
+                    while hora_actual <= hora_limite_ajustada:
+                        slots.append((
+                            fecha_actual.strftime('%Y-%m-%d'),
+                            dia_semana,
+                            hora_actual.strftime('%H:%M')
+                        ))
+                        hora_actual += timedelta(minutes=50)
+                
+                fecha_actual += timedelta(days=1)
+                continue
             
-            if not franjas:
-                # Si no hay franjas definidas, usar horario por defecto
-                franjas = [{'desde': '08:00', 'hasta': '23:00'}]
-            
-            # Generar slots para cada franja
-            for franja in franjas:
-                hora_desde = franja.get('desde', '08:00')
-                hora_hasta = franja.get('hasta', '23:00')
+            # Formato nuevo: procesar horarios del día específico
+            if horarios_dia and isinstance(horarios_dia, dict):
+                hora_desde = horarios_dia.get('inicio') or horarios_dia.get('desde', '08:00')
+                hora_hasta = horarios_dia.get('fin') or horarios_dia.get('hasta', '23:00')
                 
                 hora_actual = datetime.strptime(hora_desde, '%H:%M')
                 hora_limite = datetime.strptime(hora_hasta, '%H:%M')

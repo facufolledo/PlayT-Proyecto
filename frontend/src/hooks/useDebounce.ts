@@ -1,19 +1,19 @@
-import { useState, useEffect } from 'react';
+import { useEffect, useState } from 'react';
 
 /**
- * Hook para debounce genérico
- * @param value - Valor a hacer debounce
- * @param delay - Delay en milisegundos
- * @returns Valor con debounce aplicado
+ * Hook para debounce - Optimización mobile
+ * Reduce requests innecesarios en búsquedas
  */
-export function useDebounce<T>(value: T, delay: number): T {
+export function useDebounce<T>(value: T, delay: number = 300): T {
   const [debouncedValue, setDebouncedValue] = useState<T>(value);
 
   useEffect(() => {
+    // Crear timer
     const handler = setTimeout(() => {
       setDebouncedValue(value);
     }, delay);
 
+    // Limpiar timer si value cambia antes del delay
     return () => {
       clearTimeout(handler);
     };
@@ -23,25 +23,33 @@ export function useDebounce<T>(value: T, delay: number): T {
 }
 
 /**
- * Hook específico para búsquedas con debounce
- * @param searchTerm - Término de búsqueda
- * @param delay - Delay en milisegundos (default: 300ms)
- * @returns Objeto con término con debounce y estado de búsqueda
+ * Hook para debounce de funciones
  */
-export function useSearchDebounce(searchTerm: string, delay: number = 300) {
-  const [isSearching, setIsSearching] = useState(false);
-  const debouncedSearchTerm = useDebounce(searchTerm, delay);
+export function useDebouncedCallback<T extends (...args: any[]) => any>(
+  callback: T,
+  delay: number = 300
+): T {
+  const [timeoutId, setTimeoutId] = useState<NodeJS.Timeout | null>(null);
+
+  const debouncedCallback = ((...args: Parameters<T>) => {
+    if (timeoutId) {
+      clearTimeout(timeoutId);
+    }
+
+    const newTimeoutId = setTimeout(() => {
+      callback(...args);
+    }, delay);
+
+    setTimeoutId(newTimeoutId);
+  }) as T;
 
   useEffect(() => {
-    if (searchTerm !== debouncedSearchTerm) {
-      setIsSearching(true);
-    } else {
-      setIsSearching(false);
-    }
-  }, [searchTerm, debouncedSearchTerm]);
+    return () => {
+      if (timeoutId) {
+        clearTimeout(timeoutId);
+      }
+    };
+  }, [timeoutId]);
 
-  return {
-    debouncedSearchTerm,
-    isSearching
-  };
+  return debouncedCallback;
 }

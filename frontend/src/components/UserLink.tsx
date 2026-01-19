@@ -1,5 +1,6 @@
 import { Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import { ImageLazy } from './ImageLazy';
 
 interface UserLinkProps {
   userId: number | string;
@@ -166,7 +167,12 @@ export function UserAvatarLink({
         overflow-hidden flex-shrink-0
       `}>
         {fotoUrl ? (
-          <img src={fotoUrl} alt={nombre} className="w-full h-full object-cover" />
+          <ImageLazy 
+            src={fotoUrl} 
+            alt={nombre} 
+            className="w-full h-full object-cover"
+            fallback="/logo-drive.png"
+          />
         ) : (
           <span>{iniciales}</span>
         )}

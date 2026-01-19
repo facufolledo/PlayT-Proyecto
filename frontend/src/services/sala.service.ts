@@ -537,9 +537,7 @@ class SalaService {
       throw error;
     }
   }
-}
 
-export const salaService = new SalaService();
   // OPTIMIZACIÓN: Métodos para gestión de cache
   invalidateCache(pattern?: string): void {
     cache.invalidate(pattern);
@@ -590,3 +588,5 @@ export const salaService = new SalaService();
     }
   }
 }
+
+export const salaService = new SalaService();

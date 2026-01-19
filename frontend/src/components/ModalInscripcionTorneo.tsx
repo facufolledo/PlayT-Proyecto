@@ -16,6 +16,12 @@ export default function ModalInscripcionTorneo({ isOpen, onClose, torneo, onInsc
   const { usuario } = useAuth();
   const [confirmado, setConfirmado] = useState(false);
 
+  // Helper para parsear fechas sin problemas de zona horaria
+  const parseFechaSinZonaHoraria = (fechaISO: string): Date => {
+    const [year, month, day] = fechaISO.split('-').map(Number);
+    return new Date(year, month - 1, day);
+  };
+
   if (!torneo || !usuario) return null;
 
   const handleInscribir = () => {
@@ -97,10 +103,10 @@ export default function ModalInscripcionTorneo({ isOpen, onClose, torneo, onInsc
                         <div className="flex items-center justify-between">
                           <span className="text-textSecondary text-sm">Fechas:</span>
                           <span className="text-textPrimary font-bold text-sm">
-                            {new Date(torneo.fechaInicio).toLocaleDateString('es-ES', { 
+                            {parseFechaSinZonaHoraria(torneo.fechaInicio).toLocaleDateString('es-ES', { 
                               day: 'numeric', 
                               month: 'short' 
-                            })} - {new Date(torneo.fechaFin).toLocaleDateString('es-ES', { 
+                            })} - {parseFechaSinZonaHoraria(torneo.fechaFin).toLocaleDateString('es-ES', { 
                               day: 'numeric', 
                               month: 'short' 
                             })}

@@ -395,7 +395,7 @@ export default function TorneoParejas({
                     {cat.genero === 'masculino' ? '♂' : '♀'}
                   </span>
                   <p className="text-xs text-textSecondary">
-                    {cat.parejas_inscritas}/{cat.max_parejas} parejas
+                    {cat.parejas_inscritas} parejas inscritas
                   </p>
                 </button>
               ))}

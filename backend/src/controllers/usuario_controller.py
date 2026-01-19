@@ -383,40 +383,49 @@ async def buscar_usuarios(
     db: Session = Depends(get_db)
 ):
     """
-    Busca usuarios por nombre, apellido o nombre de usuario
+    Busca usuarios por nombre, apellido o nombre de usuario (OPTIMIZADO)
     """
     if not q or len(q) < 2:
         return []
     
     query_lower = f"%{q.lower()}%"
     
-    # Buscar en perfil_usuarios y usuarios
-    perfiles = db.query(PerfilUsuario, Usuario).join(
-        Usuario, PerfilUsuario.id_usuario == Usuario.id_usuario
+    # OPTIMIZACIÓN: Query única con joins incluyendo categoría
+    resultados = db.query(
+        Usuario.id_usuario,
+        Usuario.nombre_usuario,
+        Usuario.rating,
+        Usuario.partidos_jugados,
+        Usuario.id_categoria,
+        PerfilUsuario.nombre,
+        PerfilUsuario.apellido,
+        PerfilUsuario.ciudad,
+        PerfilUsuario.url_avatar,
+        Categoria.nombre.label('categoria_nombre')
+    ).join(
+        PerfilUsuario, Usuario.id_usuario == PerfilUsuario.id_usuario
+    ).outerjoin(
+        Categoria, Usuario.id_categoria == Categoria.id_categoria
     ).filter(
         (PerfilUsuario.nombre.ilike(query_lower)) | 
         (PerfilUsuario.apellido.ilike(query_lower)) |
         (Usuario.nombre_usuario.ilike(query_lower))
     ).limit(limit).all()
     
+    # Procesar resultados en memoria
     resultado = []
-    for perfil, usuario in perfiles:
-        # Obtener categoría
-        categoria = db.query(Categoria).filter(
-            Categoria.id_categoria == usuario.id_categoria
-        ).first() if usuario.id_categoria else None
-        
+    for row in resultados:
         resultado.append({
-            "id_usuario": usuario.id_usuario,
-            "nombre_usuario": usuario.nombre_usuario,
-            "nombre": perfil.nombre,
-            "apellido": perfil.apellido,
-            "nombre_completo": f"{perfil.nombre} {perfil.apellido}",
-            "rating": usuario.rating or 1200,
-            "partidos_jugados": usuario.partidos_jugados or 0,
-            "categoria": categoria.nombre if categoria else None,
-            "ciudad": perfil.ciudad,
-            "foto_perfil": perfil.url_avatar
+            "id_usuario": row.id_usuario,
+            "nombre_usuario": row.nombre_usuario,
+            "nombre": row.nombre,
+            "apellido": row.apellido,
+            "nombre_completo": f"{row.nombre} {row.apellido}",
+            "rating": row.rating or 1200,
+            "partidos_jugados": row.partidos_jugados or 0,
+            "categoria": row.categoria_nombre,
+            "ciudad": row.ciudad,
+            "foto_perfil": row.url_avatar
         })
     
     return resultado
@@ -428,40 +437,52 @@ async def obtener_perfil_por_username(
     db: Session = Depends(get_db)
 ):
     """
-    Obtiene el perfil público de un usuario por su username
+    Obtiene el perfil público de un usuario por su username (OPTIMIZADO)
     URL amigable: /usuarios/@facufolledo/perfil
     """
-    usuario = db.query(Usuario).filter(Usuario.nombre_usuario == username).first()
-    if not usuario:
-        raise HTTPException(status_code=404, detail="Usuario no encontrado")
-    
-    perfil = db.query(PerfilUsuario).filter(
-        PerfilUsuario.id_usuario == usuario.id_usuario
+    # OPTIMIZACIÓN: Query única con joins
+    resultado = db.query(
+        Usuario.id_usuario,
+        Usuario.nombre_usuario,
+        Usuario.sexo,
+        Usuario.rating,
+        Usuario.partidos_jugados,
+        Usuario.id_categoria,
+        PerfilUsuario.nombre,
+        PerfilUsuario.apellido,
+        PerfilUsuario.ciudad,
+        PerfilUsuario.pais,
+        PerfilUsuario.posicion_preferida,
+        PerfilUsuario.mano_habil,
+        PerfilUsuario.url_avatar,
+        Categoria.nombre.label('categoria_nombre')
+    ).join(
+        PerfilUsuario, Usuario.id_usuario == PerfilUsuario.id_usuario
+    ).outerjoin(
+        Categoria, Usuario.id_categoria == Categoria.id_categoria
+    ).filter(
+        Usuario.nombre_usuario == username
     ).first()
     
-    if not perfil:
-        raise HTTPException(status_code=404, detail="Perfil no encontrado")
-    
-    categoria = db.query(Categoria).filter(
-        Categoria.id_categoria == usuario.id_categoria
-    ).first() if usuario.id_categoria else None
+    if not resultado:
+        raise HTTPException(status_code=404, detail="Usuario no encontrado")
     
     return {
-        "id_usuario": usuario.id_usuario,
-        "nombre_usuario": usuario.nombre_usuario,
-        "nombre": perfil.nombre,
-        "apellido": perfil.apellido,
-        "nombre_completo": f"{perfil.nombre} {perfil.apellido}",
-        "sexo": usuario.sexo,
-        "ciudad": perfil.ciudad,
-        "pais": perfil.pais,
-        "rating": usuario.rating or 1200,
-        "partidos_jugados": usuario.partidos_jugados or 0,
-        "categoria": categoria.nombre if categoria else None,
-        "categoria_id": usuario.id_categoria,
-        "posicion_preferida": perfil.posicion_preferida,
-        "mano_dominante": perfil.mano_habil,
-        "foto_perfil": perfil.url_avatar
+        "id_usuario": resultado.id_usuario,
+        "nombre_usuario": resultado.nombre_usuario,
+        "nombre": resultado.nombre,
+        "apellido": resultado.apellido,
+        "nombre_completo": f"{resultado.nombre} {resultado.apellido}",
+        "sexo": resultado.sexo,
+        "ciudad": resultado.ciudad,
+        "pais": resultado.pais,
+        "rating": resultado.rating or 1200,
+        "partidos_jugados": resultado.partidos_jugados or 0,
+        "categoria": resultado.categoria_nombre,
+        "categoria_id": resultado.id_categoria,
+        "posicion_preferida": resultado.posicion_preferida,
+        "mano_dominante": resultado.mano_habil,
+        "foto_perfil": resultado.url_avatar
     }
 
 
@@ -471,40 +492,51 @@ async def obtener_perfil_publico(
     db: Session = Depends(get_db)
 ):
     """
-    Obtiene el perfil público de un usuario por ID (legacy)
+    Obtiene el perfil público de un usuario por ID (OPTIMIZADO)
     """
-    usuario = db.query(Usuario).filter(Usuario.id_usuario == user_id).first()
-    if not usuario:
-        raise HTTPException(status_code=404, detail="Usuario no encontrado")
-    
-    perfil = db.query(PerfilUsuario).filter(
-        PerfilUsuario.id_usuario == user_id
+    # OPTIMIZACIÓN: Query única con joins
+    resultado = db.query(
+        Usuario.id_usuario,
+        Usuario.nombre_usuario,
+        Usuario.sexo,
+        Usuario.rating,
+        Usuario.partidos_jugados,
+        Usuario.id_categoria,
+        PerfilUsuario.nombre,
+        PerfilUsuario.apellido,
+        PerfilUsuario.ciudad,
+        PerfilUsuario.pais,
+        PerfilUsuario.posicion_preferida,
+        PerfilUsuario.mano_habil,
+        PerfilUsuario.url_avatar,
+        Categoria.nombre.label('categoria_nombre')
+    ).join(
+        PerfilUsuario, Usuario.id_usuario == PerfilUsuario.id_usuario
+    ).outerjoin(
+        Categoria, Usuario.id_categoria == Categoria.id_categoria
+    ).filter(
+        Usuario.id_usuario == user_id
     ).first()
     
-    if not perfil:
-        raise HTTPException(status_code=404, detail="Perfil no encontrado")
-    
-    # Obtener categoría
-    categoria = db.query(Categoria).filter(
-        Categoria.id_categoria == usuario.id_categoria
-    ).first() if usuario.id_categoria else None
+    if not resultado:
+        raise HTTPException(status_code=404, detail="Usuario no encontrado")
     
     return {
-        "id_usuario": usuario.id_usuario,
-        "nombre_usuario": usuario.nombre_usuario,
-        "nombre": perfil.nombre,
-        "apellido": perfil.apellido,
-        "nombre_completo": f"{perfil.nombre} {perfil.apellido}",
-        "sexo": usuario.sexo,
-        "ciudad": perfil.ciudad,
-        "pais": perfil.pais,
-        "rating": usuario.rating or 1200,
-        "partidos_jugados": usuario.partidos_jugados or 0,
-        "categoria": categoria.nombre if categoria else None,
-        "categoria_id": usuario.id_categoria,
-        "posicion_preferida": perfil.posicion_preferida,
-        "mano_dominante": perfil.mano_habil,
-        "foto_perfil": perfil.url_avatar
+        "id_usuario": resultado.id_usuario,
+        "nombre_usuario": resultado.nombre_usuario,
+        "nombre": resultado.nombre,
+        "apellido": resultado.apellido,
+        "nombre_completo": f"{resultado.nombre} {resultado.apellido}",
+        "sexo": resultado.sexo,
+        "ciudad": resultado.ciudad,
+        "pais": resultado.pais,
+        "rating": resultado.rating or 1200,
+        "partidos_jugados": resultado.partidos_jugados or 0,
+        "categoria": resultado.categoria_nombre,
+        "categoria_id": resultado.id_categoria,
+        "posicion_preferida": resultado.posicion_preferida,
+        "mano_dominante": resultado.mano_habil,
+        "foto_perfil": resultado.url_avatar
     }
 
 
@@ -514,7 +546,7 @@ async def obtener_estadisticas_usuario(
     db: Session = Depends(get_db)
 ):
     """
-    Obtiene estadísticas públicas de un usuario
+    Obtiene estadísticas públicas de un usuario (OPTIMIZADO)
     """
     from ..models.driveplus_models import Partido, PartidoJugador, ResultadoPartido
     from sqlalchemy import and_
@@ -523,23 +555,40 @@ async def obtener_estadisticas_usuario(
     if not usuario:
         raise HTTPException(status_code=404, detail="Usuario no encontrado")
     
-    # Obtener partidos del usuario
+    # OPTIMIZACIÓN: Obtener partidos del usuario
     partidos_jugador = db.query(PartidoJugador).filter(
         PartidoJugador.id_usuario == user_id
     ).all()
     
+    if not partidos_jugador:
+        return {
+            "id_usuario": user_id,
+            "partidos_jugados": 0,
+            "victorias": 0,
+            "derrotas": 0,
+            "winrate": 0,
+            "rating": usuario.rating or 1200
+        }
+    
     partidos_ids = [pj.id_partido for pj in partidos_jugador]
     
-    # Contar victorias
+    # OPTIMIZACIÓN: Obtener TODOS los resultados en una sola query (batch)
+    resultados = db.query(ResultadoPartido).filter(
+        ResultadoPartido.id_partido.in_(partidos_ids),
+        ResultadoPartido.confirmado == True
+    ).all()
+    
+    # Crear diccionario para acceso rápido
+    resultados_dict = {r.id_partido: r for r in resultados}
+    
+    # Contar victorias y derrotas (procesamiento en memoria)
     victorias = 0
     derrotas = 0
     
     for pj in partidos_jugador:
-        resultado = db.query(ResultadoPartido).filter(
-            ResultadoPartido.id_partido == pj.id_partido
-        ).first()
+        resultado = resultados_dict.get(pj.id_partido)
         
-        if resultado and resultado.confirmado:
+        if resultado:
             if pj.equipo == 1:
                 if resultado.sets_eq1 > resultado.sets_eq2:
                     victorias += 1
@@ -574,60 +623,62 @@ async def get_perfil_publico_por_username(
     db: Session = Depends(get_db)
 ):
     """
-    Obtiene el perfil público de un usuario por su username
+    Obtiene el perfil público de un usuario por su username (OPTIMIZADO)
     Endpoint público - no requiere autenticación
     """
     try:
         # Limpiar el username de espacios y caracteres especiales
         username = username.strip().lower()
         
-        # Buscar usuario (case insensitive)
-        usuario = db.query(Usuario).filter(
+        # OPTIMIZACIÓN: Query única con joins (case insensitive)
+        resultado = db.query(
+            Usuario.id_usuario,
+            Usuario.nombre_usuario,
+            Usuario.sexo,
+            Usuario.rating,
+            Usuario.partidos_jugados,
+            Usuario.id_categoria,
+            Usuario.fecha_registro,
+            PerfilUsuario.nombre,
+            PerfilUsuario.apellido,
+            PerfilUsuario.ciudad,
+            PerfilUsuario.pais,
+            PerfilUsuario.posicion_preferida,
+            PerfilUsuario.mano_habil,
+            PerfilUsuario.url_avatar,
+            Categoria.nombre.label('categoria_nombre')
+        ).join(
+            PerfilUsuario, Usuario.id_usuario == PerfilUsuario.id_usuario
+        ).outerjoin(
+            Categoria, Usuario.id_categoria == Categoria.id_categoria
+        ).filter(
             Usuario.nombre_usuario.ilike(username)
         ).first()
         
-        if not usuario:
+        if not resultado:
             raise HTTPException(
                 status_code=404, 
                 detail=f"Usuario '{username}' no encontrado"
             )
         
-        # Buscar perfil
-        perfil = db.query(PerfilUsuario).filter(
-            PerfilUsuario.id_usuario == usuario.id_usuario
-        ).first()
-        
-        if not perfil:
-            raise HTTPException(
-                status_code=404, 
-                detail=f"Perfil no encontrado para el usuario '{username}'"
-            )
-        
-        # Buscar categoría (opcional)
-        categoria = None
-        if usuario.id_categoria:
-            categoria = db.query(Categoria).filter(
-                Categoria.id_categoria == usuario.id_categoria
-            ).first()
-        
         return {
-            "id_usuario": usuario.id_usuario,
-            "nombre_usuario": usuario.nombre_usuario,
-            "nombre": perfil.nombre,
-            "apellido": perfil.apellido,
-            "nombre_completo": f"{perfil.nombre} {perfil.apellido}",
-            "sexo": getattr(usuario, 'sexo', None),
-            "ciudad": perfil.ciudad,
-            "pais": perfil.pais,
-            "rating": usuario.rating or 1200,
-            "partidos_jugados": usuario.partidos_jugados or 0,
-            "categoria": categoria.nombre if categoria else None,
-            "categoria_id": usuario.id_categoria,
-            "posicion_preferida": perfil.posicion_preferida,
-            "mano_dominante": perfil.mano_habil,
-            "foto_perfil": getattr(perfil, 'url_avatar', None),
-            "fecha_registro": usuario.fecha_registro.isoformat() if hasattr(usuario, 'fecha_registro') and usuario.fecha_registro else None,
-            "activo": getattr(usuario, 'activo', True)
+            "id_usuario": resultado.id_usuario,
+            "nombre_usuario": resultado.nombre_usuario,
+            "nombre": resultado.nombre,
+            "apellido": resultado.apellido,
+            "nombre_completo": f"{resultado.nombre} {resultado.apellido}",
+            "sexo": resultado.sexo,
+            "ciudad": resultado.ciudad,
+            "pais": resultado.pais,
+            "rating": resultado.rating or 1200,
+            "partidos_jugados": resultado.partidos_jugados or 0,
+            "categoria": resultado.categoria_nombre,
+            "categoria_id": resultado.id_categoria,
+            "posicion_preferida": resultado.posicion_preferida,
+            "mano_dominante": resultado.mano_habil,
+            "foto_perfil": resultado.url_avatar,
+            "fecha_registro": resultado.fecha_registro.isoformat() if resultado.fecha_registro else None,
+            "activo": True  # Asumimos activo por defecto
         }
         
     except HTTPException:
@@ -647,7 +698,7 @@ async def buscar_usuarios_publico(
     db: Session = Depends(get_db)
 ):
     """
-    Búsqueda pública de usuarios por nombre, apellido o username
+    Búsqueda pública de usuarios por nombre, apellido o username (OPTIMIZADO)
     Endpoint público - no requiere autenticación
     """
     try:
@@ -656,9 +707,23 @@ async def buscar_usuarios_publico(
         
         search_term = f"%{q.strip().lower()}%"
         
-        # Buscar usuarios con perfil (usando LEFT JOIN para incluir usuarios sin perfil)
-        usuarios = db.query(Usuario, PerfilUsuario).outerjoin(
+        # OPTIMIZACIÓN: Query única con joins incluyendo categoría
+        resultados = db.query(
+            Usuario.id_usuario,
+            Usuario.nombre_usuario,
+            Usuario.rating,
+            Usuario.partidos_jugados,
+            Usuario.id_categoria,
+            Usuario.creado_en,
+            PerfilUsuario.nombre,
+            PerfilUsuario.apellido,
+            PerfilUsuario.ciudad,
+            PerfilUsuario.url_avatar,
+            Categoria.nombre.label('categoria_nombre')
+        ).join(
             PerfilUsuario, Usuario.id_usuario == PerfilUsuario.id_usuario
+        ).outerjoin(
+            Categoria, Usuario.id_categoria == Categoria.id_categoria
         ).filter(
             or_(
                 Usuario.nombre_usuario.ilike(search_term),
@@ -667,30 +732,21 @@ async def buscar_usuarios_publico(
             )
         ).limit(limit).all()
         
+        # Procesar resultados en memoria
         resultado = []
-        for usuario, perfil in usuarios:
-            # Si no hay perfil, usar datos básicos del usuario
-            if not perfil:
-                continue  # Saltar usuarios sin perfil para búsqueda pública
-                
-            categoria = None
-            if usuario.id_categoria:
-                categoria = db.query(Categoria).filter(
-                    Categoria.id_categoria == usuario.id_categoria
-                ).first()
-            
+        for row in resultados:
             resultado.append({
-                "id_usuario": usuario.id_usuario,
-                "nombre_usuario": usuario.nombre_usuario,
-                "nombre": perfil.nombre,
-                "apellido": perfil.apellido,
-                "nombre_completo": f"{perfil.nombre} {perfil.apellido}",
-                "rating": usuario.rating or 1200,
-                "partidos_jugados": usuario.partidos_jugados or 0,
-                "categoria": categoria.nombre if categoria else None,
-                "ciudad": perfil.ciudad,
-                "foto_perfil": getattr(perfil, 'url_avatar', None),
-                "fecha_registro": usuario.creado_en.isoformat() if hasattr(usuario, 'creado_en') and usuario.creado_en else None
+                "id_usuario": row.id_usuario,
+                "nombre_usuario": row.nombre_usuario,
+                "nombre": row.nombre,
+                "apellido": row.apellido,
+                "nombre_completo": f"{row.nombre} {row.apellido}",
+                "rating": row.rating or 1200,
+                "partidos_jugados": row.partidos_jugados or 0,
+                "categoria": row.categoria_nombre,
+                "ciudad": row.ciudad,
+                "foto_perfil": row.url_avatar,
+                "fecha_registro": row.creado_en.isoformat() if row.creado_en else None
             })
         
         return resultado

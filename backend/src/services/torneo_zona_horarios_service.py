@@ -152,12 +152,23 @@ class TorneoZonaHorariosService:
         - Disponibilidad horaria
         - Slots disponibles
         """
+        # OPTIMIZACIÓN: Obtener todos los jugadores en una sola query (batch)
+        jugadores_ids = set()
+        for pareja in parejas:
+            jugadores_ids.add(pareja.jugador1_id)
+            jugadores_ids.add(pareja.jugador2_id)
+        
+        # Batch query - traer todos los usuarios de una vez
+        usuarios = db.query(Usuario).filter(Usuario.id_usuario.in_(jugadores_ids)).all()
+        usuarios_dict = {u.id_usuario: u for u in usuarios}
+        
+        # Procesar parejas (en memoria - súper rápido)
         parejas_datos = []
         
         for pareja in parejas:
-            # Obtener jugadores
-            j1 = db.query(Usuario).filter(Usuario.id_usuario == pareja.jugador1_id).first()
-            j2 = db.query(Usuario).filter(Usuario.id_usuario == pareja.jugador2_id).first()
+            # Obtener jugadores del diccionario
+            j1 = usuarios_dict.get(pareja.jugador1_id)
+            j2 = usuarios_dict.get(pareja.jugador2_id)
             
             rating1 = j1.rating if j1 and j1.rating else 1200
             rating2 = j2.rating if j2 and j2.rating else 1200

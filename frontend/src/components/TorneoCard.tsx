@@ -1,4 +1,4 @@
-import { forwardRef } from 'react';
+import { forwardRef, memo } from 'react';
 import { motion, useReducedMotion } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
 import { Trophy, Calendar, Users, Play, CheckCircle, Clock } from 'lucide-react';
@@ -26,6 +26,12 @@ const GENERO_LABELS: Record<string, { label: string; icon: string; color: string
 const TorneoCard = forwardRef<HTMLDivElement, TorneoCardProps>(({ torneo }, ref) => {
   const navigate = useNavigate();
   const shouldReduceMotion = useReducedMotion();
+  
+  // Helper para parsear fechas sin problemas de zona horaria
+  const parseFechaSinZonaHoraria = (fechaISO: string): Date => {
+    const [year, month, day] = fechaISO.split('-').map(Number);
+    return new Date(year, month - 1, day);
+  };
   
   const getEstadoColor = () => {
     switch (torneo.estado) {
@@ -89,10 +95,10 @@ const TorneoCard = forwardRef<HTMLDivElement, TorneoCardProps>(({ torneo }, ref)
             <div className="flex items-center gap-1 md:gap-2 text-textSecondary">
               <Calendar size={10} className="flex-shrink-0 md:w-4 md:h-4" />
               <span className="text-[9px] md:text-sm truncate">
-                {new Date(torneo.fechaInicio).toLocaleDateString('es-ES', { 
+                {parseFechaSinZonaHoraria(torneo.fechaInicio).toLocaleDateString('es-ES', { 
                   day: 'numeric', 
                   month: 'short' 
-                })} - {new Date(torneo.fechaFin).toLocaleDateString('es-ES', { 
+                })} - {parseFechaSinZonaHoraria(torneo.fechaFin).toLocaleDateString('es-ES', { 
                   day: 'numeric', 
                   month: 'short'
                 })}
@@ -149,4 +155,5 @@ const TorneoCard = forwardRef<HTMLDivElement, TorneoCardProps>(({ torneo }, ref)
 
 TorneoCard.displayName = 'TorneoCard';
 
-export default TorneoCard;
+// OPTIMIZACIÓN MOBILE: Memoizar para evitar re-renders innecesarios
+export default memo(TorneoCard);

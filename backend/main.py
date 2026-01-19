@@ -5,6 +5,7 @@ from datetime import datetime
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.middleware.gzip import GZipMiddleware  # NUEVO: Compresión para mobile
 from dotenv import load_dotenv
 import uvicorn
 from sqlalchemy import text
@@ -106,6 +107,15 @@ app.add_middleware(
     allow_methods=["*"],  # Permitir todos los métodos incluyendo PATCH
     allow_headers=["*"],
 )
+
+# ---- OPTIMIZACIÓN MOBILE: Compresión GZip ----
+# Reduce tamaño de respuestas en 70-80% para mobile
+app.add_middleware(
+    GZipMiddleware,
+    minimum_size=1000,  # Comprimir respuestas > 1KB
+    compresslevel=6     # Balance entre velocidad y compresión
+)
+logger.info("✅ Compresión GZip habilitada para optimización mobile")
 
 # ---- Registrar handlers de excepciones ----
 register_exception_handlers(app)

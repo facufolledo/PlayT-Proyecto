@@ -2,6 +2,11 @@ import axios from 'axios';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
 
+// Configurar axios para evitar cache
+axios.defaults.headers.common['Cache-Control'] = 'no-cache, no-store, must-revalidate';
+axios.defaults.headers.common['Pragma'] = 'no-cache';
+axios.defaults.headers.common['Expires'] = '0';
+
 // Tipos para crear/actualizar torneos
 export interface TorneoCreate {
   nombre: string;
@@ -121,7 +126,8 @@ class TorneoService {
   }
 
   async obtenerTorneo(torneoId: number): Promise<Torneo> {
-    const response = await axios.get(`${API_URL}/torneos/${torneoId}`);
+    // Agregar timestamp para evitar cache del navegador
+    const response = await axios.get(`${API_URL}/torneos/${torneoId}?_t=${Date.now()}`);
     return response.data;
   }
 

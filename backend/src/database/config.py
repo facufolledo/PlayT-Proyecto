@@ -1,7 +1,7 @@
 from sqlalchemy import create_engine, event
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
-from sqlalchemy.pool import QueuePool
+from sqlalchemy.pool import QueuePool, NullPool
 import os
 import logging
 from dotenv import load_dotenv
@@ -35,7 +35,10 @@ engine = create_engine(
     connect_args={
         "timeout": 10  # Timeout de conexión inicial (pg8000 solo soporta timeout)
     },
-    echo=False
+    echo=False,
+    # NUEVO: Configuración para manejar conexiones perdidas
+    pool_reset_on_return='rollback',  # Rollback al devolver conexión
+    isolation_level="READ COMMITTED"  # Nivel de aislamiento estándar
 )
 
 # Event listeners para monitoreo y debugging
@@ -59,15 +62,29 @@ def receive_connect(dbapi_connection, connection_record):
 @event.listens_for(engine, "close")
 def receive_close(dbapi_connection, connection_record):
     """Manejar cierre de conexión de forma silenciosa"""
-    try:
-        # Intentar cerrar normalmente
-        pass
-    except Exception as e:
-        # Suprimir errores de BrokenPipe al cerrar
-        if "Broken pipe" in str(e) or "network error" in str(e):
-            logger.debug(f"Conexión ya cerrada por el servidor: {e}")
-        else:
-            logger.warning(f"Error al cerrar conexión: {e}")
+    # No hacer nada - dejar que SQLAlchemy maneje el cierre
+    pass
+
+@event.listens_for(engine, "handle_error")
+def receive_handle_error(exception_context):
+    """Manejar errores de conexión de forma inteligente"""
+    exception = exception_context.original_exception
+    
+    # Errores de conexión que deben invalidar la conexión del pool
+    if isinstance(exception, Exception):
+        error_msg = str(exception).lower()
+        if any(err in error_msg for err in [
+            'broken pipe', 
+            'network error', 
+            'connection reset',
+            'connection closed',
+            'server closed the connection',
+            'ssl connection has been closed'
+        ]):
+            # Invalidar la conexión para que se cree una nueva
+            if exception_context.connection_record:
+                exception_context.connection_record.invalidate()
+            logger.warning(f"Conexión invalidada debido a: {exception}")
 
 # Crear sesión local
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
@@ -77,12 +94,23 @@ Base = declarative_base()
 
 
 def get_db():
-    """Función para obtener la sesión de la base de datos"""
+    """Función para obtener la sesión de la base de datos con manejo de errores"""
     db = SessionLocal()
     try:
         yield db
+    except Exception as e:
+        # Rollback en caso de error
+        db.rollback()
+        logger.error(f"Error en sesión de base de datos: {e}")
+        raise
     finally:
-        db.close()
+        # Cerrar sesión de forma segura
+        try:
+            db.close()
+        except Exception as e:
+            # Suprimir errores al cerrar (conexión ya cerrada)
+            if "broken pipe" not in str(e).lower() and "network error" not in str(e).lower():
+                logger.warning(f"Error al cerrar sesión: {e}")
 
 
 def get_pool_status():

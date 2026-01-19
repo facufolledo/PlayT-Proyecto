@@ -211,7 +211,7 @@ export default function TorneosNuevo() {
                     <div className="flex items-center gap-1.5 md:gap-2 text-textSecondary">
                       <Users size={12} className="flex-shrink-0 md:w-4 md:h-4" />
                       <span className="text-[10px] md:text-sm">
-                        {torneo.parejas_inscritas || 0} / {torneo.max_parejas} parejas
+                        {torneo.parejas_inscritas || 0} parejas inscritas
                       </span>
                     </div>
                   </div>
@@ -223,20 +223,6 @@ export default function TorneosNuevo() {
                       <p className="text-base md:text-lg font-black text-accent">${torneo.premio}</p>
                     </div>
                   )}
-
-                  {/* Progreso */}
-                  <div className="pt-1 md:pt-2">
-                    <div className="h-1.5 md:h-2 bg-background rounded-full overflow-hidden">
-                      <div
-                        className="h-full bg-gradient-to-r from-primary to-accent transition-all"
-                        style={{
-                          width: `${
-                            ((torneo.parejas_inscritas || 0) / torneo.max_parejas) * 100
-                          }%`,
-                        }}
-                      />
-                    </div>
-                  </div>
                 </div>
               </Card>
             </motion.div>
