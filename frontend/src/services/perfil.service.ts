@@ -79,6 +79,10 @@ class PerfilService {
         if (response.status === 404) {
           throw new Error(`El usuario @${username} no fue encontrado`);
         }
+        if (response.status === 500) {
+          // Error 500 - probablemente el backend está desplegando cambios
+          throw new Error(`El perfil está temporalmente no disponible. Por favor intenta de nuevo en unos segundos.`);
+        }
         throw new Error(`Error ${response.status}: ${response.statusText}`);
       }
 
@@ -90,7 +94,7 @@ class PerfilService {
         message: error.message
       });
       
-      if (error.message.includes('no fue encontrado')) {
+      if (error.message.includes('no fue encontrado') || error.message.includes('temporalmente no disponible')) {
         throw error;
       }
       throw new Error('Error al cargar el perfil del usuario');
