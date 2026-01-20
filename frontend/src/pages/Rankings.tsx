@@ -287,11 +287,18 @@ export default function Rankings() {
                       </td>
                       <td className="py-2 md:py-4 px-2 md:px-4">
                         <button 
-                          onClick={() => navigate(`/jugador/${jugador.nombre_usuario}`)}
+                          onClick={() => {
+                            // Navegar por username si existe, sino por ID
+                            if (jugador.nombre_usuario && jugador.nombre_usuario.trim() !== '') {
+                              navigate(`/jugador/${jugador.nombre_usuario}`);
+                            } else if (jugador.id_usuario || jugador.id) {
+                              navigate(`/perfil/${jugador.id_usuario || jugador.id}`);
+                            }
+                          }}
                           className="text-left hover:opacity-80 transition-opacity"
                         >
                           <p className="text-textPrimary font-bold text-xs md:text-base truncate max-w-[120px] md:max-w-none hover:text-primary transition-colors">{nombreCompleto}</p>
-                          <p className="text-textSecondary text-[10px] md:text-xs truncate max-w-[120px] md:max-w-none">@{jugador.nombre_usuario}</p>
+                          <p className="text-textSecondary text-[10px] md:text-xs truncate max-w-[120px] md:max-w-none">@{jugador.nombre_usuario || 'sin-usuario'}</p>
                         </button>
                       </td>
                       <td className="py-2 md:py-4 px-1 md:px-4 text-center hidden md:table-cell">

@@ -47,11 +47,12 @@ export default function UserLink({
   // Determinar la URL de destino
   let destino = '/perfil';
   if (!esUsuarioActual) {
-    if (nombreUsuario && nombreUsuario.trim() !== '') {
+    // Priorizar username si existe y no está vacío
+    if (nombreUsuario && nombreUsuario.trim() !== '' && nombreUsuario !== 'sin-usuario') {
       // Usar la nueva ruta por username
       destino = `/jugador/${nombreUsuario}`;
     } else if (tieneIdValido) {
-      // Fallback a ID si no hay username
+      // Fallback a ID si no hay username válido
       destino = `/perfil/${userIdNum}`;
     }
   }
