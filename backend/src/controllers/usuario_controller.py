@@ -495,6 +495,7 @@ async def obtener_perfil_publico(
     Obtiene el perfil público de un usuario por ID (OPTIMIZADO)
     """
     # OPTIMIZACIÓN: Query única con joins
+    # IMPORTANTE: Usar outerjoin para perfil_usuario porque algunos usuarios pueden no tener perfil
     resultado = db.query(
         Usuario.id_usuario,
         Usuario.nombre_usuario,
@@ -510,7 +511,7 @@ async def obtener_perfil_publico(
         PerfilUsuario.mano_habil,
         PerfilUsuario.url_avatar,
         Categoria.nombre.label('categoria_nombre')
-    ).join(
+    ).outerjoin(
         PerfilUsuario, Usuario.id_usuario == PerfilUsuario.id_usuario
     ).outerjoin(
         Categoria, Usuario.id_categoria == Categoria.id_categoria
@@ -521,15 +522,20 @@ async def obtener_perfil_publico(
     if not resultado:
         raise HTTPException(status_code=404, detail="Usuario no encontrado")
     
+    # Manejar caso donde no hay perfil (nombre y apellido pueden ser None)
+    nombre = resultado.nombre or "Usuario"
+    apellido = resultado.apellido or ""
+    nombre_completo = f"{nombre} {apellido}".strip()
+    
     return {
         "id_usuario": resultado.id_usuario,
         "nombre_usuario": resultado.nombre_usuario,
-        "nombre": resultado.nombre,
-        "apellido": resultado.apellido,
-        "nombre_completo": f"{resultado.nombre} {resultado.apellido}",
+        "nombre": nombre,
+        "apellido": apellido,
+        "nombre_completo": nombre_completo,
         "sexo": resultado.sexo,
-        "ciudad": resultado.ciudad,
-        "pais": resultado.pais,
+        "ciudad": resultado.ciudad or "",
+        "pais": resultado.pais or "Argentina",
         "rating": resultado.rating or 1200,
         "partidos_jugados": resultado.partidos_jugados or 0,
         "categoria": resultado.categoria_nombre,
@@ -631,6 +637,7 @@ async def get_perfil_publico_por_username(
         username = username.strip().lower()
         
         # OPTIMIZACIÓN: Query única con joins (case insensitive)
+        # IMPORTANTE: Usar outerjoin para perfil_usuario porque algunos usuarios pueden no tener perfil
         resultado = db.query(
             Usuario.id_usuario,
             Usuario.nombre_usuario,
@@ -647,7 +654,7 @@ async def get_perfil_publico_por_username(
             PerfilUsuario.mano_habil,
             PerfilUsuario.url_avatar,
             Categoria.nombre.label('categoria_nombre')
-        ).join(
+        ).outerjoin(
             PerfilUsuario, Usuario.id_usuario == PerfilUsuario.id_usuario
         ).outerjoin(
             Categoria, Usuario.id_categoria == Categoria.id_categoria
@@ -661,15 +668,20 @@ async def get_perfil_publico_por_username(
                 detail=f"Usuario '{username}' no encontrado"
             )
         
+        # Manejar caso donde no hay perfil (nombre y apellido pueden ser None)
+        nombre = resultado.nombre or "Usuario"
+        apellido = resultado.apellido or ""
+        nombre_completo = f"{nombre} {apellido}".strip()
+        
         return {
             "id_usuario": resultado.id_usuario,
             "nombre_usuario": resultado.nombre_usuario,
-            "nombre": resultado.nombre,
-            "apellido": resultado.apellido,
-            "nombre_completo": f"{resultado.nombre} {resultado.apellido}",
+            "nombre": nombre,
+            "apellido": apellido,
+            "nombre_completo": nombre_completo,
             "sexo": resultado.sexo,
-            "ciudad": resultado.ciudad,
-            "pais": resultado.pais,
+            "ciudad": resultado.ciudad or "",
+            "pais": resultado.pais or "Argentina",
             "rating": resultado.rating or 1200,
             "partidos_jugados": resultado.partidos_jugados or 0,
             "categoria": resultado.categoria_nombre,
@@ -708,6 +720,7 @@ async def buscar_usuarios_publico(
         search_term = f"%{q.strip().lower()}%"
         
         # OPTIMIZACIÓN: Query única con joins incluyendo categoría
+        # IMPORTANTE: Usar outerjoin para perfil_usuario porque algunos usuarios pueden no tener perfil
         resultados = db.query(
             Usuario.id_usuario,
             Usuario.nombre_usuario,
@@ -720,7 +733,7 @@ async def buscar_usuarios_publico(
             PerfilUsuario.ciudad,
             PerfilUsuario.url_avatar,
             Categoria.nombre.label('categoria_nombre')
-        ).join(
+        ).outerjoin(
             PerfilUsuario, Usuario.id_usuario == PerfilUsuario.id_usuario
         ).outerjoin(
             Categoria, Usuario.id_categoria == Categoria.id_categoria
@@ -735,16 +748,18 @@ async def buscar_usuarios_publico(
         # Procesar resultados en memoria
         resultado = []
         for row in resultados:
+            nombre = row.nombre or "Usuario"
+            apellido = row.apellido or ""
             resultado.append({
                 "id_usuario": row.id_usuario,
                 "nombre_usuario": row.nombre_usuario,
-                "nombre": row.nombre,
-                "apellido": row.apellido,
-                "nombre_completo": f"{row.nombre} {row.apellido}",
+                "nombre": nombre,
+                "apellido": apellido,
+                "nombre_completo": f"{nombre} {apellido}".strip(),
                 "rating": row.rating or 1200,
                 "partidos_jugados": row.partidos_jugados or 0,
                 "categoria": row.categoria_nombre,
-                "ciudad": row.ciudad,
+                "ciudad": row.ciudad or "",
                 "foto_perfil": row.url_avatar,
                 "fecha_registro": row.creado_en.isoformat() if row.creado_en else None
             })
