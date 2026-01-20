@@ -645,7 +645,7 @@ async def get_perfil_publico_por_username(
             Usuario.rating,
             Usuario.partidos_jugados,
             Usuario.id_categoria,
-            Usuario.fecha_registro,
+            Usuario.creado_en,
             PerfilUsuario.nombre,
             PerfilUsuario.apellido,
             PerfilUsuario.ciudad,
@@ -689,7 +689,7 @@ async def get_perfil_publico_por_username(
             "posicion_preferida": resultado.posicion_preferida,
             "mano_dominante": resultado.mano_habil,
             "foto_perfil": resultado.url_avatar,
-            "fecha_registro": resultado.fecha_registro.isoformat() if resultado.fecha_registro else None,
+            "fecha_registro": resultado.creado_en.isoformat() if resultado.creado_en else None,
             "activo": True  # Asumimos activo por defecto
         }
         
