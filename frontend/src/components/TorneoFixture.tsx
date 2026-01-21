@@ -30,6 +30,11 @@ export default function TorneoFixture({ torneoId, esOrganizador }: TorneoFixture
   const [partidosNoProgramados, setPartidosNoProgramados] = useState<any[]>([]);
 
   useEffect(() => {
+    // Guard: Solo cargar si torneoId es válido
+    if (!torneoId || isNaN(torneoId) || torneoId <= 0) {
+      setLoading(false);
+      return;
+    }
     cargarDatos();
   }, [torneoId]);
 
@@ -55,6 +60,8 @@ export default function TorneoFixture({ torneoId, esOrganizador }: TorneoFixture
   }, []);
 
   const cargarDatos = async () => {
+    if (!torneoId || isNaN(torneoId) || torneoId <= 0) return;
+    
     try {
       setLoading(true);
       const [partidosResponse, zonasData, canchasData, categoriasData] = await Promise.all([

@@ -36,10 +36,20 @@ export default function TorneoCategorias({ torneoId, esOrganizador, onCategoriaS
   const [expandido, setExpandido] = useState(true);
 
   useEffect(() => {
+    // Guard: Solo cargar si torneoId es válido
+    if (!torneoId || isNaN(torneoId) || torneoId <= 0) {
+      setLoading(false);
+      return;
+    }
     cargarCategorias();
   }, [torneoId]);
 
   const cargarCategorias = async () => {
+    // Double check por si acaso
+    if (!torneoId || isNaN(torneoId) || torneoId <= 0) {
+      return;
+    }
+    
     try {
       setLoading(true);
       const data = await torneoService.listarCategorias(torneoId);

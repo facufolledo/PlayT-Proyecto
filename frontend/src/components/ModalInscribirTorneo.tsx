@@ -103,6 +103,11 @@ export default function ModalInscribirTorneo({
   };
 
   const cargarCategorias = async () => {
+    if (!torneoId || isNaN(torneoId) || torneoId <= 0) {
+      setLoadingCategorias(false);
+      return;
+    }
+    
     try {
       setLoadingCategorias(true);
       const cats = await torneoService.listarCategorias(torneoId);

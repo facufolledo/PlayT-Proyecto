@@ -39,12 +39,20 @@ export default function TorneoPlayoffs({ torneoId, esOrganizador }: TorneoPlayof
   const [categoriaFiltro, setCategoriaFiltro] = useState<number | null>(null);
 
   useEffect(() => {
+    // Guard: Solo cargar si torneoId es válido
+    if (!torneoId || isNaN(torneoId) || torneoId <= 0) {
+      setLoading(false);
+      return;
+    }
+    
     torneoService.listarCategorias(torneoId)
       .then(setCategorias)
       .catch(() => setCategorias([]));
   }, [torneoId]);
 
   const cargarPlayoffs = useCallback(async (forzar: boolean = false) => {
+    if (!torneoId || isNaN(torneoId) || torneoId <= 0) return;
+    
     const cached = playoffsCache[torneoId];
     
     if (!forzar && cached && Date.now() - cached.timestamp < CACHE_TTL) {

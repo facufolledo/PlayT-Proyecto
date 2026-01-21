@@ -33,6 +33,11 @@ export default function TorneoZonas({ torneoId, esOrganizador }: TorneoZonasProp
   const [categoriaFiltro, setCategoriaFiltro] = useState<number | null>(null);
 
   useEffect(() => {
+    // Guard: Solo cargar si torneoId es válido
+    if (!torneoId || isNaN(torneoId) || torneoId <= 0) {
+      setLoading(false);
+      return;
+    }
     cargarDatos();
     cargarCategorias();
   }, [torneoId]);
@@ -45,6 +50,8 @@ export default function TorneoZonas({ torneoId, esOrganizador }: TorneoZonasProp
   }, [categorias]);
 
   const cargarCategorias = async () => {
+    if (!torneoId || isNaN(torneoId) || torneoId <= 0) return;
+    
     try {
       const cats = await torneoService.listarCategorias(torneoId);
       setCategorias(cats);
@@ -54,6 +61,8 @@ export default function TorneoZonas({ torneoId, esOrganizador }: TorneoZonasProp
   };
 
   const cargarDatos = async (forzar: boolean = false) => {
+    if (!torneoId || isNaN(torneoId) || torneoId <= 0) return;
+    
     // Verificar cache
     const cached = zonasCache[torneoId];
     if (!forzar && cached && Date.now() - cached.timestamp < CACHE_TTL) {
