@@ -262,6 +262,11 @@ class TorneoService {
 
   // Categorías
   async listarCategorias(torneoId: number): Promise<Categoria[]> {
+    // Validar que torneoId sea un número válido
+    if (!torneoId || isNaN(torneoId) || torneoId <= 0) {
+      console.warn('listarCategorias: torneoId inválido', torneoId);
+      return [];
+    }
     const response = await axios.get(`${API_URL}/torneos/${torneoId}/categorias`);
     return response.data;
   }
@@ -365,6 +370,11 @@ class TorneoService {
   }
 
   async listarZonas(torneoId: number): Promise<any[]> {
+    // Validar que torneoId sea un número válido
+    if (!torneoId || isNaN(torneoId) || torneoId <= 0) {
+      console.warn('listarZonas: torneoId inválido', torneoId);
+      return [];
+    }
     const response = await axios.get(`${API_URL}/torneos/${torneoId}/zonas`);
     return response.data;
   }
