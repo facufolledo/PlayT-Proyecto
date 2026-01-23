@@ -193,53 +193,67 @@ class TorneoZonaHorariosService:
     
     @staticmethod
     def _extraer_slots_disponibles(
-        disponibilidad_pareja: Dict,
+        disponibilidad_pareja: any,  # Puede ser Dict o List
         horarios_torneo: Dict
     ) -> Set[Tuple[str, str]]:
         """
         Extrae slots de tiempo disponibles para una pareja
         
+        IMPORTANTE: disponibilidad_pareja ahora contiene RESTRICCIONES (horarios NO disponibles)
+        
         Returns:
             Set de tuplas (dia, hora) ej: {('sabado', '18:00'), ('domingo', '10:00')}
         """
-        slots = set()
+        # Generar TODOS los slots del torneo primero
+        todos_slots = set()
+        for tipo_dia, franjas in horarios_torneo.items():
+            if not franjas:
+                continue
+            for franja in franjas:
+                desde = franja.get('desde', '08:00')
+                hasta = franja.get('hasta', '23:00')
+                # Generar slots cada 50 minutos
+                hora_actual = TorneoZonaHorariosService._parse_hora(desde)
+                hora_fin = TorneoZonaHorariosService._parse_hora(hasta)
+                while hora_actual < hora_fin:
+                    todos_slots.add((tipo_dia, hora_actual.strftime('%H:%M')))
+                    hora_actual += timedelta(minutes=50)
         
-        # Si la pareja no tiene disponibilidad, asumimos disponible todo el torneo
+        # Si la pareja no tiene restricciones, está disponible en todos los horarios
         if not disponibilidad_pareja:
-            # Generar todos los slots del torneo
-            for tipo_dia, franjas in horarios_torneo.items():
-                if not franjas:
-                    continue
-                for franja in franjas:
-                    desde = franja.get('desde', '08:00')
-                    hasta = franja.get('hasta', '23:00')
-                    # Generar slots cada 50 minutos
-                    hora_actual = TorneoZonaHorariosService._parse_hora(desde)
-                    hora_fin = TorneoZonaHorariosService._parse_hora(hasta)
-                    while hora_actual < hora_fin:
-                        slots.add((tipo_dia, hora_actual.strftime('%H:%M')))
-                        hora_actual += timedelta(minutes=50)
-            return slots
+            return todos_slots
         
-        # Procesar disponibilidad específica de la pareja
-        # Formato: {"franjas": [{"dias": ["sabado"], "horaInicio": "17:00", "horaFin": "22:00"}]}
-        franjas_pareja = disponibilidad_pareja.get('franjas', [])
+        # Extraer restricciones (horarios NO disponibles)
+        restricciones = set()
         
-        for franja in franjas_pareja:
+        # Manejar ambos formatos: array directo o objeto con "franjas"
+        franjas_restricciones = []
+        if isinstance(disponibilidad_pareja, list):
+            # Formato nuevo: array directo
+            franjas_restricciones = disponibilidad_pareja
+        elif isinstance(disponibilidad_pareja, dict):
+            # Formato antiguo: objeto con "franjas"
+            franjas_restricciones = disponibilidad_pareja.get('franjas', [])
+        
+        # Procesar restricciones
+        for franja in franjas_restricciones:
             dias = franja.get('dias', [])
             hora_inicio = franja.get('horaInicio', '08:00')
             hora_fin = franja.get('horaFin', '23:00')
             
-            # Generar slots para cada día
+            # Generar slots RESTRINGIDOS para cada día
             for dia in dias:
                 hora_actual = TorneoZonaHorariosService._parse_hora(hora_inicio)
                 hora_limite = TorneoZonaHorariosService._parse_hora(hora_fin)
                 
                 while hora_actual < hora_limite:
-                    slots.add((dia, hora_actual.strftime('%H:%M')))
+                    restricciones.add((dia, hora_actual.strftime('%H:%M')))
                     hora_actual += timedelta(minutes=50)
         
-        return slots
+        # Retornar slots disponibles = todos los slots - restricciones
+        slots_disponibles = todos_slots - restricciones
+        
+        return slots_disponibles
     
     @staticmethod
     def _parse_hora(hora_str: str) -> datetime:
