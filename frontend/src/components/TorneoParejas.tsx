@@ -1,10 +1,11 @@
 import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { Users, Check, X, Trash2, AlertCircle, Filter, RefreshCw } from 'lucide-react';
+import { Users, Check, X, Trash2, AlertCircle, Filter, RefreshCw, Clock } from 'lucide-react';
 import { torneoService, Pareja, Categoria } from '../services/torneo.service';
 import Card from './Card';
 import Button from './Button';
 import { PlayerLink } from './UserLink';
+import ModalHorariosPareja from './ModalHorariosPareja';
 
 interface TorneoParejaProps {
   torneoId: number;
@@ -27,6 +28,10 @@ export default function TorneoParejas({
   // Modal cambiar categoría
   const [parejaEditando, setParejaEditando] = useState<Pareja | null>(null);
   const [nuevaCategoriaId, setNuevaCategoriaId] = useState<number | null>(null);
+  
+  // Modal horarios
+  const [parejaHorarios, setParejaHorarios] = useState<any>(null);
+  const [modalHorariosOpen, setModalHorariosOpen] = useState(false);
 
   useEffect(() => {
     // Guard: Solo cargar si torneoId es válido
@@ -117,6 +122,14 @@ export default function TorneoParejas({
     setNuevaCategoriaId((pareja as any).categoria_id || null);
     // Recargar categorías para tener el conteo actualizado
     await cargarCategorias();
+  };
+
+  const verHorariosPareja = (pareja: Pareja) => {
+    setParejaHorarios({
+      nombre: pareja.nombre_pareja || 'Pareja',
+      disponibilidad_horaria: (pareja as any).disponibilidad_horaria
+    });
+    setModalHorariosOpen(true);
   };
 
   // Filtrar por categoría
@@ -275,6 +288,15 @@ export default function TorneoParejas({
                 {/* Botones de acción para organizador */}
                 {esOrganizador && (
                   <div className="flex gap-1">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => verHorariosPareja(pareja)}
+                      className="p-2 hover:bg-primary/10 hover:text-primary"
+                      title="Ver horarios disponibles"
+                    >
+                      <Clock size={16} />
+                    </Button>
                     {categorias.length > 1 && (
                       <Button
                         variant="ghost"
@@ -426,6 +448,18 @@ export default function TorneoParejas({
             </div>
           </motion.div>
         </div>
+      )}
+
+      {/* Modal Horarios */}
+      {parejaHorarios && (
+        <ModalHorariosPareja
+          isOpen={modalHorariosOpen}
+          onClose={() => {
+            setModalHorariosOpen(false);
+            setParejaHorarios(null);
+          }}
+          pareja={parejaHorarios}
+        />
       )}
     </Card>
   );

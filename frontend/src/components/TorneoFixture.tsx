@@ -6,6 +6,7 @@ import Card from './Card';
 import Button from './Button';
 import SkeletonLoader from './SkeletonLoader';
 import ModalCargarResultado from './ModalCargarResultado';
+import ModalHorariosPareja from './ModalHorariosPareja';
 import html2canvas from 'html2canvas';
 
 interface TorneoFixtureProps {
@@ -28,6 +29,8 @@ export default function TorneoFixture({ torneoId, esOrganizador }: TorneoFixture
   const [categorias, setCategorias] = useState<Categoria[]>([]);
   const [categoriaFiltro, setCategoriaFiltro] = useState<number | null>(null);
   const [partidosNoProgramados, setPartidosNoProgramados] = useState<any[]>([]);
+  const [parejaHorarios, setParejaHorarios] = useState<any>(null);
+  const [modalHorariosOpen, setModalHorariosOpen] = useState(false);
 
   useEffect(() => {
     // Guard: Solo cargar si torneoId es válido
@@ -206,6 +209,17 @@ export default function TorneoFixture({ torneoId, esOrganizador }: TorneoFixture
   const abrirModalResultado = (partido: any) => {
     setPartidoSeleccionado(partido);
     setModalResultadoOpen(true);
+  };
+
+  const verHorariosPareja = (partido: any, pareja: 'pareja1' | 'pareja2') => {
+    const nombre = pareja === 'pareja1' ? partido.pareja1_nombre : partido.pareja2_nombre;
+    const disponibilidad = pareja === 'pareja1' ? partido.pareja1_disponibilidad : partido.pareja2_disponibilidad;
+    
+    setParejaHorarios({
+      nombre: nombre || 'Pareja',
+      disponibilidad_horaria: disponibilidad
+    });
+    setModalHorariosOpen(true);
   };
 
   const handleResultadoCargado = (partidoActualizado?: any) => {
@@ -650,11 +664,20 @@ export default function TorneoFixture({ torneoId, esOrganizador }: TorneoFixture
                                 {partido.pareja1_nombre || `Pareja ${partido.pareja1_id}`}
                               </span>
                             </div>
-                            {partido.resultado_padel && (
-                              <span className={`text-xl md:text-2xl font-bold ml-2 ${ganadorA ? 'text-green-500' : 'text-textSecondary'}`}>
-                                {setsEquipoA}
-                              </span>
-                            )}
+                            <div className="flex items-center gap-2">
+                              {partido.resultado_padel && (
+                                <span className={`text-xl md:text-2xl font-bold ${ganadorA ? 'text-green-500' : 'text-textSecondary'}`}>
+                                  {setsEquipoA}
+                                </span>
+                              )}
+                              <button
+                                onClick={() => verHorariosPareja(partido, 'pareja1')}
+                                className="p-1 hover:bg-primary/10 rounded transition-colors text-primary hover:text-accent flex-shrink-0"
+                                title="Ver horarios disponibles"
+                              >
+                                <Clock size={14} className="md:w-4 md:h-4" />
+                              </button>
+                            </div>
                           </div>
 
                           {/* Pareja 2 */}
@@ -667,11 +690,20 @@ export default function TorneoFixture({ torneoId, esOrganizador }: TorneoFixture
                                 {partido.pareja2_nombre || `Pareja ${partido.pareja2_id}`}
                               </span>
                             </div>
-                            {partido.resultado_padel && (
-                              <span className={`text-xl md:text-2xl font-bold ml-2 ${ganadorB ? 'text-green-500' : 'text-textSecondary'}`}>
-                                {setsEquipoB}
-                              </span>
-                            )}
+                            <div className="flex items-center gap-2">
+                              {partido.resultado_padel && (
+                                <span className={`text-xl md:text-2xl font-bold ${ganadorB ? 'text-green-500' : 'text-textSecondary'}`}>
+                                  {setsEquipoB}
+                                </span>
+                              )}
+                              <button
+                                onClick={() => verHorariosPareja(partido, 'pareja2')}
+                                className="p-1 hover:bg-primary/10 rounded transition-colors text-primary hover:text-accent flex-shrink-0"
+                                title="Ver horarios disponibles"
+                              >
+                                <Clock size={14} className="md:w-4 md:h-4" />
+                              </button>
+                            </div>
                           </div>
                         </div>
 
@@ -727,6 +759,18 @@ export default function TorneoFixture({ torneoId, esOrganizador }: TorneoFixture
           partido={partidoSeleccionado}
           torneoId={torneoId}
           onResultadoCargado={handleResultadoCargado}
+        />
+      )}
+
+      {/* Modal Horarios */}
+      {parejaHorarios && (
+        <ModalHorariosPareja
+          isOpen={modalHorariosOpen}
+          onClose={() => {
+            setModalHorariosOpen(false);
+            setParejaHorarios(null);
+          }}
+          pareja={parejaHorarios}
         />
       )}
     </div>

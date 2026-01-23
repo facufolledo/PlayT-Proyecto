@@ -1,11 +1,12 @@
 import { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
-import { Trophy, Users, Target, AlertCircle, X, RefreshCw, Calendar, Filter } from 'lucide-react';
+import { Trophy, Users, Target, AlertCircle, X, RefreshCw, Calendar, Filter, Clock } from 'lucide-react';
 import { torneoService, Categoria } from '../services/torneo.service';
 import Card from './Card';
 import Button from './Button';
 import SkeletonLoader from './SkeletonLoader';
 import { PlayerLink } from './UserLink';
+import ModalHorariosPareja from './ModalHorariosPareja';
 
 interface TorneoZonasProps {
   torneoId: number;
@@ -31,6 +32,8 @@ export default function TorneoZonas({ torneoId, esOrganizador }: TorneoZonasProp
   const [error, setError] = useState<string | null>(null);
   const [categorias, setCategorias] = useState<Categoria[]>([]);
   const [categoriaFiltro, setCategoriaFiltro] = useState<number | null>(null);
+  const [parejaHorarios, setParejaHorarios] = useState<any>(null);
+  const [modalHorariosOpen, setModalHorariosOpen] = useState(false);
 
   useEffect(() => {
     // Guard: Solo cargar si torneoId es válido
@@ -247,6 +250,15 @@ export default function TorneoZonas({ torneoId, esOrganizador }: TorneoZonasProp
       ...(zonaId && { zonaId }),
       ...(categoriaId && { categoriaId })
     }));
+  };
+
+  // Función para abrir modal de horarios
+  const verHorariosPareja = (pareja: any) => {
+    setParejaHorarios({
+      nombre: pareja.pareja_nombre || 'Pareja',
+      disponibilidad_horaria: pareja.disponibilidad_horaria
+    });
+    setModalHorariosOpen(true);
   };
 
   // Filtrar tablas por categoría (SIEMPRE filtrar, nunca mostrar todas)
@@ -491,6 +503,9 @@ export default function TorneoZonas({ torneoId, esOrganizador }: TorneoZonasProp
                       <th className="text-center py-2 md:py-3 px-2 text-textSecondary text-[10px] md:text-xs font-bold uppercase">
                         Pts
                       </th>
+                      <th className="text-center py-2 md:py-3 px-2 text-textSecondary text-[10px] md:text-xs font-bold uppercase">
+                        
+                      </th>
                     </tr>
                   </thead>
                   <tbody>
@@ -605,6 +620,15 @@ export default function TorneoZonas({ torneoId, esOrganizador }: TorneoZonasProp
                             {item.puntos}
                           </span>
                         </td>
+                        <td className="py-2 md:py-3 px-2 text-center">
+                          <button
+                            onClick={() => verHorariosPareja(item)}
+                            className="p-1.5 hover:bg-primary/10 rounded-lg transition-colors text-primary hover:text-accent"
+                            title="Ver horarios disponibles"
+                          >
+                            <Clock size={16} />
+                          </button>
+                        </td>
                       </tr>
                     ))}
                   </tbody>
@@ -645,6 +669,18 @@ export default function TorneoZonas({ torneoId, esOrganizador }: TorneoZonasProp
           </span>
         </div>
       </div>
+
+      {/* Modal Horarios */}
+      {parejaHorarios && (
+        <ModalHorariosPareja
+          isOpen={modalHorariosOpen}
+          onClose={() => {
+            setModalHorariosOpen(false);
+            setParejaHorarios(null);
+          }}
+          pareja={parejaHorarios}
+        />
+      )}
     </div>
   );
 }
