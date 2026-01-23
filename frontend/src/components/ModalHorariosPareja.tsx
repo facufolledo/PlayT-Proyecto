@@ -25,7 +25,13 @@ export default function ModalHorariosPareja({
       const disponibilidad = typeof pareja.disponibilidad_horaria === 'string'
         ? JSON.parse(pareja.disponibilidad_horaria)
         : pareja.disponibilidad_horaria;
-      franjas = disponibilidad?.franjas || [];
+      
+      // Manejar ambos formatos: array directo o objeto con propiedad "franjas"
+      if (Array.isArray(disponibilidad)) {
+        franjas = disponibilidad;
+      } else if (disponibilidad?.franjas && Array.isArray(disponibilidad.franjas)) {
+        franjas = disponibilidad.franjas;
+      }
     }
   } catch (error) {
     console.error('Error parseando disponibilidad horaria:', error);
@@ -60,7 +66,7 @@ export default function ModalHorariosPareja({
             </div>
             <div>
               <h3 className="text-lg font-bold text-textPrimary">
-                Horarios Disponibles
+                Restricciones Horarias
               </h3>
               <p className="text-xs text-textSecondary">{pareja.nombre}</p>
             </div>
@@ -87,25 +93,30 @@ export default function ModalHorariosPareja({
             </div>
           ) : (
             <div className="space-y-3">
-              <p className="text-xs text-textSecondary mb-3">
-                Esta pareja solo puede jugar en los siguientes horarios:
-              </p>
+              <div className="bg-red-50 border border-red-200 rounded-lg p-3 mb-3">
+                <p className="text-xs text-red-800 font-bold">
+                  🚫 Restricciones Horarias
+                </p>
+                <p className="text-xs text-red-700 mt-1">
+                  Esta pareja NO puede jugar en los siguientes horarios:
+                </p>
+              </div>
               {franjas.map((franja: any, index: number) => (
                 <motion.div
                   key={index}
                   initial={{ opacity: 0, y: 10 }}
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ delay: index * 0.05 }}
-                  className="p-3 bg-background rounded-lg border border-cardBorder"
+                  className="p-3 bg-red-50 rounded-lg border border-red-200"
                 >
                   {/* Días */}
                   <div className="flex items-center gap-2 mb-2">
-                    <Calendar size={14} className="text-accent flex-shrink-0" />
+                    <Calendar size={14} className="text-red-600 flex-shrink-0" />
                     <div className="flex flex-wrap gap-1">
                       {franja.dias?.map((dia: string, idx: number) => (
                         <span
                           key={idx}
-                          className="px-2 py-0.5 bg-accent/10 text-accent rounded text-xs font-bold"
+                          className="px-2 py-0.5 bg-red-100 text-red-700 rounded text-xs font-bold"
                         >
                           {diasMap[dia.toLowerCase()] || dia}
                         </span>
@@ -115,8 +126,8 @@ export default function ModalHorariosPareja({
 
                   {/* Horario */}
                   <div className="flex items-center gap-2">
-                    <Clock size={14} className="text-primary flex-shrink-0" />
-                    <span className="text-sm text-textPrimary font-medium">
+                    <Clock size={14} className="text-red-600 flex-shrink-0" />
+                    <span className="text-sm text-red-800 font-medium">
                       {franja.horaInicio} - {franja.horaFin}
                     </span>
                   </div>

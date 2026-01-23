@@ -14,13 +14,12 @@ router = APIRouter(prefix="/ranking", tags=["Ranking"])
 
 
 def _get_ranking_from_db(db: Session, limit: int, offset: int, sexo: Optional[str]) -> List[dict]:
-    """Lógica de ranking extraída para poder cachear"""
+    """Lógica de ranking extraída para poder cachear - OPTIMIZADA"""
     from ..models.driveplus_models import PartidoJugador, ResultadoPartido, Partido, HistorialRating
     from ..models.torneo_models import TorneoPareja
     from sqlalchemy import text
     
     # Subquery para calcular partidos ganados desde historial_rating
-    # Esta es la fuente de verdad para victorias (incluye amistosos y torneos)
     partidos_ganados_subq = (
         db.query(
             HistorialRating.id_usuario,
@@ -35,7 +34,20 @@ def _get_ranking_from_db(db: Session, limit: int, offset: int, sexo: Optional[st
         .subquery()
     )
     
-    # Query principal con JOIN a la subquery
+    # Subquery para calcular tendencia (últimos 5 partidos)
+    # Usamos una window function para obtener los últimos 5 partidos por usuario
+    tendencia_subq = (
+        db.query(
+            HistorialRating.id_usuario,
+            func.sum(HistorialRating.delta).label("suma_deltas")
+        )
+        .join(Partido, HistorialRating.id_partido == Partido.id_partido)
+        .filter(Partido.estado.in_(["finalizado", "confirmado"]))
+        .group_by(HistorialRating.id_usuario)
+        .subquery()
+    )
+    
+    # Query principal con JOIN a las subqueries
     query = (
         db.query(
             Usuario.id_usuario,
@@ -49,11 +61,13 @@ def _get_ranking_from_db(db: Session, limit: int, offset: int, sexo: Optional[st
             PerfilUsuario.pais,
             PerfilUsuario.url_avatar,
             Categoria.nombre.label("categoria_nombre"),
-            func.coalesce(partidos_ganados_subq.c.partidos_ganados, 0).label("partidos_ganados")
+            func.coalesce(partidos_ganados_subq.c.partidos_ganados, 0).label("partidos_ganados"),
+            func.coalesce(tendencia_subq.c.suma_deltas, 0).label("suma_deltas")
         )
         .join(PerfilUsuario, Usuario.id_usuario == PerfilUsuario.id_usuario, isouter=True)
         .join(Categoria, Usuario.id_categoria == Categoria.id_categoria, isouter=True)
         .join(partidos_ganados_subq, Usuario.id_usuario == partidos_ganados_subq.c.id_usuario, isouter=True)
+        .join(tendencia_subq, Usuario.id_usuario == tendencia_subq.c.id_usuario, isouter=True)
     )
     
     # Filtrar por sexo si se especifica
@@ -66,9 +80,22 @@ def _get_ranking_from_db(db: Session, limit: int, offset: int, sexo: Optional[st
     # Ordenar y paginar
     usuarios = query.order_by(desc(Usuario.rating)).offset(offset).limit(limit).all()
     
-    # Convertir a dict para poder cachear
-    return [
-        {
+    # Convertir a dict y calcular tendencia
+    result = []
+    for u in usuarios:
+        suma_deltas = u.suma_deltas or 0
+        
+        # Calcular tendencia basada en suma de deltas
+        if suma_deltas > 10:
+            tendencia = "up"
+        elif suma_deltas < -10:
+            tendencia = "down"
+        elif suma_deltas != 0:
+            tendencia = "stable"
+        else:
+            tendencia = "neutral"
+        
+        result.append({
             "id_usuario": u.id_usuario,
             "nombre_usuario": u.nombre_usuario,
             "rating": u.rating,
@@ -80,10 +107,11 @@ def _get_ranking_from_db(db: Session, limit: int, offset: int, sexo: Optional[st
             "pais": u.pais,
             "url_avatar": u.url_avatar,
             "categoria_nombre": getattr(u, "categoria_nombre", None),
-            "partidos_ganados": u.partidos_ganados
-        }
-        for u in usuarios
-    ]
+            "partidos_ganados": u.partidos_ganados,
+            "tendencia": tendencia
+        })
+    
+    return result
 
 
 @router.get("/", response_model=List[RankingResponse])
@@ -122,29 +150,8 @@ async def get_ranking(
                 ))
             return ranking
         
-        # Cache miss - obtener de DB
+        # Cache miss - obtener de DB (ya incluye tendencia calculada)
         usuarios_data = _get_ranking_from_db(db, limit, offset, sexo)
-        
-        # Calcular tendencia para cada usuario
-        from ..models.driveplus_models import HistorialRating
-        for u in usuarios_data:
-            # Obtener últimos 5 partidos del usuario
-            ultimos_partidos = db.query(HistorialRating).filter(
-                HistorialRating.id_usuario == u["id_usuario"]
-            ).order_by(HistorialRating.creado_en.desc()).limit(5).all()
-            
-            if len(ultimos_partidos) >= 3:
-                # Calcular suma de deltas de los últimos partidos
-                suma_deltas = sum(p.delta for p in ultimos_partidos)
-                
-                if suma_deltas > 10:
-                    u["tendencia"] = "up"  # Subiendo
-                elif suma_deltas < -10:
-                    u["tendencia"] = "down"  # Bajando
-                else:
-                    u["tendencia"] = "stable"  # Estable
-            else:
-                u["tendencia"] = "neutral"  # Pocos partidos para determinar
         
         # Guardar en caché
         cache.set(cache_key, usuarios_data, CACHE_TTL["ranking"])

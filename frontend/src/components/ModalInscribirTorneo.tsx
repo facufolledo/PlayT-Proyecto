@@ -662,8 +662,6 @@ export default function ModalInscribirTorneo({
                           'Inscribir Pareja'
                         )}
                       </Button>
-                        {loading ? 'Inscribiendo...' : 'Inscribirse'}
-                      </Button>
                     </div>
                   </form>
                 </>

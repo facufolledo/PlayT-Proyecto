@@ -785,7 +785,8 @@ async def inscribir_pareja(
                 confirmado_jugador1=True,
                 confirmado_jugador2=True,  # Ambos confirmados automáticamente
                 creado_por_id=user_id,
-                observaciones=pareja_data.observaciones
+                observaciones=pareja_data.observaciones,
+                disponibilidad_horaria=getattr(pareja_data, 'disponibilidad_horaria', None)
             )
             db.add(pareja)
             db.commit()
@@ -831,6 +832,52 @@ async def inscribir_pareja(
         import traceback
         traceback.print_exc()
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
+
+
+@router.put("/{torneo_id}/parejas/{pareja_id}/restricciones")
+async def actualizar_restricciones_pareja(
+    torneo_id: int,
+    pareja_id: int,
+    restricciones: dict,  # {"disponibilidad_horaria": [{dias: [], horaInicio: "", horaFin: ""}]}
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(get_current_user)
+):
+    """
+    Permite a los jugadores de una pareja actualizar sus restricciones horarias
+    """
+    from ..models.torneo_models import TorneoPareja
+    
+    try:
+        # Buscar la pareja
+        pareja = db.query(TorneoPareja).filter(
+            TorneoPareja.id == pareja_id,
+            TorneoPareja.torneo_id == torneo_id
+        ).first()
+        
+        if not pareja:
+            raise HTTPException(status_code=404, detail="Pareja no encontrada")
+        
+        # Verificar que el usuario es parte de la pareja
+        user_id = current_user.id_usuario
+        if user_id not in [pareja.jugador1_id, pareja.jugador2_id]:
+            raise HTTPException(status_code=403, detail="No tienes permisos para editar esta pareja")
+        
+        # Actualizar restricciones
+        pareja.disponibilidad_horaria = restricciones.get('disponibilidad_horaria')
+        db.commit()
+        
+        return {
+            "mensaje": "Restricciones horarias actualizadas correctamente",
+            "pareja_id": pareja_id,
+            "disponibilidad_horaria": pareja.disponibilidad_horaria
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 @router.post("/confirmar-pareja/{codigo}")
@@ -956,6 +1003,7 @@ def listar_parejas(
                 "nombre_pareja": f"{jugador1_nombre} / {jugador2_nombre}",
                 "estado": pareja.estado.value if hasattr(pareja.estado, 'value') else str(pareja.estado).replace('EstadoPareja.', '').lower(),
                 "categoria_asignada": pareja.categoria_asignada,
+                "disponibilidad_horaria": pareja.disponibilidad_horaria,
                 "created_at": pareja.created_at.isoformat() if pareja.created_at else None
             })
         
@@ -1566,6 +1614,8 @@ def listar_partidos_torneo(
                 "pareja2_id": p.pareja2_id,
                 "pareja1_nombre": get_nombre_pareja(p.pareja1_id),
                 "pareja2_nombre": get_nombre_pareja(p.pareja2_id),
+                "pareja1_disponibilidad": parejas_dict.get(p.pareja1_id).disponibilidad_horaria if p.pareja1_id and parejas_dict.get(p.pareja1_id) else None,
+                "pareja2_disponibilidad": parejas_dict.get(p.pareja2_id).disponibilidad_horaria if p.pareja2_id and parejas_dict.get(p.pareja2_id) else None,
                 "zona_id": p.zona_id,
                 "categoria_id": getattr(p, 'categoria_id', None),
                 "fase": p.fase,

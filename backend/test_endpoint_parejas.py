@@ -1,50 +1,67 @@
 """
-Probar endpoint de parejas del torneo 17
+Test del endpoint de parejas para verificar disponibilidad_horaria
 """
+import sys
+import os
+sys.path.insert(0, os.path.dirname(__file__))
+
 import requests
 import json
 
-def test_parejas_endpoint():
-    base_url = "http://localhost:9308"  # Puerto correcto
-    torneo_id = 17
-    
-    print(f"🔍 PROBANDO ENDPOINT: GET /torneos/{torneo_id}/parejas")
-    
+API_URL = "http://localhost:8000"
+TORNEO_ID = 25
+
+def test_endpoint():
     try:
-        # Probar sin autenticación primero
-        response = requests.get(f"{base_url}/torneos/{torneo_id}/parejas")
+        url = f"{API_URL}/torneos/{TORNEO_ID}/parejas"
+        print(f"Consultando: {url}\n")
         
-        print(f"📊 Status Code: {response.status_code}")
-        print(f"📋 Headers: {dict(response.headers)}")
+        response = requests.get(url)
         
-        if response.status_code == 200:
-            data = response.json()
-            print(f"✅ Respuesta exitosa!")
-            print(f"📦 Tipo de respuesta: {type(data)}")
-            
-            if isinstance(data, list):
-                print(f"👥 Total parejas: {len(data)}")
-                if len(data) > 0:
-                    print(f"🔍 Primera pareja: {json.dumps(data[0], indent=2, default=str)}")
-                else:
-                    print("❌ Lista vacía - no hay parejas")
-            else:
-                print(f"📄 Respuesta completa: {json.dumps(data, indent=2, default=str)}")
+        if response.status_code != 200:
+            print(f"Error {response.status_code}: {response.text}")
+            return
         
-        elif response.status_code == 401:
-            print("🔒 Error 401: Requiere autenticación")
-            print("💡 El endpoint requiere token de Firebase")
+        data = response.json()
+        parejas = data if isinstance(data, list) else data.get('parejas', [])
         
-        elif response.status_code == 404:
-            print("❌ Error 404: Torneo no encontrado")
+        print(f"Total parejas: {len(parejas)}\n")
         
-        else:
-            print(f"❌ Error {response.status_code}: {response.text}")
-            
-    except requests.exceptions.ConnectionError:
-        print("❌ Error de conexión: ¿Está el backend corriendo en localhost:9308?")
+        if len(parejas) == 0:
+            print("No hay parejas en el torneo")
+            return
+        
+        # Mostrar primera pareja como ejemplo
+        primera_pareja = parejas[0]
+        print("Ejemplo de pareja (primera):")
+        print(json.dumps(primera_pareja, indent=2, ensure_ascii=False))
+        
+        # Verificar si tienen disponibilidad
+        print("\n" + "="*80)
+        print("VERIFICACION DE DISPONIBILIDAD_HORARIA:")
+        print("="*80 + "\n")
+        
+        con_disponibilidad = 0
+        
+        for pareja in parejas:
+            if pareja.get('disponibilidad_horaria'):
+                con_disponibilidad += 1
+        
+        print(f"Parejas con disponibilidad_horaria: {con_disponibilidad}/{len(parejas)}")
+        
+        # Mostrar un ejemplo con disponibilidad
+        for pareja in parejas:
+            if pareja.get('disponibilidad_horaria'):
+                print(f"\nEjemplo con disponibilidad:")
+                print(f"Pareja ID: {pareja.get('id')}")
+                print(f"Jugadores: {pareja.get('jugador1', {}).get('nombre', 'N/A')} / {pareja.get('jugador2', {}).get('nombre', 'N/A')}")
+                print(f"Disponibilidad: {json.dumps(pareja['disponibilidad_horaria'], ensure_ascii=False)}")
+                break
+        
     except Exception as e:
-        print(f"❌ Error inesperado: {e}")
+        print(f"Error: {e}")
+        import traceback
+        traceback.print_exc()
 
 if __name__ == "__main__":
-    test_parejas_endpoint()
+    test_endpoint()
